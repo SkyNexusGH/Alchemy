@@ -1,0 +1,32 @@
+[package]
+name = "ovyra"
+version = "1.0.0"
+description = "Ovyra browser — a FiveNova product"
+authors = ["SkyNexusHD"]
+edition = "2021"
+default-run = "ovyra"
+
+[[bin]]
+name = "ovyra"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `unstable` enables the multi-webview API (Window::add_child, get_webview, etc.)
+# which is what we use to give each tab/sidebar-app its own Chromium child view.
+tauri = { version = "2", features = ["devtools", "unstable"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+parking_lot = "0.12"
+url = "2"
+rand = "0.8"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

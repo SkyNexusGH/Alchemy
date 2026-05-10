@@ -1,0 +1,18 @@
+{
+  "name": "ovyra",
+  "productName": "Ovyra",
+  "version": "1.0.0",
+  "description": "Ovyra — A FiveNova browser. Glassmorphism meets Cyberpunk.",
+  "author": "SkyNexusHD (FiveNova)",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/cli": "^2.11.0"
+  }
+}

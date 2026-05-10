@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=C:\Users\Polat\Downloads\Ovyra\src-tauri\target\debug\build\webview2-com-sys-261bdfd014b6919d\out\x64
+cargo:rustc-link-lib=advapi32

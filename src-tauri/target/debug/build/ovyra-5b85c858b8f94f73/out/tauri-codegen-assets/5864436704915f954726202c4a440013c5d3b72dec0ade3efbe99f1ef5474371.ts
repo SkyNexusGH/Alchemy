@@ -1,0 +1,2 @@
+‹
+€export = Number.isNaN;

@@ -1,0 +1,4 @@
+node_modules/electron/dist/electron.exe
+src-tauri/target/debug/deps/libwindows-*.rlib
+src-tauri/target/debug/deps/ovyra.pdb
+src-tauri/target/debug/ovyra.pdb
