@@ -1,2 +1,0 @@
-‹€export = Object.getOwnPropertyDescriptor;
-

@@ -1,5 +1,0 @@
-1€'use strict';
-
-/** @type {import('./functionApply')} */
-module.exports = Function.prototype.apply;
-

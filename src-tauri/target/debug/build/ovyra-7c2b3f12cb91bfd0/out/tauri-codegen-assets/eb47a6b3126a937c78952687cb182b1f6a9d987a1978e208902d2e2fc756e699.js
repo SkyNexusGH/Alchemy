@@ -1,2 +1,0 @@
-‹€require('./').install({hookRequire: true});
-

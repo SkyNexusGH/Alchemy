@@ -1,18 +1,84 @@
 {
   "name": "ovyra",
   "productName": "Ovyra",
-  "version": "1.0.0",
-  "description": "Ovyra — A FiveNova browser. Glassmorphism meets Cyberpunk.",
-  "author": "SkyNexusHD (FiveNova)",
-  "license": "UNLICENSED",
+  "version": "0.1.0",
+  "description": "A fast, private, colorful browser.",
+  "author": "SkyNexusGH",
+  "homepage": "https://github.com/SkyNexusGH/Ovyra",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SkyNexusGH/Ovyra.git"
+  },
   "private": true,
+  "main": "out/main/index.js",
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "tauri": "tauri"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "release": "npm version patch -m \"Release %s\" && git push --follow-tags"
+  },
+  "build": {
+    "appId": "com.ovyra.browser",
+    "productName": "Ovyra",
+    "copyright": "Copyright © 2026 SkyNexusGH",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "differentialPackage": true,
+      "artifactName": "Ovyra-Setup-${version}.${ext}",
+      "shortcutName": "Ovyra",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SkyNexusGH",
+        "repo": "Ovyra",
+        "releaseType": "release"
+      }
+    ]
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/cli": "^2.11.0"
+    "@fontsource-variable/inter": "^5.3.0",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "lucide-react": "^1.66.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "zustand": "^5.0.16"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.20.3",
+    "electron-chrome-extensions": "^4.10.0",
+    "electron-chrome-web-store": "^0.13.0",
+    "electron-updater": "^6.8.11",
+    "tldts-experimental": "^7.4.19"
   }
 }

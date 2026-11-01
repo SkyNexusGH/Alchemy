@@ -1,0 +1,31 @@
+# Pushing a version tag (e.g. `npm run release`, which tags v0.1.1) builds the Windows
+# installer and publishes it as a GitHub Release. Installed copies of Ovyra find the new
+# release on their own and update in place.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx electron-vite build
+
+      - name: Build installer and publish release
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
