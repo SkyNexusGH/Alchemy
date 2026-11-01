@@ -1,5 +1,5 @@
 import './pages.css'
-import { Clock, Search, Trash2, X } from 'lucide-react'
+import { Clock, Search, Trash2, X } from '../lib/icons'
 import { useEffect, useMemo, useState } from 'react'
 import type { HistoryVisit } from '@shared/types'
 import { hostOf } from '@shared/url'

@@ -1,10 +1,24 @@
 import './overlay.css'
-import { Bookmark, CircleX, Download, FileDown, Folder, Pause, Play, Search, ShieldCheck, ShieldOff } from 'lucide-react'
+import {
+  Bookmark,
+  Check,
+  ChevronRight,
+  CircleX,
+  Download,
+  FileDown,
+  Folder,
+  Pause,
+  Play,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+  WorkspaceIcon
+} from '../lib/icons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   PANEL_PRESETS,
-  THEMES,
   type DownloadState,
+  type MenuModel,
   type OverlayPayload,
   type PanelItem,
   type ShieldsInfo,
@@ -12,6 +26,8 @@ import {
 } from '@shared/types'
 import { hostOf, toUrl } from '@shared/url'
 import { api } from '../lib/api'
+import { inkOn } from '../lib/color'
+import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { useSettings } from '../lib/settings'
 import { Palette } from './Palette'
 import { Favicon, formatBytes } from '../lib/ui'
@@ -25,13 +41,17 @@ export default function Overlay(): React.JSX.Element {
   useEffect(() => api.on('overlay:data', setPayload), [])
 
   return (
-    <div className="overlay-root" onMouseDown={(e) => e.target === e.currentTarget && api.invoke('overlay:hide')}>
+    <div
+      className={`overlay-root${payload?.kind === 'menu' ? ' full' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && api.invoke('overlay:hide')}
+    >
       {payload?.kind === 'omnibox' && <Suggestions items={payload.items} selected={payload.selected} />}
       {payload?.kind === 'downloads' && <DownloadsPanel />}
       {payload?.kind === 'shields' && <ShieldsPanel key={payload.tabId} tabId={payload.tabId} />}
       {payload?.kind === 'workspace' && <WorkspaceEditor key={payload.workspaceId ?? 'new'} id={payload.workspaceId} />}
       {payload?.kind === 'add-panel' && <AddPanel />}
       {payload?.kind === 'palette' && <PaletteHost />}
+      {payload?.kind === 'menu' && <MenuHost key={`${payload.x},${payload.y}`} items={payload.items} x={payload.x} y={payload.y} />}
     </div>
   )
 }
@@ -41,24 +61,140 @@ function PaletteHost(): React.JSX.Element {
   return <Palette onFit={(h) => void api.invoke('overlay:resize', h + 28)} />
 }
 
-const EMOJI = ['🏠', '💼', '🎮', '🎵', '📚', '🛒', '✈️', '💬', '🎨', '🧪', '📈', '❤️']
+// ---- menus -------------------------------------------------------------------------
+
+/** Ovyra's own menus: right-click, app menu, tab menu. Keyboard: arrows, Enter, Esc. */
+function MenuHost({ items, x, y }: { items: MenuModel[]; x: number; y: number }): React.JSX.Element {
+  useDismiss()
+  const choose = (item: MenuModel): void => {
+    if (item.enabled && item.type !== 'separator' && !item.submenu) void api.invoke('menu:choose', item.id)
+  }
+  return <MenuList items={items} x={x} y={y} onChoose={choose} root />
+}
+
+function MenuList({
+  items,
+  x,
+  y,
+  onChoose,
+  root,
+  side = 'right'
+}: {
+  items: MenuModel[]
+  x: number
+  y: number
+  onChoose: (item: MenuModel) => void
+  root?: boolean
+  side?: 'right' | 'left'
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ left: x, top: y, flip: false })
+  const [active, setActive] = useState(-1)
+  const [open, setOpen] = useState<number | null>(null)
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  // Keep the menu on screen: flip left/up when it would overflow the window.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    let left = side === 'left' ? x - w : x
+    let flip = side === 'left'
+    if (left + w > innerWidth - 6) {
+      left = root ? innerWidth - w - 6 : x - w
+      flip = true
+    }
+    const top = Math.max(6, Math.min(y, innerHeight - h - 6))
+    setPos({ left: Math.max(6, left), top, flip })
+  }, [x, y, side, root])
+
+  const focusable = items.map((it, i) => (it.type !== 'separator' && it.enabled ? i : -1)).filter((i) => i >= 0)
+
+  useEffect(() => {
+    if (!root) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        const idx = focusable.indexOf(active)
+        const n = focusable.length
+        setActive(e.key === 'ArrowDown' ? focusable[(idx + 1) % n] : focusable[(idx - 1 + n) % n])
+      } else if (e.key === 'ArrowRight' && items[active]?.submenu) {
+        setOpen(active)
+      } else if (e.key === 'Enter' && items[active]) {
+        if (items[active].submenu) setOpen(active)
+        else onChoose(items[active])
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  return (
+    <div className="menu" ref={ref} style={{ left: pos.left, top: pos.top }}>
+      {items.map((item, i) =>
+        item.type === 'separator' ? (
+          <div key={`sep${i}`} className="menu-sep" />
+        ) : (
+          <div
+            key={item.id}
+            ref={(el) => {
+              itemRefs.current[i] = el
+            }}
+            className={`menu-item${item.enabled ? '' : ' disabled'}${active === i ? ' active' : ''}`}
+            onMouseEnter={() => {
+              setActive(i)
+              setOpen(item.submenu && item.enabled ? i : null)
+            }}
+            onMouseUp={() => onChoose(item)}
+          >
+            <span className="menu-check">
+              {(item.type === 'checkbox' || item.type === 'radio') && item.checked && <Check size={14} strokeWidth={2.4} />}
+            </span>
+            <span className="menu-label">{item.label}</span>
+            {item.hint && <span className="menu-hint">{item.hint.replace('CmdOrCtrl', 'Ctrl')}</span>}
+            {item.submenu && <ChevronRight size={14} className="menu-arrow" />}
+            {open === i && item.submenu && <SubMenu anchor={itemRefs.current[i]} items={item.submenu} onChoose={onChoose} flip={pos.flip} />}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+function SubMenu({
+  anchor,
+  items,
+  onChoose,
+  flip
+}: {
+  anchor: HTMLDivElement | null
+  items: MenuModel[]
+  onChoose: (item: MenuModel) => void
+  flip: boolean
+}): React.JSX.Element | null {
+  if (!anchor) return null
+  const r = anchor.getBoundingClientRect()
+  return <MenuList items={items} x={flip ? r.left + 4 : r.right - 4} y={r.top - 5} onChoose={onChoose} side={flip ? 'left' : 'right'} />
+}
+
+// ---- workspace editor --------------------------------------------------------------
 
 function WorkspaceEditor({ id }: { id: string | null }): React.JSX.Element {
   const settings = useSettings((s) => s.settings)
   const existing = settings?.workspaces.find((w) => w.id === id)
   const [name, setName] = useState(existing?.name ?? '')
-  const [icon, setIcon] = useState(existing?.icon ?? '')
-  const used = new Set(settings?.workspaces.map((w) => w.theme))
-  const [theme, setTheme] = useState(existing?.theme ?? THEMES.find((t) => !used.has(t.id))?.id ?? THEMES[0].id)
+  const [icon, setIcon] = useState(existing?.icon ?? 'work')
+  const [accent, setAccent] = useState<string | null>(existing ? existing.accent : null)
   const panel = useRef<HTMLFormElement>(null)
   useDismiss()
   useFitHeight(panel)
 
   const save = async (): Promise<void> => {
-    await api.invoke('workspace:save', { id: id ?? '', name: name || 'Workspace', icon, theme })
+    await api.invoke('workspace:save', { id: id ?? '', name: name || 'Workspace', icon, accent })
     api.invoke('overlay:hide')
   }
-  const t = THEMES.find((x) => x.id === theme) ?? THEMES[0]
+  const shown = accent ?? settings?.appearance.accent ?? '#ec4856'
 
   return (
     <form
@@ -69,42 +205,17 @@ function WorkspaceEditor({ id }: { id: string | null }): React.JSX.Element {
         void save()
       }}
     >
-      <div className="wse-preview" style={{ background: `linear-gradient(135deg, ${t.a}, ${t.b})` }}>
-        <span>{icon || (name || 'W').charAt(0).toUpperCase()}</span>
+      <div className="wse-top">
+        <div className="wse-preview" style={{ background: shown, color: inkOn(shown) }}>
+          {icon ? <WorkspaceIcon id={icon} size={22} /> : <span>{(name || 'W').charAt(0).toUpperCase()}</span>}
+        </div>
+        <div className="wse-title">{existing ? 'Edit workspace' : 'New workspace'}</div>
       </div>
-      <div className="wse-title">{existing ? 'Edit workspace' : 'New workspace'}</div>
-      <input
-        className="field"
-        autoFocus
-        placeholder="Name, e.g. Work"
-        value={name}
-        maxLength={32}
-        onChange={(e) => setName(e.target.value)}
-      />
+      <input className="field" autoFocus placeholder="Name, e.g. Work" value={name} maxLength={32} onChange={(e) => setName(e.target.value)} />
       <div className="wse-label">Icon</div>
-      <div className="wse-emoji">
-        <button type="button" className={icon === '' ? 'on' : ''} onClick={() => setIcon('')}>
-          {(name || 'W').charAt(0).toUpperCase()}
-        </button>
-        {EMOJI.map((e) => (
-          <button type="button" key={e} className={icon === e ? 'on' : ''} onClick={() => setIcon(e)}>
-            {e}
-          </button>
-        ))}
-      </div>
-      <div className="wse-label">Colors</div>
-      <div className="wse-themes">
-        {THEMES.map((x) => (
-          <button
-            type="button"
-            key={x.id}
-            title={x.name}
-            className={theme === x.id ? 'on' : ''}
-            style={{ background: `linear-gradient(135deg, ${x.a}, ${x.b})`, '--glow': x.a } as React.CSSProperties}
-            onClick={() => setTheme(x.id)}
-          />
-        ))}
-      </div>
+      <WorkspaceIconPicker value={icon} name={name} onChange={setIcon} />
+      <div className="wse-label">Color</div>
+      <AccentPicker value={accent} onChange={setAccent} allowDefault size={22} />
       <div className="wse-buttons">
         <button type="button" className="btn small" onClick={() => api.invoke('overlay:hide')}>
           Cancel

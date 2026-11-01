@@ -1,5 +1,5 @@
 import { session } from 'electron'
-import { SEARCH_ENGINES, type LocalSuggestions, type Suggestion } from '@shared/types'
+import { SEARCH_ENGINES, type LocalSuggestions, type SearchEngineId, type Suggestion } from '@shared/types'
 import { toUrl } from '@shared/url'
 import { searchBookmarks } from './bookmarks'
 import { inlineCandidate, searchUrls, stripUrl } from './history'
@@ -46,9 +46,9 @@ export function localSuggestions(text: string): LocalSuggestions {
 let suggestSession: Electron.Session | null = null
 let inflight: AbortController | null = null
 
-export async function remoteSuggestions(text: string): Promise<string[]> {
+export async function remoteSuggestions(text: string, engine?: SearchEngineId): Promise<string[]> {
   const settings = getSettings()
-  const endpoint = SEARCH_ENGINES[settings.searchEngine].suggest
+  const endpoint = SEARCH_ENGINES[engine ?? settings.searchEngine].suggest
   const q = text.trim()
   if (!settings.searchSuggestions || !endpoint || !q || looksLikeUrl(q)) return []
   inflight?.abort()

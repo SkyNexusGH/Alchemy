@@ -1,8 +1,9 @@
-import { app, clipboard, Menu, MenuItem, type MenuItemConstructorOptions } from 'electron'
+import { app, clipboard, type MenuItemConstructorOptions } from 'electron'
 import { NEW_TAB_URL, SEARCH_ENGINES } from '@shared/types'
 import { children } from './bookmarks'
 import { extensionMenuItems } from './extensions'
 import { searchUrl } from './omnibox'
+import { showMenu } from './popup'
 import { getSettings, updateSettings } from './settings'
 import { stepZoom, type Tab } from './tab'
 import { installUpdate, updateState } from './updater'
@@ -16,11 +17,6 @@ function hint(accelerator: string): Pick<Item, 'accelerator' | 'registerAccelera
   return { accelerator, registerAccelerator: false }
 }
 
-function build(items: Item[]): Menu {
-  const clean = items.filter((it, i) => !(it.type === 'separator' && (i === 0 || items[i - 1].type === 'separator')))
-  while (clean.at(-1)?.type === 'separator') clean.pop()
-  return Menu.buildFromTemplate(clean)
-}
 
 export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMenuParams): void {
   const wc = tab.wc
@@ -95,23 +91,20 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
     )
   }
 
-  items.push({
+  // Items added by extensions (chrome.contextMenus) go just above "Inspect".
+  const extra = extensionMenuItems(wc, p)
+  const all: (Item | Electron.MenuItem)[] = [...items, ...(extra.length ? [SEP, ...extra] : []), SEP]
+  all.push({
     label: 'Inspect',
     click: () => {
-      if (!wc.isDevToolsOpened()) wc.openDevTools({ mode: 'detach' })
+      bw.openDevTools(tab)
       wc.inspectElement(p.x, p.y)
     },
     ...hint('Ctrl+Shift+I')
   })
-  const menu = build(items)
-  // Items added by extensions (chrome.contextMenus) go just above "Inspect".
-  const extra = extensionMenuItems(wc, p)
-  if (extra.length) {
-    let at = menu.items.length - 1
-    menu.insert(at++, new MenuItem({ type: 'separator' }))
-    for (const item of extra) menu.insert(at++, item)
-  }
-  menu.popup({ window: bw.win, frame: p.frame ?? undefined })
+  // The page reports where it was clicked inside itself; menus are placed in the window.
+  const at = tab.view?.getBounds() ?? { x: 0, y: 0 }
+  showMenu(bw, all, at.x + p.x, at.y + p.y, wc)
 }
 
 export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): void {
@@ -160,7 +153,7 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): 
     SEP,
     { label: 'Reopen closed tab', enabled: bw.hasClosedTabs(), click: () => bw.reopenClosed(), ...hint('Ctrl+Shift+T') }
   ]
-  build(items).popup({ window: bw.win, x: Math.round(x), y: Math.round(y) })
+  showMenu(bw, items, x, y)
 }
 
 export function appMenu(bw: BrowserWin, x: number, y: number): void {
@@ -197,7 +190,7 @@ export function appMenu(bw: BrowserWin, x: number, y: number): void {
     { label: 'Find in page…', enabled: !!wc, click: () => bw.openFind(), ...hint('Ctrl+F') },
     { label: 'Print…', enabled: !!wc, click: () => wc?.print(), ...hint('Ctrl+P') },
     { label: 'Full screen', click: () => bw.toggleFullscreen(), ...hint('F11') },
-    { label: 'Developer tools', enabled: !!wc, click: () => wc?.openDevTools({ mode: 'detach' }), ...hint('F12') },
+    { label: 'Developer tools', enabled: !!bw.active, click: () => bw.active && bw.toggleDevTools(bw.active), ...hint('F12') },
     SEP,
     { label: 'Extensions', click: () => bw.openInternal('extensions') },
     { label: 'Settings', click: () => bw.openInternal('settings') },
@@ -207,7 +200,7 @@ export function appMenu(bw: BrowserWin, x: number, y: number): void {
       : []),
     { label: 'Exit', click: () => app.quit() }
   ]
-  build(items).popup({ window: bw.win, x: Math.round(x), y: Math.round(y) })
+  showMenu(bw, items, x, y)
 }
 
 export function bookmarkFolderMenu(bw: BrowserWin, folderId: string, x: number, y: number): void {
@@ -220,5 +213,5 @@ export function bookmarkFolderMenu(bw: BrowserWin, folderId: string, x: number, 
         : { label: b.title || b.url!, click: () => bw.navigate(b.url!) }
     )
   }
-  build(itemsFor(folderId)).popup({ window: bw.win, x: Math.round(x), y: Math.round(y) })
+  showMenu(bw, itemsFor(folderId), x, y)
 }

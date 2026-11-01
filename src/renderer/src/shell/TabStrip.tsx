@@ -1,4 +1,4 @@
-import { Moon, Plus, Volume2, VolumeX, X } from 'lucide-react'
+import { Moon, Plus, Volume2, VolumeX, X } from '../lib/icons'
 import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TabState } from '@shared/types'
 import { api } from '../lib/api'

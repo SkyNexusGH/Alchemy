@@ -2,3 +2,8 @@ node_modules/
 out/
 dist/
 *.log
+
+# Original artwork (optimized copies live in resources/ and src/renderer/public/)
+Backgrounds/
+Ovyra Logo.png
+In app Icon.svg

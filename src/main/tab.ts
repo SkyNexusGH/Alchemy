@@ -57,6 +57,8 @@ export class Tab {
   /** When the tab was last in the foreground; drives sleeping tabs. */
   lastActive = Date.now()
   openerId: number | null = null
+  /** This tab's DevTools, docked in the window, when open. */
+  devtools: WebContentsView | null = null
   workspaceId: string
   islandId: number | null
   blocked = 0

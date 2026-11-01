@@ -1,4 +1,4 @@
-import { Folder } from 'lucide-react'
+import { Folder } from '../lib/icons'
 import { api } from '../lib/api'
 import { Favicon } from '../lib/ui'
 import { useShell } from './store'
@@ -9,9 +9,6 @@ export function BookmarksBar(): React.JSX.Element {
 
   return (
     <div className="bookmarks-bar">
-      {items.length === 0 && (
-        <span className="bar-hint">Bookmark pages with the ☆ in the address bar or Ctrl+D — they show up here.</span>
-      )}
       {items.map((b) =>
         b.type === 'folder' ? (
           <button

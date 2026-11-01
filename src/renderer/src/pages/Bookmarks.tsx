@@ -1,5 +1,5 @@
 import './pages.css'
-import { Bookmark as BookmarkIcon, Folder, FolderPlus, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Bookmark as BookmarkIcon, Folder, FolderPlus, Pencil, Plus, Search, Trash2 } from '../lib/icons'
 import { useEffect, useMemo, useState } from 'react'
 import type { Bookmark } from '@shared/types'
 import { toUrl } from '@shared/url'
@@ -64,7 +64,7 @@ export default function Bookmarks(): React.JSX.Element {
               style={{
                 width: '100%',
                 paddingLeft: 14 + depth * 16,
-                background: !q && folder === b.id ? 'color-mix(in srgb, var(--a) 22%, transparent)' : undefined
+                background: !q && folder === b.id ? 'var(--accent-soft)' : undefined
               }}
               onClick={() => {
                 setQuery('')

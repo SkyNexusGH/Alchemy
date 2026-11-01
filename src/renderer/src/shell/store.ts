@@ -20,7 +20,8 @@ export const useShell = create<ShellStore>(() => ({
     islands: [],
     panelId: null,
     panels: [],
-    split: null
+    split: null,
+    devtools: false
   },
   bookmarks: [],
   downloads: []

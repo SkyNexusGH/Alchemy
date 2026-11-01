@@ -1,6 +1,8 @@
-import { Bookmark, Clock, Download, LayoutGrid, Plus, Settings } from 'lucide-react'
+import { Bookmark, Clock, Download, LayoutGrid, Plus, Settings } from '../lib/icons'
+import { WorkspaceIcon } from '../lib/icons'
 import { useEffect, useRef } from 'react'
-import { THEMES, type InternalPage, type PanelState, type Workspace } from '@shared/types'
+import { BASE_DARK, BASE_LIGHT, type InternalPage, type PanelState, type Workspace } from '@shared/types'
+import { inkOn, readableOn } from '../lib/color'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
 import { useActiveTab, useShell } from './store'
@@ -89,7 +91,7 @@ export function SideRail(): React.JSX.Element {
 
 function WorkspaceButton({ ws, refMap }: { ws: Workspace; refMap: Map<string, HTMLButtonElement> }): React.JSX.Element {
   const active = useShell((s) => s.win.workspaceId === ws.id)
-  const theme = THEMES.find((t) => t.id === ws.theme) ?? THEMES[0]
+  const vars = useWorkspaceColors(ws)
   return (
     <button
       ref={(el) => {
@@ -98,16 +100,28 @@ function WorkspaceButton({ ws, refMap }: { ws: Workspace; refMap: Map<string, HT
       }}
       className={`ws-btn${active ? ' active' : ''}`}
       title={ws.name}
-      style={{ '--wa': theme.a, '--wb': theme.b } as React.CSSProperties}
+      style={vars}
       onClick={() => api.invoke('workspace:switch', ws.id)}
       onContextMenu={(e) => {
         e.preventDefault()
         api.invoke('workspace:menu', ws.id, e.clientX, e.clientY)
       }}
     >
-      <span className="ws-face">{ws.icon || ws.name.charAt(0).toUpperCase()}</span>
+      <span className="ws-face">{ws.icon ? <WorkspaceIcon id={ws.icon} size={16} /> : ws.name.charAt(0).toUpperCase()}</span>
     </button>
   )
+}
+
+/** CSS variables for a workspace's own accent (fill, text on it, and readable variant). */
+export function useWorkspaceColors(ws: Workspace): React.CSSProperties {
+  const fallback = useSettings((s) => s.settings?.appearance.accent ?? '#ec4856')
+  const dark = useSettings((s) => s.dark)
+  const accent = ws.accent ?? fallback
+  return {
+    '--wa': accent,
+    '--wa-ink': inkOn(accent),
+    '--wa-fg': readableOn(accent, dark ? BASE_DARK : BASE_LIGHT)
+  } as React.CSSProperties
 }
 
 function PanelButton({ panel }: { panel: PanelState }): React.JSX.Element {

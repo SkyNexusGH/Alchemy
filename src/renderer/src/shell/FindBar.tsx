@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X } from '../lib/icons'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useShell } from './store'

@@ -1,5 +1,5 @@
 import './shell.css'
-import { VenetianMask } from 'lucide-react'
+import { VenetianMask } from '../lib/icons'
 import { useRef } from 'react'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
@@ -7,14 +7,18 @@ import { Logo } from '../lib/ui'
 import { BookmarksBar } from './BookmarksBar'
 import { FindBar } from './FindBar'
 import { useReportRect } from './layout'
-import { SidePanel } from './SidePanel'
+import { DevtoolsPane, SidePanel } from './SidePanel'
 import { SideRail } from './SideRail'
 import { useShell } from './store'
 import { TabStrip } from './TabStrip'
 import { Toolbar } from './Toolbar'
 
 export default function Shell(): React.JSX.Element {
-  const showBar = useSettings((s) => s.settings?.showBookmarksBar ?? false)
+  // The bookmarks bar only appears once there's something on it.
+  const barEnabled = useSettings((s) => s.settings?.showBookmarksBar ?? false)
+  const barHasItems = useShell((s) => s.bookmarks.some((b) => b.parentId === 'bar'))
+  const showBar = barEnabled && barHasItems
+  const devtools = useShell((s) => s.win.devtools)
   const findOpen = useShell((s) => s.win.find.open)
   const maximized = useShell((s) => s.win.maximized)
   const isPrivate = useShell((s) => s.win.private)
@@ -36,7 +40,7 @@ export default function Shell(): React.JSX.Element {
             api.invoke('menu:app', r.left, r.bottom + 4)
           }}
         >
-          <Logo size={20} />
+          <Logo size={21} />
         </button>
         {isPrivate && (
           <span className="private-badge" title="Private window: nothing is saved after you close all private windows">
@@ -61,6 +65,7 @@ export default function Shell(): React.JSX.Element {
               <Logo size={44} />
             )}
           </div>
+          {devtools && <DevtoolsPane />}
         </div>
       </main>
     </div>

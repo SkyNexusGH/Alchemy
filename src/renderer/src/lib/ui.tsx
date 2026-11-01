@@ -1,21 +1,15 @@
-import { Globe } from 'lucide-react'
+import { Globe, Logo as LogoMark } from './icons'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { hostOf } from '@shared/url'
 
-/** The Ovyra mark: a gradient ring with an orbiting spark. */
-export function Logo({ size = 22 }: { size?: number }): React.JSX.Element {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <defs>
-        <linearGradient id="ovyra-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--a)" />
-          <stop offset="1" stopColor="var(--b)" />
-        </linearGradient>
-      </defs>
-      <circle cx="16" cy="16" r="10.5" fill="none" stroke="url(#ovyra-g)" strokeWidth="5" />
-      <circle cx="25.5" cy="7" r="3.2" fill="#fff" />
-    </svg>
-  )
+/** The Ovyra mark, in one color (the current text color unless given). */
+export function Logo({ size = 22, color }: { size?: number; color?: string }): React.JSX.Element {
+  return <LogoMark size={size} style={color ? { color } : undefined} />
+}
+
+/** The full-color Ovyra logo, for big moments (setup, about). */
+export function BrandLogo({ size = 64 }: { size?: number }): React.JSX.Element {
+  return <img src="/logo.png" width={size} height={size} alt="Ovyra" draggable={false} />
 }
 
 /** A site icon that falls back to a colorful letter tile when there's no favicon. */
@@ -55,7 +49,7 @@ export function Favicon({
         width: size,
         height: size,
         fontSize: size * 0.62,
-        background: siteGradient(host),
+        background: siteColor(host),
         ...style
       }}
     >
@@ -64,16 +58,15 @@ export function Favicon({
   )
 }
 
-/** A stable, vivid gradient per site, so letter tiles are recognizable. */
-export function siteGradient(host: string): string {
+/** A stable color per site, so letter tiles are recognizable. */
+export function siteColor(host: string): string {
   let h = 0
   for (const c of host) h = (h * 31 + c.charCodeAt(0)) >>> 0
-  const hue = h % 360
-  return `linear-gradient(135deg, hsl(${hue} 85% 62%), hsl(${(hue + 40) % 360} 80% 52%))`
+  return `hsl(${h % 360} 62% 50%)`
 }
 
 export function setPageIcon(svgPath: string): void {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8b93a5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>`
   let link = document.querySelector<HTMLLinkElement>('link[rel=icon]')
   if (!link) {
     link = document.createElement('link')

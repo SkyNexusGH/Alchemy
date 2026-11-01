@@ -1,4 +1,4 @@
-import { net, protocol, type Session } from 'electron'
+import { app, net, protocol, type Session } from 'electron'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { INTERNAL_PAGES } from '@shared/types'
@@ -17,6 +17,10 @@ export function registerSchemePrivileges(): void {
   ])
 }
 
+export function userAssetsDir(): string {
+  return join(app.getPath('userData'), 'assets')
+}
+
 export function isInternalUrl(url: string): boolean {
   return url.startsWith(`${SCHEME}://`)
 }
@@ -27,6 +31,12 @@ export function serveRendererBundle(ses: Session): void {
 
   ses.protocol.handle(SCHEME, (req) => {
     const url = new URL(req.url)
+    // ovyra://assets/<file>: the user's own files, e.g. a custom background image.
+    if (url.host === 'assets') {
+      const name = decodeURIComponent(url.pathname.slice(1))
+      if (!/^[\w.-]+$/.test(name)) return new Response('Forbidden', { status: 403 })
+      return net.fetch(pathToFileURL(join(userAssetsDir(), name)).toString())
+    }
     if (!HOSTS.has(url.host)) return new Response('Not found', { status: 404 })
     const path = decodeURIComponent(url.pathname)
 

@@ -1,4 +1,5 @@
-import { clipboard, Menu, net, session, WebContentsView, type Session } from 'electron'
+import { clipboard, net, session, WebContentsView, type Session } from 'electron'
+import { showMenu } from './popup'
 import type { PanelItem, PanelState } from '@shared/types'
 import { setupBrowsingSession } from './sessions'
 import { getSettings, onSettingsChanged } from './settings'
@@ -183,7 +184,9 @@ function createPanel(item: PanelItem): LivePanel {
       items.push({ role: 'copy' }, { type: 'separator' })
     }
     items.push({ label: 'Reload', click: () => wc.reload() }, { label: 'Inspect', click: () => wc.openDevTools({ mode: 'detach' }) })
-    Menu.buildFromTemplate(items).popup({ window: panel.owner?.win })
+    const owner = panel.owner
+    const at = view.getBounds()
+    if (owner) showMenu(owner, items, at.x + p.x, at.y + p.y, wc)
   })
 
   // Messengers are built for wide windows; a slightly smaller zoom fits them in a sidebar.

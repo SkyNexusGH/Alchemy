@@ -30,9 +30,10 @@ export interface TabState {
 export interface Workspace {
   id: string
   name: string
-  theme: string
-  /** An emoji, or '' to show the name's first letter. */
+  /** An Ovyra workspace icon id, or '' to show the name's first letter. */
   icon: string
+  /** The workspace's own accent, or null to use the browser's. */
+  accent: string | null
 }
 
 export interface IslandState {
@@ -104,6 +105,8 @@ export interface WindowState {
   panels: PanelState[]
   /** Tab ids shown side by side, when split view is on. */
   split: [number, number] | null
+  /** The active tab has DevTools open (docked on the right). */
+  devtools: boolean
 }
 
 export type SearchEngineId = 'google' | 'duckduckgo' | 'brave' | 'bing' | 'startpage'
@@ -121,7 +124,9 @@ export interface Settings {
   /** 0 disables sleeping tabs. */
   sleepAfterMinutes: number
   showBookmarksBar: boolean
-  theme: string
+  appearance: Appearance
+  /** The first-run setup wizard has been completed (or skipped). */
+  onboarded: boolean
   downloadDir: string | null
   askWhereToSave: boolean
   speedDial: SpeedDialItem[]
@@ -213,6 +218,18 @@ export type OverlayPayload =
   | { kind: 'workspace'; workspaceId: string | null }
   | { kind: 'add-panel' }
   | { kind: 'palette' }
+  | { kind: 'menu'; items: MenuModel[]; x: number; y: number }
+
+export interface MenuModel {
+  id: string
+  type: 'normal' | 'separator' | 'checkbox' | 'radio'
+  label?: string
+  /** Keyboard shortcut shown on the right. */
+  hint?: string
+  enabled: boolean
+  checked?: boolean
+  submenu?: MenuModel[]
+}
 
 export interface Rect {
   x: number
@@ -224,22 +241,74 @@ export interface Rect {
 /** Commands the main process asks the shell UI to perform. */
 export type ShellCommand = 'focus-omnibox' | 'open-find'
 
-export interface Theme {
+/** A look: a background image with the accent and light/dark mode it was made for. */
+export interface ThemePreset {
   id: string
   name: string
-  a: string
-  b: string
+  /** File name under /backgrounds (without .jpg), or null for a plain background. */
+  image: string | null
+  accent: string
+  mode: 'dark' | 'light'
 }
 
-export const THEMES: Theme[] = [
-  { id: 'aurora', name: 'Aurora', a: '#8b5cf6', b: '#ec4899' },
-  { id: 'sunset', name: 'Sunset', a: '#f97316', b: '#e11d48' },
-  { id: 'ocean', name: 'Ocean', a: '#06b6d4', b: '#3b82f6' },
-  { id: 'jungle', name: 'Jungle', a: '#22c55e', b: '#14b8a6' },
-  { id: 'ember', name: 'Ember', a: '#ef4444', b: '#f59e0b' },
-  { id: 'candy', name: 'Candy', a: '#f472b6', b: '#a78bfa' },
-  { id: 'electric', name: 'Electric', a: '#6366f1', b: '#22d3ee' }
+export const THEME_PRESETS: ThemePreset[] = [
+  { id: 'default', name: 'Default', image: 'default', accent: '#ec4856', mode: 'dark' },
+  { id: 'dark-synth', name: 'Dark Synth', image: 'dark-synth', accent: '#4488bd', mode: 'dark' },
+  { id: 'light-synth', name: 'Light Synth', image: 'light-synth', accent: '#fee9c4', mode: 'light' },
+  { id: 'myrical', name: 'Myrical', image: 'myrical', accent: '#af7ab6', mode: 'dark' },
+  { id: 'nomad', name: 'Nomad', image: 'nomad', accent: '#fea757', mode: 'light' },
+  { id: 'soul-hills', name: 'Soul Hills', image: 'soul-hills', accent: '#77793e', mode: 'light' },
+  { id: 'plain-dark', name: 'Plain dark', image: null, accent: '#ec4856', mode: 'dark' },
+  { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' }
 ]
+
+/** The accent palette: a full rainbow plus the colors that go with each background. */
+export const ACCENTS = [
+  '#ec4856',
+  '#ef2e2e',
+  '#ef8b2e',
+  '#efb92e',
+  '#a6ef2e',
+  '#32ef2e',
+  '#2eefbb',
+  '#2ed2ef',
+  '#2e70ef',
+  '#322eef',
+  '#772eef',
+  '#b72eef',
+  '#ef2ee7',
+  '#ef2e8b',
+  '#ef2e45',
+  '#fea757',
+  '#77793e',
+  '#af7ab6',
+  '#4488bd',
+  '#fee9c4'
+]
+
+/** The two base colors of the interface. */
+export const BASE_DARK = '#090e17'
+export const BASE_LIGHT = '#d6dae4'
+
+export type ColorMode = 'dark' | 'light' | 'system'
+
+export interface Appearance {
+  mode: ColorMode
+  /** A theme preset id, or 'custom' for the user's own image. */
+  background: string
+  /** Path (inside the app's data folder) of a custom background image. */
+  customBackground: string | null
+  accent: string
+  /** New tab page */
+  showClock: boolean
+  showSearch: boolean
+  showSpeedDial: boolean
+  /** 0–70: how much the background image is darkened (or lightened) behind content. */
+  backgroundDim: number
+  /** Rounder or squarer corners across the interface. */
+  roundness: 'sharp' | 'normal' | 'round'
+  compactTabs: boolean
+}
 
 export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; search: string; suggest: string | null }> = {
   google: {
@@ -269,7 +338,7 @@ export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; search: stri
   }
 }
 
-export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'error'] as const
+export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 export const NEW_TAB_URL = 'ovyra://newtab/'

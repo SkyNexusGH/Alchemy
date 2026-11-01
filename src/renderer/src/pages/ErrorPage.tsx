@@ -1,5 +1,5 @@
 import './pages.css'
-import { CloudOff, RotateCw, ShieldAlert, Unplug, Frown } from 'lucide-react'
+import { CloudOff, RotateCw, ShieldAlert, Unplug, Frown } from '../lib/icons'
 import { hostOf } from '@shared/url'
 import { api } from '../lib/api'
 import { setPageIcon } from '../lib/ui'

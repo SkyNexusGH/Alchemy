@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Columns2, Download, EllipsisVertical, RefreshCw, RotateCw, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Columns2, Download, EllipsisVertical, RefreshCw, RotateCw, X } from '../lib/icons'
 import { useEffect, useRef, useState } from 'react'
 import type { UpdateState } from '@shared/types'
 import { api } from '../lib/api'

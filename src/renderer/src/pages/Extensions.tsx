@@ -1,5 +1,5 @@
 import './pages.css'
-import { Puzzle, Store, Trash2 } from 'lucide-react'
+import { Puzzle, Store, Trash2 } from '../lib/icons'
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { setPageIcon } from '../lib/ui'

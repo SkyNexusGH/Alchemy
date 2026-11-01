@@ -1,4 +1,4 @@
-import { Info, Lock, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from 'lucide-react'
+import { Info, Lock, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from '../lib/icons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { SEARCH_ENGINES, type LocalSuggestions, type Suggestion, type TabState } from '@shared/types'
 import { prettyUrl, toUrl } from '@shared/url'

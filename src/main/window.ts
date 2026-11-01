@@ -1,10 +1,13 @@
-import { BrowserWindow, WebContentsView, screen, session, type Rectangle, type WebContents } from 'electron'
+import { BrowserWindow, nativeTheme, WebContentsView, screen, session, type Rectangle, type WebContents } from 'electron'
 import { join } from 'node:path'
 import {
+  BASE_DARK,
+  BASE_LIGHT,
   ISLAND_COLORS,
   NEW_TAB_URL,
   type IslandState,
   type FindState,
+  type MenuModel,
   type InternalPage,
   type OverlayPayload,
   type Rect,
@@ -18,6 +21,7 @@ import { looksLikeUrl, resolveInput } from './omnibox'
 import { isFrozen, resumeSessionSaving, saveSessionNow, scheduleSessionSave } from './sessionstore'
 import { endPrivateBrowsing, getPrivateSession } from './sessions'
 import { getSettings, updateSettings } from './settings'
+import { devtoolsCss } from './devtools'
 import { selectTab as selectExtensionTab } from './extensions'
 import { panelStates, panelView, releasePanels } from './panels'
 import { PRELOAD, stepZoom, Tab, type TabHost, type TabSnapshot } from './tab'
@@ -66,6 +70,9 @@ export class BrowserWin implements TabHost {
   private shown: Tab[] = []
   private contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 }
   private panelRect: Rect = { x: 0, y: 0, width: 0, height: 0 }
+  private devtoolsRect: Rect = { x: 0, y: 0, width: 0, height: 0 }
+  /** The DevTools view on screen (it belongs to the active tab). */
+  private devtoolsShown: WebContentsView | null = null
   private find: FindState = { open: false, query: '', active: 0, matches: 0 }
   private overlayShown = false
   private htmlFullscreenTab: Tab | null = null
@@ -111,9 +118,8 @@ export class BrowserWin implements TabHost {
       title: 'Ovyra',
       icon: join(__dirname, '../../resources/icon.png'),
       titleBarStyle: 'hidden',
-      titleBarOverlay: { color: '#00000000', symbolColor: '#f4f1ff', height: TAB_STRIP_HEIGHT },
-      backgroundMaterial: 'mica',
-      backgroundColor: '#00000000',
+      titleBarOverlay: titleBarColors(),
+      backgroundColor: nativeTheme.shouldUseDarkColors ? BASE_DARK : BASE_LIGHT,
       webPreferences: { preload: PRELOAD, sandbox: true, contextIsolation: true, spellcheck: true }
     })
     if (init?.maximized) this.win.maximize()
@@ -397,6 +403,7 @@ export class BrowserWin implements TabHost {
     const island = tab.islandId !== null ? this.islands.get(tab.islandId) : undefined
     if (island) island.collapsed = false
     this.show(this.split?.includes(tab.id) ? this.splitTabs() : [tab])
+    this.showDevTools()
     selectExtensionTab(tab.wc, this.incognito)
     this.layout()
     if (tab.isNewTab) {
@@ -436,6 +443,7 @@ export class BrowserWin implements TabHost {
     const index = this.tabs.indexOf(tab)
     if (index === -1) return
     const visIndex = this.visible().indexOf(tab)
+    this.closeDevTools(tab)
     if (tab.view) this.win.contentView.removeChildView(tab.view)
     this.shown = this.shown.filter((t) => t !== tab)
     if (this.split?.includes(tab.id)) this.split = null
@@ -523,6 +531,7 @@ export class BrowserWin implements TabHost {
 
   sleepTab(tab: Tab): void {
     if (tab === this.active || tab.sleeping) return
+    this.closeDevTools(tab)
     tab.sleep()
     this.changed()
   }
@@ -627,6 +636,9 @@ export class BrowserWin implements TabHost {
     const fullscreen = this.win.isFullScreen()
     const panel = panelView(this.panelId)
     if (panel) panel.setBounds(fullscreen ? { x: 0, y: 0, width: 0, height: 0 } : roundRect(this.panelRect))
+    if (this.devtoolsShown) {
+      this.devtoolsShown.setBounds(fullscreen ? { x: 0, y: 0, width: 0, height: 0 } : roundRect(this.devtoolsRect))
+    }
     const view = this.active?.view
     if (!view) return
     // Fullscreen (F11 or a video) gives the whole screen to the page, like Chrome.
@@ -653,6 +665,59 @@ export class BrowserWin implements TabHost {
         roundRect({ x: r.x + i * (half + gap) + 2, y: r.y + 2, width: half - 4, height: r.height - 4 })
       )
     })
+  }
+
+  // ---- DevTools, docked in the window --------------------------------------------------
+
+  setDevtoolsRect(rect: Rect): void {
+    this.devtoolsRect = rect
+    this.layout()
+  }
+
+  openDevTools(tab: Tab): void {
+    const wc = tab.wc
+    if (!wc) return
+    if (!tab.devtools) {
+      const view = new WebContentsView()
+      view.setBorderRadius(8)
+      view.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0c121d' : '#f3f4f8')
+      tab.devtools = view
+      wc.setDevToolsWebContents(view.webContents)
+      wc.openDevTools({ mode: 'detach', activate: false })
+      view.webContents.on('dom-ready', () => void view.webContents.insertCSS(devtoolsCss()).catch(() => {}))
+      wc.once('devtools-closed', () => this.closeDevTools(tab))
+    }
+    this.showDevTools()
+    tab.devtools.webContents.focus()
+    this.changed()
+  }
+
+  closeDevTools(tab: Tab): void {
+    const view = tab.devtools
+    if (!view) return
+    tab.devtools = null
+    if (tab.wc && !tab.wc.isDestroyed() && tab.wc.isDevToolsOpened()) tab.wc.closeDevTools()
+    if (this.devtoolsShown === view) {
+      this.win.contentView.removeChildView(view)
+      this.devtoolsShown = null
+    }
+    if (!view.webContents.isDestroyed()) view.webContents.close()
+    this.relayout()
+  }
+
+  toggleDevTools(tab: Tab): void {
+    if (tab.devtools) this.closeDevTools(tab)
+    else this.openDevTools(tab)
+  }
+
+  /** Each tab keeps its own DevTools; show the active tab's (if it has one open). */
+  private showDevTools(): void {
+    const want = this.active?.devtools ?? null
+    if (this.devtoolsShown && this.devtoolsShown !== want) this.win.contentView.removeChildView(this.devtoolsShown)
+    if (want) this.win.contentView.addChildView(want)
+    this.devtoolsShown = want
+    if (this.overlayShown) this.win.contentView.addChildView(this.overlay)
+    this.layout()
   }
 
   // ---- split view -------------------------------------------------------------------
@@ -709,6 +774,12 @@ export class BrowserWin implements TabHost {
 
   toggleFullscreen(): void {
     this.win.setFullScreen(!this.win.isFullScreen())
+  }
+
+  /** Custom menus cover the whole window so a click anywhere else closes them. */
+  showMenuOverlay(items: MenuModel[], x: number, y: number): void {
+    const [width, height] = this.win.getContentSize()
+    this.showOverlay({ x: 0, y: 0, width, height }, { kind: 'menu', items, x, y }, true)
   }
 
   showOverlay(rect: Rect, payload: OverlayPayload, focus = false): void {
@@ -778,7 +849,8 @@ export class BrowserWin implements TabHost {
       islands: [...this.islands].map(([id, i]) => ({ id, ...i })),
       panelId: this.panelId,
       panels: panelStates(),
-      split: this.split
+      split: this.split,
+      devtools: !!this.active?.devtools
     }
   }
 
@@ -867,7 +939,7 @@ export class BrowserWin implements TabHost {
         case 'u':
           return run(() => tab && this.newTab(`view-source:${tab.pageUrl()}`, { opener: tab }))
         case 'i':
-          if (shift) return run(() => toggleDevTools(wc))
+          if (shift) return run(() => tab && this.toggleDevTools(tab))
           return false
       }
       return false
@@ -897,7 +969,7 @@ export class BrowserWin implements TabHost {
       case 'f11':
         return run(() => this.toggleFullscreen())
       case 'f12':
-        return run(() => toggleDevTools(wc))
+        return run(() => tab && this.toggleDevTools(tab))
       case 'f3':
         return run(() => (this.find.open ? this.findQuery(this.find.query, !shift, true) : this.openFind()))
     }
@@ -905,11 +977,6 @@ export class BrowserWin implements TabHost {
   }
 }
 
-function toggleDevTools(wc: WebContents | null | undefined): void {
-  if (!wc) return
-  if (wc.isDevToolsOpened()) wc.closeDevTools()
-  else wc.openDevTools({ mode: 'detach' })
-}
 
 function windowBounds(saved?: Rectangle): Partial<Rectangle> {
   const area = screen.getPrimaryDisplay().workArea
@@ -927,4 +994,23 @@ function windowBounds(saved?: Rectangle): Partial<Rectangle> {
 
 function roundRect(r: Rect): Rectangle {
   return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) }
+}
+
+/** Window buttons (minimize/maximize/close) drawn in the right color for the mode. */
+export function titleBarColors(): Electron.TitleBarOverlayOptions {
+  const dark = nativeTheme.shouldUseDarkColors
+  return { color: '#00000000', symbolColor: dark ? '#e6e9f0' : '#090e17', height: TAB_STRIP_HEIGHT }
+}
+
+/** Light/dark mode: Windows' own theme follows it, and with it every page and window. */
+export function applyColorMode(mode: 'dark' | 'light' | 'system'): void {
+  nativeTheme.themeSource = mode
+  repaintWindowChrome()
+}
+
+export function repaintWindowChrome(): void {
+  for (const w of BrowserWin.all) {
+    w.win.setTitleBarOverlay(titleBarColors())
+    w.win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? BASE_DARK : BASE_LIGHT)
+  }
 }

@@ -7,13 +7,15 @@ import { onRequestBlocked, registerPrivacyIpc } from './privacy/network'
 import { registerSchemePrivileges } from './protocol'
 import { setupBrowsingSession } from './sessions'
 import { loadSession, saveSessionNow, setSessionProvider } from './sessionstore'
-import { getSettings } from './settings'
+import { getSettings, onSettingsChanged } from './settings'
 import { flushAllStores } from './store'
 import { tabsByContents } from './tab'
 import { initUpdater } from './updater'
-import { BrowserWin } from './window'
+import { applyColorMode, BrowserWin, repaintWindowChrome } from './window'
 
 registerSchemePrivileges()
+// Dev builds keep painting even when covered by other windows, so they can be inspected.
+if (!app.isPackaged) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 app.setAppUserModelId('com.ovyra.browser')
 
 // Sites (Google sign-in especially) treat "Electron" in the user agent as an embedded,
@@ -33,7 +35,13 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(async () => {
-    nativeTheme.themeSource = 'dark'
+    applyColorMode(getSettings().appearance.mode)
+    let mode = getSettings().appearance.mode
+    onSettingsChanged((st) => {
+      if (st.appearance.mode !== mode) applyColorMode((mode = st.appearance.mode))
+    })
+    // In 'system' mode Windows can switch between light and dark at any time.
+    nativeTheme.on('updated', repaintWindowChrome)
     Menu.setApplicationMenu(null)
 
     setupBrowsingSession(session.defaultSession, { incognito: false })
@@ -60,6 +68,8 @@ if (!app.requestSingleInstanceLock()) {
 
     const url = process.argv.find((a) => /^https?:\/\//i.test(a))
     if (url) BrowserWin.focused()?.newTab(url)
+    // First run: open the setup wizard.
+    if (!getSettings().onboarded) BrowserWin.focused()?.openInternal('welcome')
 
     // Updates download in the background and apply on restart.
     initUpdater(() => {})

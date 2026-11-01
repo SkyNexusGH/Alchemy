@@ -2,7 +2,7 @@ import { Request } from '@ghostery/adblocker-electron'
 import { ipcMain, webContents, type Session } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
-import { getHostname } from 'tldts-experimental'
+import { getHostname, parse } from 'tldts-experimental'
 import { getSettings } from '../settings'
 import { getBlocker } from './engine'
 import { countBlocked, shieldsEnabled, siteOf, siteProtected } from './shields'
@@ -219,18 +219,37 @@ export function protectSession(session: Session): void {
 }
 
 export function registerPrivacyIpc(): void {
+  // Element hiding (styles) arrives here once the page has loaded. Scriptlets are NOT
+  // injected here: they already ran at document start via 'ovyra:frame' below, which is
+  // the only way they can beat sites like YouTube that read their data immediately.
   ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url: string, msg) => {
     const blocker = getBlocker()
     const top = event.sender.getURL() || url
     if (!blocker || !shieldsEnabled(top)) return
-    return blocker.onInjectCosmeticFilters(event, url, msg)
+    const { hostname, domain } = parse(url)
+    const firstRun = msg === undefined
+    const { active, styles } = blocker.getCosmeticsFilters({
+      url,
+      hostname: hostname ?? '',
+      domain: domain ?? '',
+      classes: msg?.classes,
+      hrefs: msg?.hrefs,
+      ids: msg?.ids,
+      getBaseRules: firstRun,
+      getInjectionRules: false,
+      getExtendedRules: false,
+      getRulesFromHostname: firstRun,
+      getRulesFromDOM: !firstRun,
+      callerContext: { frameId: event.frameId, processId: event.processId, lifecycle: msg?.lifecycle }
+    })
+    if (active !== false && styles.length) void event.sender.insertCSS(styles, { cssOrigin: 'user' })
   })
   ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
     const blocker = getBlocker()
     return !!blocker && shieldsEnabled(event.sender.getURL()) && blocker.config.enableMutationObserver
   })
   // Asked synchronously by every frame before page scripts run.
-  ipcMain.on('ovyra:frame', (event) => {
+  ipcMain.on('ovyra:frame', (event, frameUrl: string) => {
     const top = event.sender.getURL()
     const settings = getSettings()
     const on = /^https?:/.test(top) && siteProtected(top)
@@ -238,7 +257,29 @@ export function registerPrivacyIpc(): void {
       farble: on && settings.fingerprintProtection,
       gpc: on && settings.sendGpc,
       seed: seedFor(top),
-      popout: settings.videoPopout
+      popout: settings.videoPopout,
+      scriptlets: scriptletsFor(frameUrl || top, top)
     }
   })
+}
+
+/**
+ * uBlock-style scriptlets for a frame (e.g. YouTube's ad-stripping json-prune rules).
+ * They must run before the page's own scripts, so the frame asks for them synchronously.
+ */
+function scriptletsFor(url: string, top: string): string[] {
+  const blocker = getBlocker()
+  if (!blocker || !/^https?:/.test(url) || !shieldsEnabled(top)) return []
+  const { hostname, domain } = parse(url)
+  const { active, scripts } = blocker.getCosmeticsFilters({
+    url,
+    hostname: hostname ?? '',
+    domain: domain ?? '',
+    getBaseRules: false,
+    getInjectionRules: true,
+    getExtendedRules: false,
+    getRulesFromHostname: true,
+    getRulesFromDOM: false
+  })
+  return active === false ? [] : scripts
 }

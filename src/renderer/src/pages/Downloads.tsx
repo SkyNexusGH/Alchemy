@@ -1,5 +1,5 @@
 import './pages.css'
-import { CircleX, Download, ExternalLink, FileDown, Folder, Pause, Play, RefreshCw, X } from 'lucide-react'
+import { CircleX, Download, ExternalLink, FileDown, Folder, Pause, Play, RefreshCw, X } from '../lib/icons'
 import { useEffect, useState } from 'react'
 import type { DownloadState } from '@shared/types'
 import { hostOf } from '@shared/url'

@@ -1,8 +1,13 @@
-import { app, dialog, ipcMain, Menu, session, type WebContents } from 'electron'
+import { app, dialog, ipcMain, session, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
+import { copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { extname, join } from 'node:path'
+import { toUrl } from '@shared/url'
+import { SEARCH_ENGINES, type SearchEngineId } from '@shared/types'
 import type { InternalPage, OverlayPayload, PanelItem, Rect, Settings, ShieldsInfo, Workspace } from '@shared/types'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
+import { chooseMenuItem, showMenu } from './popup'
 import { destroyPanel, hidePanel, panelStates, reloadPanel, showPanel, togglePanel } from './panels'
 import { stepZoom } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
@@ -15,7 +20,7 @@ import { localSuggestions, remoteSuggestions, resolveInput } from './omnibox'
 import { clearPermissionDecisions } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
-import { isInternalUrl } from './protocol'
+import { isInternalUrl, userAssetsDir } from './protocol'
 import { getSettings, onSettingsChanged, updateSettings } from './settings'
 import { BrowserWin } from './window'
 
@@ -80,8 +85,15 @@ export function registerIpc(): void {
     if (action === 'hardReload') tab.reload(true)
     if (action === 'stop') wc?.stop()
   })
-  shell('omnibox:local', (_c, text: string) => localSuggestions(text))
-  shell('omnibox:remote', (_c, text: string) => remoteSuggestions(text))
+  // Also used by the new tab page's own search box.
+  handle('omnibox:local', (_c, text: string) => localSuggestions(text))
+  handle('omnibox:remote', (_c, text: string, engine?: SearchEngineId) => remoteSuggestions(text, engine))
+  shell('menu:choose', ({ bw }, id: string) => {
+    bw?.hideOverlay()
+    chooseMenuItem(id)
+  })
+  shell('layout:devtools', ({ bw }, rect: Rect) => bw?.setDevtoolsRect(rect))
+  shell('devtools:close', ({ bw }) => bw?.active && bw.closeDevTools(bw.active))
   shell('overlay:show', ({ bw }, rect: Rect, payload: OverlayPayload, focus?: boolean) =>
     bw?.showOverlay(rect, payload, focus)
   )
@@ -138,6 +150,27 @@ export function registerIpc(): void {
     if (what.cookies) await s.clearStorageData()
   })
 
+  /** Lets the user pick their own new tab background; a copy is kept with Ovyra's data. */
+  handle('appearance:pickBackground', async ({ sender }) => {
+    const owner = BrowserWin.fromWebContents(sender)?.win
+    const opts: Electron.OpenDialogOptions = {
+      title: 'Choose a background image',
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'] }]
+    }
+    const res = owner ? await dialog.showOpenDialog(owner, opts) : await dialog.showOpenDialog(opts)
+    if (res.canceled || !res.filePaths[0]) return null
+    const dir = userAssetsDir()
+    mkdirSync(dir, { recursive: true })
+    for (const f of readdirSync(dir)) if (f.startsWith('background-')) rmSync(join(dir, f), { force: true })
+    // A new name each time so pages don't keep showing a cached old image.
+    const name = `background-${Date.now()}${extname(res.filePaths[0]).toLowerCase()}`
+    copyFileSync(res.filePaths[0], join(dir, name))
+    const appearance = { ...getSettings().appearance, background: 'custom', customBackground: name }
+    updateSettings({ appearance })
+    return name
+  })
+
   handle('dialog:pickFolder', async ({ sender }) => {
     const owner = BrowserWin.fromWebContents(sender)?.win
     const opts: Electron.OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] }
@@ -188,15 +221,15 @@ export function registerIpc(): void {
   shell('workspace:menu', ({ bw }, id: string, x: number, y: number) => {
     if (!bw) return
     const many = getSettings().workspaces.length > 1
-    Menu.buildFromTemplate([
+    showMenu(bw, [
       { label: 'Edit workspace…', click: () => bw.send('edit-workspace', id) },
       { label: 'Delete workspace…', enabled: many, click: () => void deleteWorkspace(bw, id) }
-    ]).popup({ window: bw.win, x: Math.round(x), y: Math.round(y) })
+    ], x, y)
   })
   handle('workspace:save', ({ bw }, ws: Workspace) => {
     const list = getSettings().workspaces
     const exists = list.some((w) => w.id === ws.id)
-    const clean: Workspace = { id: ws.id || randomUUID(), name: ws.name.trim() || 'Workspace', theme: ws.theme, icon: ws.icon.trim().slice(0, 4) }
+    const clean: Workspace = { id: ws.id || randomUUID(), name: ws.name.trim() || 'Workspace', icon: ws.icon, accent: ws.accent ?? null }
     updateSettings({ workspaces: exists ? list.map((w) => (w.id === ws.id ? clean : w)) : [...list, clean] })
     if (!exists) bw?.switchWorkspace(clean.id)
     for (const w of BrowserWin.all) w.contextChanged()
@@ -240,12 +273,12 @@ export function registerIpc(): void {
   shell('panel:menu', ({ bw }, id: string, x: number, y: number) => {
     if (!bw) return
     const state = panelStates().find((p) => p.id === id)
-    Menu.buildFromTemplate([
+    showMenu(bw, [
       { label: 'Reload', enabled: !!state?.loaded, click: () => reloadPanel(id) },
       { label: 'Unload (free memory)', enabled: !!state?.loaded, click: () => destroyPanel(id) },
       { type: 'separator' },
       { label: 'Remove from sidebar', click: () => removePanel(id) }
-    ]).popup({ window: bw.win, x: Math.round(x), y: Math.round(y) })
+    ], x, y)
   })
   handle('panels:add', ({ bw }, item: PanelItem) => {
     const list = getSettings().panels
@@ -257,6 +290,16 @@ export function registerIpc(): void {
   handle('window:newPrivate', () => void BrowserWin.open({ incognito: true }))
 
   /** An internal page navigating its own tab (e.g. the new tab page's search box). */
+  /** The new tab page's search box: a query with a chosen engine, or an address. */
+  handle('page:search', ({ bw, sender }, input: string, engine: SearchEngineId) => {
+    const tab = bw?.tabs.find((t) => t.wc === sender)
+    const text = input.trim()
+    if (!tab || !text) return
+    const url = toUrl(text) ?? SEARCH_ENGINES[engine ?? getSettings().searchEngine].search.replace('%s', encodeURIComponent(text))
+    tab.load(url)
+    tab.wc?.focus()
+  })
+
   handle('page:navigate', ({ bw, sender }, input: string) => {
     const tab = bw?.tabs.find((t) => t.wc === sender)
     const url = resolveInput(input)

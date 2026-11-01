@@ -2,11 +2,7 @@
 
 html:not([data-page='shell']):not([data-page='overlay']) body {
   overflow: auto;
-  background:
-    radial-gradient(1000px 420px at 10% -120px, color-mix(in srgb, var(--a) 26%, transparent), transparent 70%),
-    radial-gradient(900px 420px at 95% -160px, color-mix(in srgb, var(--b) 20%, transparent), transparent 70%),
-    var(--bg);
-  background-attachment: fixed;
+  background: var(--page);
 }
 
 .page {
@@ -26,10 +22,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
   font-size: 30px;
   font-weight: 750;
   letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #fff 20%, color-mix(in srgb, var(--a) 60%, white) 60%, var(--b));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--text);
 }
 .page-head .spacer {
   flex: 1;
@@ -39,10 +32,9 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 14px;
-  background: var(--grad);
-  color: #fff;
-  box-shadow: 0 10px 30px -10px var(--a);
+  border-radius: calc(var(--r) + 3px);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .search-field {
@@ -62,10 +54,9 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  backdrop-filter: blur(20px);
+  border-radius: calc(var(--r) + 4px);
 }
 
 .group-title {
@@ -108,7 +99,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
 }
 .row a.title:hover {
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--a) 70%, transparent);
+  text-decoration-color: var(--accent-fg);
   text-underline-offset: 3px;
 }
 .row .sub {
@@ -169,9 +160,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
   margin: 10px 0 4px;
   padding: 16px 18px;
   border-radius: 14px;
-  background:
-    radial-gradient(300px 120px at 0% 0%, color-mix(in srgb, var(--a) 30%, transparent), transparent 75%),
-    rgba(255, 255, 255, 0.03);
+  background: var(--bg-raised);
   color: var(--text-2);
   line-height: 1.5;
 }
@@ -180,10 +169,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
   font-weight: 750;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(120deg, #fff, color-mix(in srgb, var(--a) 50%, white));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent-fg);
 }
 
 .dl-bar {
@@ -196,7 +182,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
 .dl-bar > div {
   height: 100%;
   border-radius: 5px;
-  background: var(--grad);
+  background: var(--accent);
   transition: width 250ms var(--ease);
 }
 
@@ -243,7 +229,7 @@ html:not([data-page='shell']):not([data-page='overlay']) body {
 .modal input[type='checkbox'] {
   width: 16px;
   height: 16px;
-  accent-color: var(--a);
+  accent-color: var(--accent);
 }
 .modal .stack {
   display: grid;

@@ -25,10 +25,12 @@ import {
   VenetianMask,
   X,
   ZoomIn,
-  ZoomOut
-} from 'lucide-react'
+  ZoomOut,
+  WorkspaceIcon
+} from '../lib/icons'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { SEARCH_ENGINES, THEMES, type LocalSuggestions, type TabState } from '@shared/types'
+import { SEARCH_ENGINES, type LocalSuggestions, type TabState } from '@shared/types'
+import { inkOn } from '../lib/color'
 import { toUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
@@ -141,15 +143,15 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
     }
     for (const c of COMMANDS) add({ ...c, key: `cmd:${c.cmd}`, group: 'Commands' }, `${c.title} ${c.keywords ?? ''}`)
     for (const w of settings?.workspaces ?? []) {
-      const theme = THEMES.find((t) => t.id === w.theme) ?? THEMES[0]
+      const accent = w.accent ?? settings?.appearance.accent ?? '#ec4856'
       add(
         {
           key: `ws:${w.id}`,
           group: 'Workspaces',
           title: `Switch to ${w.name}`,
           icon: (
-            <span className="pal-ws" style={{ background: `linear-gradient(135deg, ${theme.a}, ${theme.b})` }}>
-              {w.icon || w.name.charAt(0)}
+            <span className="pal-ws" style={{ background: accent, color: inkOn(accent) }}>
+              {w.icon ? <WorkspaceIcon id={w.icon} size={13} /> : w.name.charAt(0)}
             </span>
           ),
           cmd: 'workspace',

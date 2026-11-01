@@ -14,6 +14,7 @@ const pages: Record<string, LazyExoticComponent<ComponentType>> = {
   downloads: lazy(() => import('./pages/Downloads')),
   settings: lazy(() => import('./pages/Settings')),
   extensions: lazy(() => import('./pages/Extensions')),
+  welcome: lazy(() => import('./pages/Welcome')),
   error: lazy(() => import('./pages/ErrorPage'))
 }
 
