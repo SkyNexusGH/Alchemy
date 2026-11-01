@@ -14,9 +14,9 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -25,7 +25,14 @@ jobs:
       - run: npm run typecheck
       - run: npx electron-vite build
 
-      - name: Build installer and publish release
+      # Create the release up front: electron-builder uploads files in parallel, and if the
+      # release doesn't exist yet each upload creates its own, splitting the files apart.
+      - name: Create release
+        run: gh release create ${{ github.ref_name }} --title "Ovyra ${{ github.ref_name }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build installer and upload to the release
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
