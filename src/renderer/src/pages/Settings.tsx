@@ -437,8 +437,8 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'newtab',
-      label: 'Show speed dial',
-      keywords: 'tiles shortcuts sites',
+      label: 'Show Home zone',
+      keywords: 'tiles shortcuts sites speed dial',
       control: <Switch on={a.showSpeedDial} onChange={(showSpeedDial) => saveAppearance({ showSpeedDial })} />
     },
     {
@@ -470,10 +470,13 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       keywords: 'adblock ublock shield filter',
       control: (
         <div className="row-actions">
-          {s.adblock && (
-            <button className="btn small" disabled={filters?.updating} onClick={() => api.invoke('filters:update')}>
-              {filters?.updating ? 'Updating…' : 'Update now'}
+          {/* Lists update by themselves every day; the button only shows when that fell behind. */}
+          {s.adblock && filters && (filters.updating || filters.error || !filters.updated || Date.now() - filters.updated > 26 * 3600_000) ? (
+            <button className="btn small" disabled={filters.updating} onClick={() => api.invoke('filters:update')}>
+              {filters.updating ? 'Updating…' : 'Update now'}
             </button>
+          ) : (
+            s.adblock && filters?.ready && <span className="good">Up to date</span>
           )}
           <Switch on={s.adblock} onChange={(v) => set({ adblock: v })} />
         </div>
@@ -621,6 +624,28 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       ) : null
     },
 
+    {
+      category: 'performance',
+      label: 'Network limiter',
+      hint: 'Caps how fast Ovyra downloads and uploads, so games, calls and other apps keep their share of your connection.',
+      keywords: 'bandwidth internet speed limit throttle download upload gaming',
+      control: (
+        <Select
+          value={perf.networkLimitMbps}
+          width={190}
+          onChange={(networkLimitMbps) => setPerf({ networkLimitMbps })}
+          options={[
+            { value: 0, label: 'No limit' },
+            { value: 1, label: '1 Mbit/s' },
+            { value: 5, label: '5 Mbit/s' },
+            { value: 10, label: '10 Mbit/s' },
+            { value: 25, label: '25 Mbit/s' },
+            { value: 50, label: '50 Mbit/s' },
+            { value: 100, label: '100 Mbit/s' }
+          ]}
+        />
+      )
+    },
     {
       category: 'performance',
       label: 'Keep these sites awake',
@@ -937,7 +962,7 @@ function ImportDialog({ source, onClose }: { source: ImportSource; onClose: (msg
   const [error, setError] = useState('')
   const options = [
     { key: 'bookmarks', label: 'Bookmarks', show: source.hasBookmarks },
-    { key: 'speedDial', label: 'Speed dial', show: source.hasSpeedDial },
+    { key: 'speedDial', label: 'Speed dial → Home zone', show: source.hasSpeedDial },
     { key: 'history', label: 'Browsing history', show: source.hasHistory }
   ] as const
 
@@ -967,7 +992,7 @@ function ImportDialog({ source, onClose }: { source: ImportSource; onClose: (msg
               try {
                 const r = await api.invoke<{ bookmarks: number; history: number; speedDial: number }>('import:run', source.id, what)
                 onClose(
-                  `Imported from ${source.name}: ${r.bookmarks} bookmarks, ${r.speedDial} speed dial sites, ${r.history.toLocaleString()} history pages.`
+                  `Imported from ${source.name}: ${r.bookmarks} bookmarks, ${r.speedDial} Home zone sites, ${r.history.toLocaleString()} history pages.`
                 )
               } catch (e) {
                 setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': /, '') : String(e))

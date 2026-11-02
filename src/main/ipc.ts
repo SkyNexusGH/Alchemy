@@ -16,7 +16,7 @@ import * as bookmarks from './bookmarks'
 import { broadcast } from './broadcast'
 import { clearDownloads, downloadAction, listDownloads } from './downloads'
 import * as history from './history'
-import { appMenu, appMenuInfo, bookmarkFolderMenu, tabContextMenu } from './menus'
+import { appMenu, appMenuInfo, bookmarkFolderMenu, islandMenu, tabContextMenu } from './menus'
 import { localSuggestions, remoteSuggestions, resolveInput, searchUrl } from './omnibox'
 import { clearPermissionDecisions } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
@@ -69,23 +69,30 @@ export function registerIpc(): void {
     const tab = bw?.tab(id)
     if (tab) bw!.closeTab(tab)
   })
-  /** Memory used by the process showing a tab, in MB (null while it sleeps). */
-  shell('tab:memory', ({ bw }, id: number) => {
-    const wc = bw?.tab(id)?.wc
-    if (!wc || wc.isDestroyed()) return null
-    const pid = wc.getOSProcessId()
-    const metric = app.getAppMetrics().find((m) => m.pid === pid)
-    return metric ? Math.round(metric.memory.workingSetSize / 1024) : null
+  shell('tab:boost', ({ bw }, id: number, value: number) => bw?.tab(id)?.setBoost(Number(value) || 1))
+  shell('tabcard:show', ({ bw }, rect: Rect, id: number) => bw?.showTabCard(rect, id))
+  shell('tabcard:hide', ({ bw }) => bw?.hideTabCard())
+  // The pointer moved onto (or off) the card, so the tab strip keeps it open (or closes it).
+  shell('tabcard:hover', ({ bw }, over: boolean) => bw?.send('tabcard:hover', over))
+  /** A tab's state plus the memory its process uses, in MB (null while it sleeps). */
+  shell('tab:info', ({ bw }, id: number) => {
+    const tab = bw?.tab(id)
+    if (!tab) return null
+    const wc = tab.wc
+    const metric = wc && !wc.isDestroyed() ? app.getAppMetrics().find((m) => m.pid === wc.getOSProcessId()) : undefined
+    return { ...tab.state(), memoryMB: metric ? Math.round(metric.memory.workingSetSize / 1024) : null }
   })
   shell('tab:move', ({ bw }, id: number, to: number) => bw?.moveTab(id, to))
   shell('tab:mute', ({ bw }, id: number) => {
     const tab = bw?.tab(id)
     tab?.setMuted(!tab.muted)
   })
-  shell('tab:menu', ({ bw }, id: number, x: number, y: number) => {
+  shell('tab:menu', ({ bw }, id: number, x: number, y: number, selected: number[] = []) => {
     const tab = bw?.tab(id)
-    if (tab) tabContextMenu(bw!, tab, x, y)
+    const tabs = selected.map((s) => bw?.tab(s)).filter((t): t is NonNullable<typeof t> => !!t)
+    if (tab) tabContextMenu(bw!, tab, x, y, tabs)
   })
+  shell('island:menu', ({ bw }, id: number, x: number, y: number) => bw && islandMenu(bw, id, x, y))
   shell('tab:navigate', ({ bw }, input: string, opts?: { newTab?: boolean; background?: boolean; engine?: string }) =>
     bw?.navigate(input, opts)
   )

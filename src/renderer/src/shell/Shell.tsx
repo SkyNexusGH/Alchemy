@@ -44,9 +44,9 @@ export default function Shell(): React.JSX.Element {
           <BrandLogo size={27} />
         </button>
         {isPrivate && (
-          <span className="private-badge" title="Private window: nothing is saved after you close all private windows">
+          <span className="private-badge" title="Masked Mode: nothing is saved after you close all Masked Mode windows">
             <VenetianMask size={14} />
-            Private
+            Masked Mode
           </span>
         )}
         <TabStrip />

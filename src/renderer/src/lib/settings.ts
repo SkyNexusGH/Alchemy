@@ -19,7 +19,8 @@ export const useSettings = create<{ settings: Settings | null; context: PageCont
 function applyTheme(): void {
   const { settings, context, dark } = useSettings.getState()
   if (!settings) return
-  const accent = currentWorkspace()?.accent ?? settings.appearance.accent
+  // Masked Mode has its own violet, whatever the theme.
+  const accent = context.private ? '#b06cff' : (currentWorkspace()?.accent ?? settings.appearance.accent)
   const mode = settings.appearance.mode
   const base = baseColor(mode, dark)
   const root = document.documentElement

@@ -30,6 +30,6 @@ if (location.protocol === 'https:' || location.protocol === 'http:') {
       /* frames without a main world (e.g. some sandboxed iframes) */
     }
   }
-  if (config?.popout) setupPopout()
+  setupPopout(!!config?.popout)
   setupJsonViewer()
 }

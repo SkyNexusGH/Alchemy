@@ -29,7 +29,7 @@ import { panelStates, panelView, releasePanels } from './panels'
 import { PRELOAD, stepZoom, Tab, type TabHost, type TabSnapshot } from './tab'
 
 /** Height of the tab strip, which the native window buttons must match. */
-const tabStripHeight = (): number => (getSettings().appearance.compactTabs ? 32 : 40)
+const tabStripHeight = (): number => (getSettings().appearance.compactTabs ? 32 : 38)
 const MAX_CLOSED = 25
 const SPLIT_GAP = 8
 
@@ -64,7 +64,7 @@ export class BrowserWin implements TabHost {
   workspaceId: string
   /** The last tab used in each workspace, to return to when switching back. */
   private readonly lastActiveIn = new Map<string, number>()
-  readonly islands = new Map<number, { color: string; collapsed: boolean }>()
+  readonly islands = new Map<number, { color: string; collapsed: boolean; manual?: boolean }>()
   panelId: string | null = null
 
   /** Two tabs shown side by side, when split view is on. */
@@ -78,6 +78,7 @@ export class BrowserWin implements TabHost {
   private devtoolsShown: WebContentsView | null = null
   private find: FindState = { open: false, query: '', active: 0, matches: 0 }
   private overlayShown = false
+  private overlayKind: OverlayPayload['kind'] | null = null
   private htmlFullscreenTab: Tab | null = null
   private pushQueued = false
 
@@ -109,7 +110,7 @@ export class BrowserWin implements TabHost {
       ? PRIVATE_WORKSPACE
       : workspaces.find((w) => w.id === init?.workspaceId)?.id ?? workspaces[0].id
     for (const island of init?.islands ?? []) {
-      this.islands.set(island.id, { color: island.color, collapsed: island.collapsed })
+      this.islands.set(island.id, { color: island.color, collapsed: island.collapsed, manual: island.manual })
       nextIslandId = Math.max(nextIslandId, island.id + 1)
     }
 
@@ -302,11 +303,53 @@ export class BrowserWin implements TabHost {
     this.changed()
   }
 
+  /** Groups tabs (Opera-style multi-select → Create tab group): they line up after the first. */
+  createIsland(tabs: Tab[], color: string): void {
+    const list = this.tabs.filter((t) => tabs.includes(t) && t.workspaceId === tabs[0]?.workspaceId)
+    if (!list.length) return
+    const id = nextIslandId++
+    this.islands.set(id, { color, collapsed: false, manual: true })
+    for (const t of list) {
+      t.pinned = false
+      t.islandId = id
+    }
+    // Keep the group where its first tab is and gather the rest right after it.
+    const rest = this.tabs.filter((t) => !list.includes(t))
+    const anchor = this.tabs.indexOf(list[0])
+    const before = this.tabs.slice(0, anchor).filter((t) => !list.includes(t))
+    rest.splice(Math.max(before.length, rest.filter((t) => t.pinned).length), 0, ...list)
+    this.tabs.splice(0, this.tabs.length, ...rest)
+    this.normalizeIslands()
+    this.changed()
+  }
+
+  setIslandColor(id: number, color: string): void {
+    const island = this.islands.get(id)
+    if (!island) return
+    island.color = color
+    this.changed()
+  }
+
+  newTabInIsland(id: number): void {
+    const last = this.tabs.filter((t) => t.islandId === id).pop()
+    if (!last) return
+    const tab = this.newTab(NEW_TAB_URL, { index: this.tabs.indexOf(last) + 1 })
+    tab.islandId = id
+    this.normalizeIslands()
+    this.changed()
+  }
+
+  ungroup(id: number): void {
+    for (const t of this.tabs) if (t.islandId === id) t.islandId = null
+    this.normalizeIslands()
+    this.changed()
+  }
+
   closeIsland(id: number): void {
     for (const t of this.tabs.filter((t) => t.islandId === id)) this.closeTab(t)
   }
 
-  /** Islands must be one unbroken run of 2+ tabs; anything else falls apart. */
+  /** Islands must be one unbroken run of 2+ tabs (1+ for groups the user made); anything else falls apart. */
   private normalizeIslands(): void {
     const count = new Map<number, number>()
     const workspaceIds = new Set(this.tabs.map((t) => t.workspaceId))
@@ -322,7 +365,8 @@ export class BrowserWin implements TabHost {
         if (t.islandId !== null) count.set(t.islandId, (count.get(t.islandId) ?? 0) + 1)
       }
     }
-    for (const t of this.tabs) if (t.islandId !== null && (count.get(t.islandId) ?? 0) < 2) t.islandId = null
+    const min = (id: number): number => (this.islands.get(id)?.manual ? 1 : 2)
+    for (const t of this.tabs) if (t.islandId !== null && (count.get(t.islandId) ?? 0) < min(t.islandId)) t.islandId = null
     for (const id of [...this.islands.keys()]) if (!this.tabs.some((t) => t.islandId === id)) this.islands.delete(id)
   }
 
@@ -683,8 +727,9 @@ export class BrowserWin implements TabHost {
       return
     }
     const pair = this.shown.length === 2 ? this.splitTabs() : null
+    // Edge to edge, like Opera GX: the page fills the window to the right and bottom.
     if (!pair) {
-      view.setBorderRadius(8)
+      view.setBorderRadius(0)
       view.setBounds(roundRect(this.contentRect))
       return
     }
@@ -833,8 +878,19 @@ export class BrowserWin implements TabHost {
     })
     this.win.contentView.addChildView(this.overlay)
     this.overlayShown = true
+    this.overlayKind = payload.kind
     this.overlay.webContents.send('overlay:data', payload)
     if (focus) this.overlay.webContents.focus()
+  }
+
+  /** The tab hover card: only when nothing else (a menu, the omnibox list) is open. */
+  showTabCard(rect: Rect, tabId: number): void {
+    if (this.overlayShown && this.overlayKind !== 'tabcard') return
+    this.showOverlay(rect, { kind: 'tabcard', tabId })
+  }
+
+  hideTabCard(): void {
+    if (this.overlayKind === 'tabcard') this.hideOverlay()
   }
 
   updateOverlay(payload: OverlayPayload): void {
@@ -850,6 +906,7 @@ export class BrowserWin implements TabHost {
   hideOverlay(): void {
     if (!this.overlayShown) return
     this.overlayShown = false
+    this.overlayKind = null
     this.win.contentView.removeChildView(this.overlay)
     this.send('overlay:closed')
   }

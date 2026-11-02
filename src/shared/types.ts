@@ -18,6 +18,8 @@ export interface TabState {
   sleeping: boolean
   /** The page is playing in Ovyra's floating video window. */
   floating: boolean
+  /** Volume boost, 1 = normal. */
+  boost: number
   zoom: number
   security: Security
   bookmarked: boolean
@@ -42,6 +44,8 @@ export interface IslandState {
   id: number
   color: string
   collapsed: boolean
+  /** Made by the user (Create tab group), so it stays even with a single tab. */
+  manual?: boolean
 }
 
 /** A site pinned to the side rail (messengers, music, ...). */
@@ -111,7 +115,19 @@ export interface WindowState {
   devtools: boolean
 }
 
-export type BuiltinEngineId = 'google' | 'duckduckgo' | 'brave' | 'bing' | 'startpage'
+export type BuiltinEngineId =
+  | 'google'
+  | 'duckduckgo'
+  | 'brave'
+  | 'bing'
+  | 'startpage'
+  | 'yahoo'
+  | 'yandex'
+  | 'ecosia'
+  | 'qwant'
+  | 'mojeek'
+  | 'baidu'
+  | 'kagi'
 /** A built-in engine id, or the id of one of the user's own engines. */
 export type SearchEngineId = string
 
@@ -181,9 +197,12 @@ export interface Performance {
   hardwareAcceleration: boolean
   /** Sites (hosts) whose tabs never go to sleep. */
   awakeSites: string[]
+  /** Network limiter: the most Ovyra may download or upload, in Mbit/s. 0 = no limit. */
+  networkLimitMbps: number
 }
 
 export const ISLAND_COLORS = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#fb7185', '#2dd4bf', '#fb923c']
+export const ISLAND_COLOR_NAMES = ['Purple', 'Pink', 'Green', 'Yellow', 'Blue', 'Red', 'Teal', 'Orange']
 
 export const PANEL_PRESETS: PanelItem[] = [
   { id: 'whatsapp', title: 'WhatsApp', url: 'https://web.whatsapp.com/', color: '#25d366' },
@@ -191,6 +210,7 @@ export const PANEL_PRESETS: PanelItem[] = [
   { id: 'discord', title: 'Discord', url: 'https://discord.com/app', color: '#5865f2' },
   { id: 'messenger', title: 'Messenger', url: 'https://www.messenger.com/', color: '#a033ff' },
   { id: 'instagram', title: 'Instagram', url: 'https://www.instagram.com/direct/inbox/', color: '#e1306c' },
+  { id: 'myhue', title: 'MyHue', url: 'https://myhue.uk/', color: '#8b5cf6' },
   { id: 'spotify', title: 'Spotify', url: 'https://open.spotify.com/', color: '#1db954' },
   { id: 'x', title: 'X', url: 'https://x.com/', color: '#71767b' },
   { id: 'ytmusic', title: 'YouTube Music', url: 'https://music.youtube.com/', color: '#ff0033' },
@@ -257,6 +277,7 @@ export type OverlayPayload =
   | { kind: 'menu'; items: MenuModel[]; x: number; y: number }
   | { kind: 'app' }
   | { kind: 'eyedropper'; image: string }
+  | { kind: 'tabcard'; tabId: number }
 
 /** What the Ovyra menu (the logo button) shows. */
 export interface AppMenuInfo {
@@ -282,6 +303,8 @@ export interface MenuModel {
   hint?: string
   enabled: boolean
   checked?: boolean
+  /** A color dot before the label. */
+  color?: string
   submenu?: MenuModel[]
 }
 
@@ -414,6 +437,48 @@ export const SEARCH_ENGINES: Record<BuiltinEngineId, { name: string; keyword: st
     keyword: 'sp',
     name: 'Startpage',
     search: 'https://www.startpage.com/do/search?q=%s',
+    suggest: null
+  },
+  yahoo: {
+    keyword: 'y',
+    name: 'Yahoo',
+    search: 'https://search.yahoo.com/search?p=%s',
+    suggest: null
+  },
+  yandex: {
+    keyword: 'ya',
+    name: 'Yandex',
+    search: 'https://yandex.com/search/?text=%s',
+    suggest: 'https://suggest.yandex.com/suggest-ff.cgi?part=%s'
+  },
+  ecosia: {
+    keyword: 'e',
+    name: 'Ecosia',
+    search: 'https://www.ecosia.org/search?q=%s',
+    suggest: 'https://ac.ecosia.org/autocomplete?q=%s&type=list'
+  },
+  qwant: {
+    keyword: 'q',
+    name: 'Qwant',
+    search: 'https://www.qwant.com/?q=%s',
+    suggest: null
+  },
+  mojeek: {
+    keyword: 'm',
+    name: 'Mojeek',
+    search: 'https://www.mojeek.com/search?q=%s',
+    suggest: null
+  },
+  baidu: {
+    keyword: 'bd',
+    name: 'Baidu',
+    search: 'https://www.baidu.com/s?wd=%s',
+    suggest: null
+  },
+  kagi: {
+    keyword: 'k',
+    name: 'Kagi',
+    search: 'https://kagi.com/search?q=%s',
     suggest: null
   }
 }

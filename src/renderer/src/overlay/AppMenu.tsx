@@ -40,7 +40,7 @@ const run = (cmd: string, arg?: string, keepOpen = false): void => {
 const TILES: { cmd: string; label: string; icon: Icon; hint?: string }[] = [
   { cmd: 'new-tab', label: 'New tab', icon: Plus, hint: 'Ctrl+T' },
   { cmd: 'new-window', label: 'New window', icon: AppWindow, hint: 'Ctrl+N' },
-  { cmd: 'new-private', label: 'Private', icon: VenetianMask, hint: 'Ctrl+Shift+N' },
+  { cmd: 'new-private', label: 'Masked', icon: VenetianMask, hint: 'Ctrl+Shift+N' },
   { cmd: 'split-view', label: 'Split view', icon: Columns2 },
   { cmd: 'history', label: 'History', icon: Clock, hint: 'Ctrl+H' },
   { cmd: 'downloads', label: 'Downloads', icon: Download, hint: 'Ctrl+J' },

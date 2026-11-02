@@ -156,7 +156,7 @@ export function unfloatTab(tab: Tab, opts: { pause?: boolean; closing?: boolean 
     if (!opts.closing) win.destroy()
   }
   if (!bar.webContents.isDestroyed()) bar.webContents.close()
-  tab.view?.setBorderRadius(8)
+  tab.view?.setBorderRadius(0)
   const wc = tab.wc
   if (wc && !wc.isDestroyed()) {
     if (entry.css) void wc.removeInsertedCSS(entry.css).catch(() => {})

@@ -9,7 +9,8 @@ import type { BrowserWin } from './window'
  * click handlers here until an item is chosen.
  */
 
-type Source = MenuItemConstructorOptions | MenuItem
+/** Menu items may carry a color, shown as a dot (tab group colors). */
+export type Source = (MenuItemConstructorOptions & { color?: string }) | MenuItem
 const handlers = new Map<string, () => void>()
 let nextId = 1
 
@@ -46,6 +47,7 @@ function convert(items: Source[], wc?: WebContents): MenuModel[] {
       hint: typeof item.accelerator === 'string' ? item.accelerator : undefined,
       enabled: item.enabled !== false,
       checked: item.checked,
+      color: 'color' in item ? item.color : undefined,
       submenu: subItems ? convert(subItems, wc) : undefined
     })
   }

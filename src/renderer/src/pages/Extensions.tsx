@@ -47,7 +47,7 @@ export default function Extensions(): React.JSX.Element {
 
       <p style={{ color: 'var(--text-2)', lineHeight: 1.6, marginTop: -8 }}>
         Install extensions straight from the Chrome Web Store with “Add to Chrome”. Ad blocking is built in, so
-        you don't need an ad-block extension. Extensions don't run in private windows.
+        you don't need an ad-block extension. Extensions don't run in Masked Mode.
       </p>
 
       <div className="group-title">Installed</div>

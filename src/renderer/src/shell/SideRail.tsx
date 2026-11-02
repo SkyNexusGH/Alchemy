@@ -1,17 +1,11 @@
-import { Bookmark, Clock, Download, Plus, Settings } from '../lib/icons'
+import { Plus } from '../lib/icons'
 import { WorkspaceIcon } from '../lib/icons'
 import { useEffect, useRef } from 'react'
-import { baseColor, type InternalPage, type PanelState, type Workspace } from '@shared/types'
+import { baseColor, type PanelState, type Workspace } from '@shared/types'
 import { inkOn, readableOn } from '../lib/color'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
-import { useActiveTab, useShell } from './store'
-
-const TOOLS: { page: InternalPage; label: string; icon: typeof Clock }[] = [
-  { page: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
-  { page: 'history', label: 'History', icon: Clock },
-  { page: 'downloads', label: 'Downloads', icon: Download }
-]
+import { useShell } from './store'
 
 /** Opens a floating editor/picker next to a rail button. */
 function openBeside(el: HTMLElement, payload: object, width = 320): void {
@@ -20,9 +14,7 @@ function openBeside(el: HTMLElement, payload: object, width = 320): void {
 }
 
 export function SideRail(): React.JSX.Element {
-  const tab = useActiveTab()
   const isPrivate = useShell((s) => s.win.private)
-  const current = tab?.url.startsWith('ovyra://') ? new URL(tab.url).host : null
   const workspaces = useSettings((s) => s.settings?.workspaces ?? [])
   const panels = useShell((s) => s.win.panels)
   const wsRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -66,24 +58,6 @@ export function SideRail(): React.JSX.Element {
         <Plus size={14} />
       </button>
 
-      <div className="rail-spacer" />
-      {TOOLS.map(({ page, label, icon: Icon }) => (
-        <button
-          key={page}
-          className={`rail-btn small${current === page ? ' active' : ''}`}
-          title={label}
-          onClick={() => api.invoke('internal:open', page)}
-        >
-          <Icon size={17} />
-        </button>
-      ))}
-      <button
-        className={`rail-btn small${current === 'settings' ? ' active' : ''}`}
-        title="Settings"
-        onClick={() => api.invoke('internal:open', 'settings')}
-      >
-        <Settings size={17} />
-      </button>
     </nav>
   )
 }

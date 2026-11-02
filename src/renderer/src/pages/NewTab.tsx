@@ -19,12 +19,12 @@ export default function NewTab(): React.JSX.Element {
   const now = useClock()
 
   useEffect(() => {
-    if (isPrivate) document.title = 'Private Tab'
+    if (isPrivate) document.title = 'Masked Mode'
   }, [isPrivate])
   useEffect(() => {
     if (!dial.length) return
     api.invoke('history:favicons', dial.map((d) => d.url)).then(setIcons)
-    // Open connections to the speed dial sites now, so a click skips DNS and TLS setup.
+    // Open connections to the Home zone sites now, so a click skips DNS and TLS setup.
     if (!isPrivate) void api.invoke('speeddial:warm', dial.map((d) => d.url))
   }, [dial.map((d) => d.url).join(), isPrivate])
 
@@ -34,7 +34,8 @@ export default function NewTab(): React.JSX.Element {
   const remove = (id: string): void => void saveSettings({ speedDial: dial.filter((d) => d.id !== id) })
 
   return (
-    <div className={`ntp${bg ? ' has-bg' : ''}`}>
+    <div className={`ntp${bg ? ' has-bg' : ''}${isPrivate ? ' masked' : ''}`}>
+      {isPrivate && <div className="masked-glow" />}
       {bg && <div className="ntp-bg" style={{ backgroundImage: `url("${bg}")` }} />}
       {bg && <div className="ntp-dim" style={{ opacity: a.backgroundDim / 100 }} />}
 
@@ -52,13 +53,15 @@ export default function NewTab(): React.JSX.Element {
 
         {isPrivate && (
           <div className="private-card">
-            <VenetianMask size={22} />
+            <span className="mask-badge">
+              <VenetianMask size={22} />
+            </span>
             <div>
-              <b>You're browsing privately</b>
+              <b>You’re in Masked Mode</b>
               <p>
-                Ovyra won't keep your history, cookies, site data or form entries once you close all private windows.
-                Downloads and bookmarks you make are kept. Sites, your employer or your internet provider can still see
-                what you visit.
+                When you close every Masked Mode window, Ovyra forgets your history, cookies, site data and form entries
+                from it. Downloads and bookmarks you make are kept. Sites, your employer or your internet provider can
+                still see what you visit.
               </p>
             </div>
           </div>
@@ -74,7 +77,9 @@ export default function NewTab(): React.JSX.Element {
                 onPointerEnter={() => !isPrivate && void api.invoke('speeddial:warm', [d.url], true)}
               >
                 <span className="tile-icon">
-                  <Favicon src={icons[d.url]} url={d.url} size={30} />
+                  {/* The site's own colors, blurred into a soft glow behind its icon. */}
+                  {icons[d.url] && <span className="tile-glow" style={{ backgroundImage: `url("${icons[d.url]}")` }} />}
+                  <Favicon src={icons[d.url]} url={d.url} size={32} />
                 </span>
                 <span className="tile-title">{d.title || hostOf(d.url)}</span>
                 <button
@@ -91,9 +96,9 @@ export default function NewTab(): React.JSX.Element {
             ))}
             <button className="tile add" onClick={() => setAdding(true)}>
               <span className="tile-icon">
-                <Plus size={22} />
+                <Plus size={20} />
               </span>
-              <span className="tile-title">Add site</span>
+              <span className="tile-title">Add</span>
             </button>
           </div>
         )}
@@ -288,7 +293,7 @@ function AddSite({ onClose }: { onClose: (item: SpeedDialItem | null) => void })
           if (resolved) onClose({ id: crypto.randomUUID(), title: title.trim() || hostOf(resolved), url: resolved })
         }}
       >
-        <h2>Add to speed dial</h2>
+        <h2>Add to Home zone</h2>
         <p>Pin a site to your new tab page.</p>
         <div className="stack">
           <input className="field" autoFocus placeholder="Address, e.g. fivenova.org" value={url} onChange={(e) => setUrl(e.target.value)} />

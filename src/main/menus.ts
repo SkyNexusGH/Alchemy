@@ -1,5 +1,5 @@
 import { app, clipboard, type MenuItemConstructorOptions } from 'electron'
-import { engineOf, NEW_TAB_URL, type AppMenuInfo } from '@shared/types'
+import { engineOf, ISLAND_COLOR_NAMES, ISLAND_COLORS, NEW_TAB_URL, type AppMenuInfo } from '@shared/types'
 import { hostOf } from '@shared/url'
 import { isAwakeSite, setAwakeSite } from './awake'
 import { children } from './bookmarks'
@@ -12,7 +12,7 @@ import type { Tab } from './tab'
 import { updateState } from './updater'
 import { BrowserWin } from './window'
 
-type Item = MenuItemConstructorOptions
+type Item = MenuItemConstructorOptions & { color?: string }
 const SEP: Item = { type: 'separator' }
 
 function hint(accelerator: string): Pick<Item, 'accelerator' | 'registerAccelerator'> {
@@ -33,7 +33,7 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
       { label: 'Open link in new window', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: bw.incognito }) },
       ...(bw.incognito
         ? []
-        : [{ label: 'Open link in private window', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: true }) }]),
+        : [{ label: 'Open link in Masked Mode', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: true }) }]),
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       SEP
     )
@@ -110,8 +110,56 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
   showMenu(bw, all, at.x + p.x, at.y + p.y, wc)
 }
 
-export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): void {
+/** Group colors, as a submenu with dots. */
+function colorItems(pick: (color: string) => void, current?: string): Item[] {
+  return ISLAND_COLORS.map((color, i) => ({
+    label: ISLAND_COLOR_NAMES[i],
+    color,
+    type: current ? ('radio' as const) : ('normal' as const),
+    checked: color === current,
+    click: () => pick(color)
+  }))
+}
+
+/** Several tabs picked with Ctrl/Shift+click: act on all of them. */
+function selectionMenu(bw: BrowserWin, tabs: Tab[], x: number, y: number): void {
+  const n = tabs.length
+  // Done with the selection once something is done to it.
+  const all = (fn: (t: Tab) => void) => (): void => {
+    tabs.forEach(fn)
+    bw.send('tabs:clear-selection')
+  }
+  const items: Item[] = [
+    {
+      label: `Create tab group (${n} tabs)`,
+      submenu: colorItems((color) => {
+        bw.createIsland(tabs, color)
+        bw.send('tabs:clear-selection')
+      })
+    },
+    ...(bw.incognito
+      ? []
+      : [
+          {
+            label: `Move ${n} tabs to workspace`,
+            submenu: getSettings().workspaces.map((w) => ({
+              label: w.name,
+              click: all((t) => bw.moveToWorkspace(t, w.id))
+            }))
+          }
+        ]),
+    { label: `Pin ${n} tabs`, click: all((t) => bw.setPinned(t, true)) },
+    { label: `Mute ${n} tabs`, click: all((t) => t.setMuted(true)) },
+    SEP,
+    { label: `Close ${n} tabs`, click: all((t) => bw.closeTab(t)) }
+  ]
+  showMenu(bw, items, x, y)
+}
+
+export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number, selected: Tab[] = []): void {
+  if (selected.length > 1 && selected.includes(tab)) return selectionMenu(bw, selected, x, y)
   const index = bw.tabs.indexOf(tab)
+  const island = tab.islandId !== null ? bw.islands.get(tab.islandId) : undefined
   const items: Item[] = [
     { label: 'New tab to the right', click: () => bw.newTab(NEW_TAB_URL, { index: index + 1 }) },
     SEP,
@@ -152,13 +200,15 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): 
             }))
           }
         ]),
-    ...(tab.islandId !== null
+    SEP,
+    ...(island
       ? [
-          SEP,
-          { label: 'Remove from island', click: () => bw.leaveIsland(tab) },
-          { label: 'Close island', click: () => bw.closeIsland(tab.islandId!) }
+          { label: 'Group color', submenu: colorItems((color) => bw.setIslandColor(tab.islandId!, color), island.color) },
+          { label: 'Remove from group', click: () => bw.leaveIsland(tab) },
+          { label: 'Ungroup', click: () => bw.ungroup(tab.islandId!) },
+          { label: 'Close group', click: () => bw.closeIsland(tab.islandId!) }
         ]
-      : []),
+      : [{ label: 'Add to new tab group', enabled: !tab.pinned, submenu: colorItems((color) => bw.createIsland([tab], color)) }]),
     SEP,
     { label: 'Close', click: () => bw.closeTab(tab), ...hint('Ctrl+W') },
     { label: 'Close other tabs', enabled: bw.tabs.length > 1, click: () => bw.closeOthers(tab) },
@@ -167,6 +217,25 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): 
     { label: 'Reopen closed tab', enabled: bw.hasClosedTabs(), click: () => bw.reopenClosed(), ...hint('Ctrl+Shift+T') }
   ]
   showMenu(bw, items, x, y)
+}
+
+/** Right-clicking a group's dot in the tab strip. */
+export function islandMenu(bw: BrowserWin, id: number, x: number, y: number): void {
+  const island = bw.islands.get(id)
+  if (!island) return
+  showMenu(
+    bw,
+    [
+      { label: island.collapsed ? 'Expand group' : 'Collapse group', click: () => bw.toggleIsland(id) },
+      { label: 'Group color', submenu: colorItems((color) => bw.setIslandColor(id, color), island.color) },
+      { label: 'New tab in group', click: () => bw.newTabInIsland(id) },
+      SEP,
+      { label: 'Ungroup', click: () => bw.ungroup(id) },
+      { label: 'Close group', click: () => bw.closeIsland(id) }
+    ],
+    x,
+    y
+  )
 }
 
 /** The Ovyra menu: a panel under the logo button. */

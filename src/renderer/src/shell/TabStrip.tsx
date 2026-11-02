@@ -1,9 +1,51 @@
 import { Moon, Plus, Volume2, VolumeX, X } from '../lib/icons'
-import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TabState } from '@shared/types'
 import { api } from '../lib/api'
 import { Favicon } from '../lib/ui'
 import { useShell } from './store'
+
+/**
+ * The tab hover card (title, site, memory, volume boost) lives in the overlay above pages.
+ * It opens after a short hover, moves along instantly while it's open, and stays open while
+ * the pointer is on the card itself.
+ */
+const hoverCard = (() => {
+  let showTimer = 0
+  let hideTimer = 0
+  let open = false
+  let overCard = false
+  const show = (id: number, el: HTMLElement): void => {
+    const r = el.getBoundingClientRect()
+    open = true
+    void api.invoke('tabcard:show', { x: r.left - 10, y: r.bottom - 2, width: 300, height: 220 }, id)
+  }
+  api.on('tabcard:hover', (over: boolean) => {
+    overCard = over
+    window.clearTimeout(hideTimer)
+    if (!over) hideTimer = window.setTimeout(hide, 220)
+  })
+  function hide(): void {
+    window.clearTimeout(showTimer)
+    window.clearTimeout(hideTimer)
+    if (open) void api.invoke('tabcard:hide')
+    open = false
+    overCard = false
+  }
+  return {
+    enter(id: number, el: HTMLElement): void {
+      window.clearTimeout(showTimer)
+      window.clearTimeout(hideTimer)
+      if (open) show(id, el)
+      else showTimer = window.setTimeout(() => show(id, el), 550)
+    },
+    leave(): void {
+      window.clearTimeout(showTimer)
+      if (open && !overCard) hideTimer = window.setTimeout(hide, 220)
+    },
+    hide
+  }
+})()
 
 export function TabStrip(): React.JSX.Element {
   const tabs = useShell((s) => s.win.tabs)
@@ -13,6 +55,10 @@ export function TabStrip(): React.JSX.Element {
   const scroller = useRef<HTMLDivElement>(null)
   const els = useRef(new Map<number, HTMLDivElement>())
   const [dragId, setDragId] = useState<number | null>(null)
+  // Opera-style multi-select: Ctrl+click picks tabs, Shift+click picks a range.
+  const [selected, setSelected] = useState<number[]>([])
+  const live = selected.filter((id) => tabs.some((t) => t.id === id))
+  useEffect(() => api.on('tabs:clear-selection', () => setSelected([])), [])
   const drag = useRef<{ id: number; startX: number; grab: number; x: number; started: boolean } | null>(null)
 
   // FLIP: when tabs open, close or reorder, slide the others to their new place.
@@ -44,6 +90,18 @@ export function TabStrip(): React.JSX.Element {
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>, tab: TabState): void {
     if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+    if (e.ctrlKey || e.metaKey) {
+      const base = live.length ? live : activeId !== null ? [activeId] : []
+      setSelected(base.includes(tab.id) ? base.filter((id) => id !== tab.id) : [...base, tab.id])
+      return
+    }
+    if (e.shiftKey && activeId !== null) {
+      const ids = tabs.map((t) => t.id)
+      const [a, b] = [ids.indexOf(activeId), ids.indexOf(tab.id)].sort((x, y) => x - y)
+      setSelected(ids.slice(a, b + 1))
+      return
+    }
+    if (live.length) setSelected([])
     if (tab.id !== activeId) api.invoke('tab:activate', tab.id)
     const rect = e.currentTarget.getBoundingClientRect()
     drag.current = { id: tab.id, startX: e.clientX, grab: e.clientX - rect.left, x: e.clientX, started: false }
@@ -111,6 +169,7 @@ export function TabStrip(): React.JSX.Element {
                 collapsed={island.collapsed}
                 count={tabs.filter((t) => t.islandId === tab.islandId).length}
                 onClick={() => api.invoke('island:toggle', tab.islandId)}
+                onMenu={(x, y) => api.invoke('island:menu', tab.islandId, x, y)}
               />
             )}
             {!hidden && (
@@ -118,6 +177,8 @@ export function TabStrip(): React.JSX.Element {
                 tab={tab}
                 active={tab.id === activeId}
                 dragging={tab.id === dragId}
+                selected={live.length > 1 && live.includes(tab.id)}
+                selection={live}
                 island={island ? { color: island.color, end: !!endsIsland } : null}
                 ref={(el) => {
                   if (el) els.current.set(tab.id, el)
@@ -142,19 +203,25 @@ function IslandHandle({
   color,
   collapsed,
   count,
-  onClick
+  onClick,
+  onMenu
 }: {
   color: string
   collapsed: boolean
   count: number
   onClick: () => void
+  onMenu: (x: number, y: number) => void
 }): React.JSX.Element {
   return (
     <button
       className={`island-handle${collapsed ? ' collapsed' : ''}`}
       style={{ '--ic': color } as React.CSSProperties}
-      title={collapsed ? `Expand island (${count} tabs)` : 'Collapse island'}
+      title={collapsed ? `Expand group (${count} tabs)` : 'Collapse group (right-click for more)'}
       onClick={onClick}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onMenu(e.clientX, e.clientY)
+      }}
     >
       <span className="island-dot" />
       {collapsed && <span className="island-count">{count}</span>}
@@ -166,6 +233,8 @@ interface TabProps {
   tab: TabState
   active: boolean
   dragging: boolean
+  selected: boolean
+  selection: number[]
   island: { color: string; end: boolean } | null
   ref: React.Ref<HTMLDivElement>
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
@@ -173,42 +242,36 @@ interface TabProps {
   onPointerUp: () => void
 }
 
-const Tab = memo(function Tab({ tab, active, dragging, island, ref, ...handlers }: TabProps): React.JSX.Element {
+const Tab = memo(function Tab({ tab, active, dragging, selected, selection, island, ref, ...handlers }: TabProps): React.JSX.Element {
   const cls = [
     'tab',
     active && 'active',
     tab.pinned && 'pinned',
     tab.sleeping && 'sleeping',
     dragging && 'dragging',
+    selected && 'selected',
     island && 'in-island',
     island?.end && 'island-end'
   ]
-  // The tooltip shows how much memory the tab uses, read fresh each time it's hovered.
-  const [memory, setMemory] = useState<number | null>(null)
-  const tooltip = tab.sleeping
-    ? `${tab.title}
-Sleeping · using no memory`
-    : memory !== null
-      ? `${tab.title}
-Memory: ${memory >= 1024 ? `${(memory / 1024).toFixed(1)} GB` : `${memory} MB`}`
-      : tab.title
   return (
     <div
       ref={ref}
-      onPointerEnter={() => {
-        if (!tab.sleeping) void api.invoke<number | null>('tab:memory', tab.id).then(setMemory)
-      }}
+      onPointerEnter={(e) => hoverCard.enter(tab.id, e.currentTarget)}
+      onPointerLeave={() => hoverCard.leave()}
       className={cls.filter(Boolean).join(' ')}
       style={island ? ({ '--ic': island.color } as React.CSSProperties) : undefined}
-      title={tooltip}
       onAuxClick={(e) => e.button === 1 && api.invoke('tab:close', tab.id)}
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onContextMenu={(e) => {
         e.preventDefault()
-        api.invoke('tab:menu', tab.id, e.clientX, e.clientY)
+        api.invoke('tab:menu', tab.id, e.clientX, e.clientY, selection)
       }}
       onPointerCancel={handlers.onPointerUp}
       {...handlers}
+      onPointerDown={(e) => {
+        hoverCard.hide()
+        handlers.onPointerDown(e)
+      }}
     >
       <span className="tab-icon">
         {tab.loading ? <span className="spinner" /> : <Favicon src={tab.favicon} url={tab.displayUrl} size={16} />}

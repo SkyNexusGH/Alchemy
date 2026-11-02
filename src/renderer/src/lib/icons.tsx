@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 
 /**
  * Ovyra's own icon set. Drawn on a 24px grid with a 1.8 stroke, rounded joins and
- * faceted, octagonal shapes that echo the logo. Same prop names as the usual icon
+ * soft, rounded shapes. Same prop names as the usual icon
  * libraries (size, strokeWidth, fill) so they drop in anywhere.
  */
 
@@ -101,8 +101,8 @@ export const Expand = icon(<path d="M4.5 9.5v-5h5M19.5 9.5v-5h-5M4.5 14.5v5h5M19
 
 export const Search = icon(
   <>
-    <path d="M10.5 3.8l4.7 1.9 1.9 4.8-1.9 4.7-4.7 1.9-4.8-1.9-1.9-4.7 1.9-4.8z" />
-    <path d="M15.4 15.4l4.6 4.6" />
+    <circle cx="10.8" cy="10.8" r="6.3" />
+    <path d="M15.5 15.5l4.5 4.5" />
   </>
 )
 export const TextSearch = icon(
@@ -128,15 +128,14 @@ export const Globe = icon(
 )
 export const Lock = icon(
   <>
-    <path d="M7.5 10.5V8a4.5 4.5 0 0 1 9 0v2.5" />
-    <path d="M5.5 10.5h13l-1 9h-11z" />
-    <path d="M12 14v2" />
+    <rect x="5" y="10.5" width="14" height="10" rx="2.8" />
+    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
   </>
 )
 export const Info = icon(
   <>
-    <polygon points={decagon(8.6)} />
-    <path d="M12 11v5M12 7.8v.1" />
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M12 11v5.2M12 7.8v.1" />
   </>
 )
 export const TriangleAlert = icon(
@@ -145,8 +144,8 @@ export const TriangleAlert = icon(
     <path d="M12 10v4M12 16.8v.1" />
   </>
 )
-export const Star = icon(<path d="M12 3.8l2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.6-5 2.6.9-5.6-4-3.9 5.6-.8z" />)
-export const Bookmark = icon(<path d="M6.5 3.8h11v16.4L12 16l-5.5 4.2z" />)
+export const Star = icon(<path d="M12 3.9l2.45 4.97 5.48.8-3.97 3.86.94 5.46L12 16.41l-4.9 2.58.94-5.46-3.97-3.86 5.48-.8z" />)
+export const Bookmark = icon(<path d="M7 3.8h10a1 1 0 0 1 1 1v15.4L12 16.3l-6 3.9V4.8a1 1 0 0 1 1-1z" />)
 export const BookmarkPlus = icon(
   <>
     <path d="M6.5 3.8h11v16.4L12 16l-5.5 4.2z" />
@@ -155,14 +154,14 @@ export const BookmarkPlus = icon(
 )
 export const Clock = icon(
   <>
-    <polygon points={decagon(8.6)} />
-    <path d="M12 7.5V12l3 2" />
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M12 7.6V12l3 1.9" />
   </>
 )
 export const Download = icon(
   <>
-    <path d="M12 4v10.5M7.5 10l4.5 4.5 4.5-4.5" />
-    <path d="M4.5 16.5v3h15v-3" />
+    <path d="M12 3.8v11M7.6 10.5l4.4 4.4 4.4-4.4" />
+    <path d="M4.5 15.5v2.2a2.3 2.3 0 0 0 2.3 2.3h10.4a2.3 2.3 0 0 0 2.3-2.3v-2.2" />
   </>
 )
 export const Upload = icon(
@@ -192,21 +191,21 @@ export const Pencil = icon(
 )
 export const Trash2 = icon(
   <>
-    <path d="M4.5 6.5h15M9.5 6.5V4h5v2.5" />
-    <path d="M6.5 6.5l1 13.5h9l1-13.5" />
-    <path d="M10.2 10.5v6M13.8 10.5v6" />
+    <path d="M4.5 6.5h15M9.5 6.5V5a1.2 1.2 0 0 1 1.2-1.2h2.6A1.2 1.2 0 0 1 14.5 5v1.5" />
+    <path d="M6.3 6.5l.9 12.3a1.6 1.6 0 0 0 1.6 1.5h6.4a1.6 1.6 0 0 0 1.6-1.5l.9-12.3" />
+    <path d="M10.2 10.5v5.8M13.8 10.5v5.8" />
   </>
 )
 export const Copy = icon(
   <>
-    <path d="M8.5 8.5h11v11h-11z" />
-    <path d="M15.5 8.5v-4h-11v11h4" />
+    <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.4" />
+    <path d="M15.5 8.5V6.4A2.4 2.4 0 0 0 13.1 4H6.4A2.4 2.4 0 0 0 4 6.4v6.7a2.4 2.4 0 0 0 2.4 2.4h2.1" />
   </>
 )
 export const Pin = icon(
   <>
-    <path d="M9 3.8h6l-1 6 3.5 3.2h-11L10 9.8z" />
-    <path d="M12 13v7.2" />
+    <path d="M9.2 3.8h5.6M10 3.8v5.4L6.8 12.6v1.6h10.4v-1.6L14 9.2V3.8" />
+    <path d="M12 14.2v6" />
   </>
 )
 export const Printer = icon(
@@ -243,7 +242,7 @@ export const PanelTop = icon(
 )
 export const Columns2 = icon(
   <>
-    <path d="M3.5 5h17v14h-17z" />
+    <rect x="3.5" y="5" width="17" height="14" rx="2.6" />
     <path d="M12 5v14" />
   </>
 )
@@ -257,12 +256,12 @@ export const LayoutGrid = icon(
 )
 export const Settings = icon(
   <>
-    <polygon points={decagon(8.4)} />
-    <path d="M12 8.2l3.8 3.8-3.8 3.8L8.2 12z" />
+    <path d="M10.3 3.6h3.4l.6 2.3 1.6.9 2.3-.7 1.7 2.9-1.7 1.7v1.8l1.7 1.7-1.7 2.9-2.3-.7-1.6.9-.6 2.3h-3.4l-.6-2.3-1.6-.9-2.3.7-1.7-2.9 1.7-1.7v-1.8L4.1 9l1.7-2.9 2.3.7 1.6-.9z" />
+    <circle cx="12" cy="12" r="2.8" />
   </>
 )
 export const Puzzle = icon(
-  <path d="M4.5 8.5h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4h-4a2 2 0 1 0-4 0h-4v-4a2 2 0 1 0 0-4z" />
+  <path d="M5 8.5h3.6a2.1 2.1 0 1 1 4.2 0h3.7v3.7a2.1 2.1 0 1 1 0 4.2v3.6h-3.6a2.1 2.1 0 1 0-4.2 0H5v-3.6a2.1 2.1 0 1 0 0-4.2z" />
 )
 export const Store = icon(
   <>
@@ -274,13 +273,13 @@ export const Store = icon(
 export const Moon = icon(<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z" />)
 export const Sun = icon(
   <>
-    <path d="M12 8l2.8 1.2L16 12l-1.2 2.8L12 16l-2.8-1.2L8 12l1.2-2.8z" />
+    <circle cx="12" cy="12" r="3.8" />
     <path d="M12 2.8v2M12 19.2v2M2.8 12h2M19.2 12h2M5.5 5.5l1.4 1.4M17.1 17.1l1.4 1.4M5.5 18.5l1.4-1.4M17.1 6.9l1.4-1.4" />
   </>
 )
 export const Monitor = icon(
   <>
-    <path d="M3.5 4.5h17v11.5h-17z" />
+    <rect x="3.5" y="4.5" width="17" height="11.5" rx="2.4" />
     <path d="M9 20h6M12 16v4" />
   </>
 )
@@ -300,17 +299,19 @@ export const Play = icon(<path d="M7.5 4.8l11 7.2-11 7.2z" />)
 export const Pause = icon(<path d="M7.5 5v14M16.5 5v14" />)
 export const CircleX = icon(
   <>
-    <polygon points={decagon(8.6)} />
-    <path d="M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4" />
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />
   </>
 )
 export const VenetianMask = icon(
-  <path d="M3 8.5c3 0 5.5 1.2 9 1.2s6-1.2 9-1.2c0 5-2.5 7.5-5.5 7.5-1.7 0-2.6-1.3-3.5-1.3s-1.8 1.3-3.5 1.3C5.5 16 3 13.5 3 8.5zM8 11.5h1.5M14.5 11.5H16" />
+  <>
+    <path d="M2.8 9.2c0-1.3 1-2.2 2.3-2.1 2.6.2 4.4 1 6.9 1s4.3-.8 6.9-1c1.3-.1 2.3.8 2.3 2.1 0 4.3-2.4 7.1-5.6 7.1-1.8 0-2.6-1.6-3.6-1.6s-1.8 1.6-3.6 1.6c-3.2 0-5.6-2.8-5.6-7.1z" />
+    <path d="M6.8 11.3c.9-.6 2.2-.6 3 .2M14.2 11.5c.8-.8 2.1-.8 3-.2" />
+  </>
 )
-
 // ---- protection ------------------------------------------------------------------------
 
-const shield = 'M12 3l7.5 2.8v6c0 4.5-3.2 7.6-7.5 9.2-4.3-1.6-7.5-4.7-7.5-9.2v-6z'
+const shield = 'M12 3.2l6.6 2.4a1.4 1.4 0 0 1 .9 1.3v5.2c0 4.2-3 7.3-7.5 8.9-4.5-1.6-7.5-4.7-7.5-8.9V6.9a1.4 1.4 0 0 1 .9-1.3z'
 export const Shield = icon(<path d={shield} />)
 export const ShieldCheck = icon(
   <>
@@ -712,50 +713,114 @@ export function WorkspaceIcon({ id, size = 16 }: { id: string; size?: number }):
 }
 
 // ---- search engines ----------------------------------------------------------------------
-// Simple marks drawn for Ovyra (not the companies' logos), in each engine's color.
+// Each engine's own look (colors and mark), drawn small so they read at 16px.
 
-export const ENGINE_MARKS: Record<string, { color: string; icon: Icon }> = {
-  google: {
-    color: '#4285f4',
-    icon: icon(<path d="M19.5 11.2h-7.3v2.9h4.3c-.5 2.1-2.3 3.5-4.5 3.5a5.6 5.6 0 0 1 0-11.2c1.4 0 2.6.5 3.6 1.3l2.1-2.1A8.6 8.6 0 1 0 20.6 12c0-.3 0-.5-.1-.8z" />)
-  },
-  duckduckgo: {
-    color: '#de5833',
-    icon: icon(
-      <>
-        <polygon points={decagon(8.6)} />
-        <path d="M9.5 9.5h.1M14 9.5h.1M10 14c1.2 1 2.8 1 4 0" />
-      </>
-    )
-  },
-  brave: {
-    color: '#fb542b',
-    icon: icon(
-      <>
-        <path d="M7.5 3.5h9l2.5 3-1.5 9-5.5 5-5.5-5-1.5-9z" />
-        <path d="M9.5 10l2.5 1.5 2.5-1.5M10.5 15l1.5 1 1.5-1" />
-      </>
-    )
-  },
-  bing: {
-    color: '#2b9bda',
-    icon: icon(<path d="M7 3.5l3.5 1.3v11.3l5.8-3.3-2.6-1.2-1.5-3.8L18 10v4.7l-7.5 5.8L7 18.3z" />)
-  },
-  startpage: {
-    color: '#6573ff',
-    icon: icon(
-      <>
-        <path d="M10.5 3.8l4.7 1.9 1.9 4.8-1.9 4.7-4.7 1.9-4.8-1.9-1.9-4.7 1.9-4.8z" />
-        <path d="M15.4 15.4l4.6 4.6M10.5 7.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" />
-      </>
-    )
-  }
+const LETTER = { fontFamily: "'Segoe UI', system-ui, sans-serif", fontWeight: 800, textAnchor: 'middle' } as const
+
+const ENGINE_LOGOS: Record<string, ReactNode> = {
+  google: (
+    <g fill="none" strokeWidth={3.2}>
+      <path d="M19 12a7 7 0 0 1-2.05 4.95" stroke="#4285f4" />
+      <path d="M12.2 12H19.6" stroke="#4285f4" />
+      <path d="M16.95 16.95A7 7 0 0 1 7.05 16.95" stroke="#34a853" />
+      <path d="M7.05 16.95A7 7 0 0 1 5.94 8.5" stroke="#fbbc05" />
+      <path d="M5.94 8.5A7 7 0 0 1 16.95 7.05" stroke="#ea4335" />
+    </g>
+  ),
+  duckduckgo: (
+    <>
+      <circle cx="12" cy="12" r="10.5" fill="#de5833" />
+      <ellipse cx="12.4" cy="12.6" rx="5.6" ry="6.6" fill="#fff" />
+      <circle cx="13.6" cy="10.2" r="1.15" fill="#2d4f8e" />
+      <path d="M12.6 14l3.4-.8-.3 1.5z" fill="#fdd209" />
+      <path d="M10.2 17.8c1.2.6 2.6.7 3.8.2" stroke="#67bd47" strokeWidth={1.4} fill="none" strokeLinecap="round" />
+    </>
+  ),
+  brave: (
+    <>
+      <path d="M7 2.5h10l2.6 3-.9 2.3.6 1.7-2.6 9.3L12 22l-4.7-3.2-2.6-9.3.6-1.7-.9-2.3z" fill="#fb542b" />
+      <path d="M9 10.2l3 1.6 3-1.6M9.6 15l2.4 1.6 2.4-1.6" stroke="#fff" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  bing: (
+    <>
+      <defs>
+        <linearGradient id="ov-bing" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#37bdff" />
+          <stop offset="1" stopColor="#0b6cd1" />
+        </linearGradient>
+      </defs>
+      <path d="M6.5 2.5l4 1.4v11.3l4.9-2.8-2.4-1.1-1.5-3.6 7.6 2.7v3.9L10.5 21.5l-4-2.2z" fill="url(#ov-bing)" />
+    </>
+  ),
+  startpage: (
+    <>
+      <circle cx="12" cy="12" r="10.5" fill="#6573ff" />
+      <circle cx="11" cy="11" r="4.2" stroke="#fff" strokeWidth={2.2} fill="none" />
+      <path d="M14 14l3.6 3.6" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" />
+    </>
+  ),
+  yahoo: (
+    <>
+      <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#6001d2" />
+      <text x="11" y="16.6" fontSize="12.5" fill="#fff" {...LETTER}>
+        Y!
+      </text>
+    </>
+  ),
+  yandex: (
+    <>
+      <circle cx="12" cy="12" r="10.5" fill="#fc3f1d" />
+      <path d="M13.2 18.5V6.4h-1.3c-2 0-3.2 1.1-3.2 2.9 0 1.6.7 2.4 2.1 3.4l1.2.8-3.3 5" stroke="#fff" strokeWidth={1.9} fill="none" strokeLinejoin="round" />
+    </>
+  ),
+  ecosia: (
+    <>
+      <circle cx="12" cy="12" r="10.5" fill="#008009" />
+      <path d="M12 18.5v-6M12 12.5c-3.2 0-4.8-2-4.8-4.6 3.1 0 4.8 1.9 4.8 4.6zM12 14.5c2.8 0 4.6-1.7 4.6-4.4-2.9 0-4.6 1.8-4.6 4.4z" fill="#fff" stroke="#fff" strokeWidth={1.2} strokeLinejoin="round" />
+    </>
+  ),
+  qwant: (
+    <>
+      <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#141a2b" />
+      <circle cx="11.6" cy="11.4" r="5" stroke="#fff" strokeWidth={2.2} fill="none" />
+      <path d="M14.4 14.2l3.4 3.4" stroke="#5c97ff" strokeWidth={2.6} strokeLinecap="round" />
+    </>
+  ),
+  mojeek: (
+    <>
+      <circle cx="12" cy="12" r="10.5" fill="#7ab93c" />
+      <text x="12" y="16.3" fontSize="12.5" fill="#fff" {...LETTER}>
+        m
+      </text>
+    </>
+  ),
+  baidu: (
+    <>
+      <ellipse cx="7.2" cy="9" rx="1.9" ry="2.4" fill="#2932e1" />
+      <ellipse cx="10.6" cy="5.6" rx="1.9" ry="2.4" fill="#2932e1" />
+      <ellipse cx="14.4" cy="5.6" rx="1.9" ry="2.4" fill="#2932e1" />
+      <ellipse cx="17.6" cy="9.2" rx="1.9" ry="2.4" fill="#2932e1" />
+      <path d="M12 10.8c-2 0-3.1 2.3-4.6 4.1-1.4 1.7-1.6 4.4 1.1 4.6 1.4.1 2.3-.6 3.5-.6s2.1.7 3.5.6c2.7-.2 2.5-2.9 1.1-4.6-1.5-1.8-2.6-4.1-4.6-4.1z" fill="#2932e1" />
+    </>
+  ),
+  kagi: (
+    <>
+      <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#ffb319" />
+      <text x="12" y="16.8" fontSize="13" fill="#1e1a39" {...LETTER}>
+        k
+      </text>
+    </>
+  )
 }
 
 export function EngineIcon({ id, size = 16 }: { id: string; size?: number }): React.JSX.Element {
-  const mark = ENGINE_MARKS[id]
+  const logo = ENGINE_LOGOS[id]
   // The user's own engines get a plain globe.
-  if (!mark) return <Globe size={size} style={{ color: 'var(--text-2)' }} />
-  const C = mark.icon
-  return <C size={size} style={{ color: mark.color }} />
+  if (!logo) return <Globe size={size} style={{ color: 'var(--text-2)' }} />
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }} aria-hidden>
+      {logo}
+    </svg>
+  )
 }

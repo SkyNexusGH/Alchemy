@@ -205,13 +205,14 @@
 
 /* ---- speed dial ---- */
 
+/* Home zone: sites as app icons, with a soft glow in each site's own colors. */
 .dial {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 116px);
+  grid-template-columns: repeat(auto-fit, 96px);
   justify-content: center;
-  gap: 14px;
+  gap: 18px 10px;
   width: 100%;
-  max-width: calc(116px * 6 + 14px * 5);
+  max-width: calc(96px * 7 + 10px * 6);
 }
 
 .tile {
@@ -219,94 +220,167 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 11px;
-  height: 108px;
-  border-radius: calc(var(--r) + 6px);
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 0 0 1px var(--border);
-  transition:
-    transform 200ms var(--spring),
-    background 140ms var(--ease);
+  gap: 9px;
+  padding: 10px 0 8px;
+  border-radius: 18px;
+  color: var(--text);
+  transition: transform 260ms var(--spring);
 }
 .tile:hover {
-  transform: translateY(-3px);
-  background: var(--panel-2);
+  transform: translateY(-4px);
 }
 .tile:active {
-  transform: translateY(-1px) scale(0.98);
+  transform: translateY(-1px) scale(0.96);
 }
 .tile-icon {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: calc(var(--r) + 3px);
-  background: var(--surface-2);
-  color: var(--text-2);
+  width: 62px;
+  height: 62px;
+  border-radius: 20px;
+  overflow: hidden;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 6px 18px rgba(0, 0, 0, 0.22);
+  transition:
+    box-shadow 260ms var(--ease),
+    background 200ms var(--ease);
+}
+.tile-icon > :not(.tile-glow) {
+  position: relative;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+.tile-glow {
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: blur(18px) saturate(1.6);
+  opacity: 0.45;
+  transition: opacity 260ms var(--ease);
+}
+.tile:hover .tile-icon {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 12px 28px rgba(0, 0, 0, 0.3);
+}
+.tile:hover .tile-glow {
+  opacity: 0.75;
 }
 .tile-title {
-  max-width: 100px;
+  max-width: 92px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
+}
+.ntp.has-bg .tile-title {
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 .tile-remove {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 2px;
+  right: 8px;
+  z-index: 1;
   display: grid;
   place-items: center;
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--surface-2);
+  background: var(--panel-2);
   color: var(--text-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   opacity: 0;
-  transition: opacity 140ms var(--ease);
+  transform: scale(0.7);
+  transition:
+    opacity 140ms var(--ease),
+    transform 200ms var(--spring);
 }
 .tile:hover .tile-remove {
   opacity: 1;
+  transform: none;
 }
 .tile-remove:hover {
   background: var(--danger);
   color: #fff;
 }
+/* Adding a site stays in the background until you go looking for it. */
 .tile.add {
+  opacity: 0.32;
+  transition:
+    opacity 200ms var(--ease),
+    transform 260ms var(--spring);
+}
+.tile.add .tile-icon {
   background: transparent;
   backdrop-filter: none;
   box-shadow: inset 0 0 0 1.5px var(--border-2);
   color: var(--text-2);
 }
-.ntp.has-bg .tile.add {
-  background: color-mix(in srgb, var(--panel) 55%, transparent);
-  backdrop-filter: blur(16px);
+.dial:hover .tile.add {
+  opacity: 0.6;
 }
 .tile.add:hover {
+  opacity: 1;
+}
+.tile.add:hover .tile-icon {
   box-shadow: inset 0 0 0 1.5px var(--accent-fg);
   color: var(--text);
 }
 
+/* Masked Mode: drifting violet light behind everything */
+.masked-glow {
+  position: fixed;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 35% at 25% 30%, color-mix(in srgb, #8b5cf6 30%, transparent), transparent 70%),
+    radial-gradient(35% 30% at 75% 70%, color-mix(in srgb, #d946ef 22%, transparent), transparent 70%),
+    radial-gradient(30% 25% at 70% 20%, color-mix(in srgb, #6366f1 18%, transparent), transparent 70%);
+  filter: blur(20px);
+  animation: masked-drift 24s ease-in-out infinite alternate;
+}
+@keyframes masked-drift {
+  to {
+    transform: translate(4%, -3%) rotate(6deg);
+  }
+}
 .private-card {
+  position: relative;
   display: flex;
   gap: 14px;
   width: min(620px, 100%);
   margin: -16px 0 34px;
   padding: 16px 18px;
-  border-radius: calc(var(--r) + 6px);
-  background: var(--panel);
-  box-shadow: 0 0 0 1px var(--border);
+  border-radius: calc(var(--r) + 8px);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #a855f7 35%, transparent),
+    0 12px 40px color-mix(in srgb, #7c3aed 25%, transparent);
 }
-.private-card svg {
+.mask-badge {
   flex-shrink: 0;
-  margin-top: 2px;
-  color: var(--accent-fg);
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+  color: #fff;
+  box-shadow: 0 6px 18px color-mix(in srgb, #a855f7 45%, transparent);
 }
 .private-card b {
-  font-size: 14px;
+  font-size: 15px;
 }
 .private-card p {
   margin: 4px 0 0;

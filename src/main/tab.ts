@@ -54,6 +54,8 @@ export class Tab {
   favicon: string | null
   pinned: boolean
   muted = false
+  /** Volume boost for the tab's videos (1 = normal, up to 4). */
+  boost = 1
   loading = false
   audible = false
   /** When the tab was last in the foreground; drives sleeping tabs. */
@@ -118,7 +120,7 @@ export class Tab {
             backgroundThrottling: !getSettings().performance.heavy
           }
         })
-    view.setBorderRadius(8)
+    view.setBorderRadius(0)
     view.setBackgroundColor(this.url.startsWith('ovyra:') ? '#0d0b14' : '#ffffff')
     this.view = view
     this.attach(view.webContents)
@@ -186,6 +188,24 @@ export class Tab {
     this.host.tabChanged(this)
   }
 
+  setBoost(value: number): void {
+    this.boost = Math.min(Math.max(value, 1), 4)
+    this.sendBoost()
+    this.host.tabChanged(this)
+  }
+
+  private sendBoost(): void {
+    const wc = this.wc
+    if (!wc || wc.isDestroyed()) return
+    for (const frame of wc.mainFrame.framesInSubtree) {
+      try {
+        frame.send('ovyra:boost', this.boost)
+      } catch {
+        /* frame went away */
+      }
+    }
+  }
+
   setMuted(muted: boolean): void {
     this.muted = muted
     this.wc?.setAudioMuted(muted)
@@ -231,6 +251,7 @@ export class Tab {
       pinned: this.pinned,
       sleeping: this.sleeping,
       floating: isFloating(this),
+      boost: this.boost,
       zoom: wc && !wc.isDestroyed() ? wc.getZoomFactor() : 1,
       security: this.security(),
       bookmarked: isBookmarked(this.pageUrl()),
@@ -297,6 +318,8 @@ export class Tab {
     tabsByContents.set(wc.id, this)
     trackTab(wc, this.host.win, this.host.incognito)
     wc.on('focus', () => this.host.tabFocused(this))
+    // A boosted tab keeps its boost on new pages and in new frames.
+    wc.on('did-frame-finish-load', () => this.boost !== 1 && this.sendBoost())
 
     wc.on('did-start-navigation', (details) => {
       // A new page starts with a fresh blocked count.

@@ -31,6 +31,7 @@ import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { useSettings } from '../lib/settings'
 import { AppMenu } from './AppMenu'
 import { Eyedropper } from './Eyedropper'
+import { TabCard } from './TabCard'
 import { Palette } from './Palette'
 import { Favicon, formatBytes } from '../lib/ui'
 
@@ -54,6 +55,7 @@ export default function Overlay(): React.JSX.Element {
       {payload?.kind === 'add-panel' && <AddPanel />}
       {payload?.kind === 'palette' && <PaletteHost />}
       {payload?.kind === 'app' && <AppMenu />}
+      {payload?.kind === 'tabcard' && <TabCard key={payload.tabId} tabId={payload.tabId} />}
       {payload?.kind === 'eyedropper' && <Eyedropper key={payload.image.length} image={payload.image} />}
       {payload?.kind === 'menu' && <MenuHost key={`${payload.x},${payload.y}`} items={payload.items} x={payload.x} y={payload.y} />}
     </div>
@@ -153,7 +155,11 @@ function MenuList({
             onMouseUp={() => onChoose(item)}
           >
             <span className="menu-check">
-              {(item.type === 'checkbox' || item.type === 'radio') && item.checked && <Check size={14} strokeWidth={2.4} />}
+              {item.color ? (
+                <i className="menu-dot" style={{ background: item.color }} />
+              ) : (
+                (item.type === 'checkbox' || item.type === 'radio') && item.checked && <Check size={14} strokeWidth={2.4} />
+              )}
             </span>
             <span className="menu-label">{item.label}</span>
             {item.hint && <span className="menu-hint">{item.hint.replace('CmdOrCtrl', 'Ctrl')}</span>}
@@ -449,7 +455,7 @@ function DownloadsPanel(): React.JSX.Element {
             api.invoke('overlay:hide')
           }}
         >
-          Show all
+          All downloads
         </button>
       </div>
       {recent.length === 0 && <div className="dl-empty">Nothing downloaded yet.</div>}

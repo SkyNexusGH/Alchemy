@@ -29,6 +29,52 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.4',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Layers,
+        title: 'Tab groups and multi-select',
+        text: 'Ctrl+click or Shift+click to pick several tabs, then right-click → Create tab group and choose a color.'
+      },
+      {
+        icon: Volume2,
+        title: 'Tab hover cards',
+        text: 'Hover a tab to see its memory use, and boost a quiet tab’s volume up to 400%.'
+      },
+      {
+        icon: AppWindow,
+        title: 'More room for pages',
+        text: 'Pages now fill the window edge to edge, with a slimmer sidebar and toolbar.'
+      },
+      {
+        icon: Moon,
+        title: 'Masked Mode',
+        text: 'Private windows are now Masked Mode, with a new violet look.'
+      },
+      {
+        icon: Sparkle,
+        title: 'Home zone',
+        text: 'The speed dial is now the Home zone, with app-style icons that glow in each site’s colors.'
+      },
+      {
+        icon: Search,
+        title: 'Seven more search engines',
+        text: 'Yahoo, Yandex, Ecosia, Qwant, Mojeek, Baidu and Kagi, plus redrawn engine icons.'
+      },
+      {
+        icon: Gauge,
+        title: 'Network limiter',
+        text: 'Cap Ovyra’s bandwidth in Settings → Performance, so games and calls keep their share.'
+      },
+      {
+        icon: Palette,
+        title: 'Cleaner video bar and icons',
+        text: 'A smaller video toolbar, a downloads button beside the address bar, and smoother icons throughout.'
+      }
+    ]
+  },
+  {
     version: '0.1.3',
     date: 'November 2026',
     items: [

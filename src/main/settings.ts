@@ -20,7 +20,8 @@ export const DEFAULT_PERFORMANCE: Performance = {
   ramLimitGB: 0,
   pageMemoryMB: 4096,
   hardwareAcceleration: true,
-  awakeSites: []
+  awakeSites: [],
+  networkLimitMbps: 0
 }
 
 const DEFAULT_SPEED_DIAL: SpeedDialItem[] = [

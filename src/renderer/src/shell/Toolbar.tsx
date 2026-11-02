@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Columns2, Download,RefreshCw, RotateCw, X } from '../lib/icons'
+import { ArrowLeft, ArrowRight, Columns2, Download, RefreshCw, RotateCw, X } from '../lib/icons'
 import { useEffect, useRef, useState } from 'react'
 import type { UpdateState } from '@shared/types'
 import { api } from '../lib/api'
@@ -76,7 +76,6 @@ function UpdateButton(): React.JSX.Element | null {
 function DownloadsButton(): React.JSX.Element | null {
   const downloads = useShell((s) => s.downloads)
   const button = useRef<HTMLButtonElement>(null)
-  const recent = downloads.filter((d) => Date.now() - d.started < 6 * 3600_000 || d.status === 'progressing')
   const active = downloads.filter((d) => d.status === 'progressing' || d.status === 'paused')
   const total = active.reduce((n, d) => n + d.total, 0)
   const received = active.reduce((n, d) => n + d.received, 0)
@@ -92,10 +91,9 @@ function DownloadsButton(): React.JSX.Element | null {
   // Chrome-style: a new download pops the panel open.
   useEffect(() => api.on('download:started', () => setTimeout(open, 50)), [])
 
-  if (!recent.length) return null
   const C = 2 * Math.PI * 12
   return (
-    <button ref={button} className="icon-btn downloads-btn" title="Downloads" onClick={open}>
+    <button ref={button} className="icon-btn downloads-btn" title="Recent downloads (Ctrl+J for all)" onClick={open}>
       <Download size={16} />
       {active.length > 0 && (
         <svg className="ring" viewBox="0 0 28 28">
