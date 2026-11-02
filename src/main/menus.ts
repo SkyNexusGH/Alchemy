@@ -238,7 +238,7 @@ export function islandMenu(bw: BrowserWin, id: number, x: number, y: number): vo
   )
 }
 
-/** The Ovyra menu: a panel under the logo button. */
+/** The Alchemy menu: a panel under the logo button. */
 export function appMenu(bw: BrowserWin, x: number, y: number): void {
   const width = 340
   bw.showOverlay({ x: x - 14, y: y - 6, width: width + 28, height: 640 }, { kind: 'app' }, true)

@@ -50,12 +50,12 @@ const TILES: { cmd: string; label: string; icon: Icon; hint?: string }[] = [
 
 const MODES: { value: ColorMode; label: string; icon: Icon }[] = [
   { value: 'light', label: 'Light', icon: Sun },
-  { value: 'ovyra', label: 'Ovyra', icon: LogoMark },
+  { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'system', label: 'System', icon: Monitor }
 ]
 
-/** The Ovyra menu, opened from the logo: quick actions, workspaces, extensions and the look. */
+/** The Alchemy menu, opened from the logo: quick actions, workspaces, extensions and the look. */
 export function AppMenu(): React.JSX.Element {
   const [info, setInfo] = useState<AppMenuInfo | null>(null)
   const settings = useSettings((s) => s.settings)
@@ -92,7 +92,7 @@ export function AppMenu(): React.JSX.Element {
       <div className="am-head">
         <BrandLogo size={36} />
         <div className="am-title">
-          <b>Ovyra</b>
+          <b>Alchemy</b>
           <span>
             {info ? `Version ${info.version}` : ''}
             {info?.update.status === 'downloading' && ` · downloading update ${Math.round(info.update.percent ?? 0)}%`}
@@ -209,7 +209,7 @@ export function AppMenu(): React.JSX.Element {
         <button onClick={() => run('devtools')} title="Developer tools (F12)">
           <Code size={15} /> DevTools
         </button>
-        <button onClick={() => run('exit')} title="Exit Ovyra">
+        <button onClick={() => run('exit')} title="Exit Alchemy">
           <X size={15} /> Exit
         </button>
       </div>

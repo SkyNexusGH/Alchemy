@@ -64,7 +64,7 @@ function UpdateButton(): React.JSX.Element | null {
   return (
     <button
       className="update-pill"
-      title={`Ovyra ${update.version} is ready. Restart to update; your tabs will come back.`}
+      title={`Alchemy ${update.version} is ready. Restart to update; your tabs will come back.`}
       onClick={() => api.invoke('update:install')}
     >
       <RefreshCw size={13} strokeWidth={2.6} />

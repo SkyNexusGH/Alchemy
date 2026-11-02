@@ -10,7 +10,7 @@ import { BrowserWin } from './window'
 /**
  * Chrome extensions in the normal (non-private) profile: installs straight from the
  * Chrome Web Store, toolbar buttons with popups, and the chrome.tabs/windows APIs mapped
- * onto Ovyra's tabs. Private windows run without extensions, like Chrome by default.
+ * onto Alchemy's tabs. Private windows run without extensions, like Chrome by default.
  */
 
 let extensions: ElectronChromeExtensions | null = null
@@ -80,7 +80,7 @@ export async function initExtensions(): Promise<void> {
     beforeInstall: async (details) => {
       const { response } = await dialog.showMessageBox({
         type: 'question',
-        message: `Add “${details.localizedName}” to Ovyra?`,
+        message: `Add “${details.localizedName}” to Alchemy?`,
         detail: 'Extensions can read and change data on websites you visit, depending on their permissions.',
         buttons: ['Add extension', 'Cancel'],
         defaultId: 0,

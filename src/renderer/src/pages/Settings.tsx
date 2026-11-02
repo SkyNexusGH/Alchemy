@@ -61,7 +61,7 @@ const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
   { id: 'performance', label: 'Performance', icon: Gauge },
   { id: 'downloads', label: 'Downloads', icon: Download },
   { id: 'startup', label: 'Startup & import', icon: Rocket },
-  { id: 'about', label: 'About Ovyra', icon: Info }
+  { id: 'about', label: 'About Alchemy', icon: Info }
 ]
 
 interface Row {
@@ -244,7 +244,7 @@ export function ThemeGrid({ settings }: { settings: S }): React.JSX.Element {
       >
         <span
           className="theme-thumb custom"
-          style={a.customBackground ? { backgroundImage: `url(ovyra://assets/${a.customBackground})` } : undefined}
+          style={a.customBackground ? { backgroundImage: `url(alchemy://assets/${a.customBackground})` } : undefined}
         >
           {!a.customBackground && <Upload size={20} />}
         </span>
@@ -326,7 +326,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'appearance',
       label: 'Mode',
-      hint: 'Ovyra is the navy look; Dark is true black.',
+      hint: 'Alchemy is the navy look; Dark is true black.',
       keywords: 'dark light theme system night black navy ovyra oled',
       wide: true,
       control: (
@@ -335,7 +335,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           onChange={(mode) => saveAppearance({ mode })}
           options={[
             { value: 'light', label: 'Light', icon: Sun },
-            { value: 'ovyra', label: 'Ovyra', icon: LogoMark },
+            { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
             { value: 'dark', label: 'Dark', icon: Moon },
             { value: 'system', label: 'System', icon: Monitor }
           ]}
@@ -395,7 +395,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'appearance',
       label: 'Interface font',
-      hint: 'The font used for tabs, menus and Ovyra’s own pages.',
+      hint: 'The font used for tabs, menus and Alchemy’s own pages.',
       keywords: 'typeface text letters',
       control: (
         <Select
@@ -561,7 +561,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'privacy',
       label: 'Telemetry',
-      hint: 'Ovyra never sends usage data anywhere.',
+      hint: 'Alchemy never sends usage data anywhere.',
       control: <span className="good">None, ever</span>
     },
 
@@ -569,7 +569,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'performance',
       label: 'Heavy Mode',
-      hint: 'Give Ovyra more of your computer: tabs and panels never sleep or slow down in the background, and pages may use more memory. Uses more RAM and battery.',
+      hint: 'Give Alchemy more of your computer: tabs and panels never sleep or slow down in the background, and pages may use more memory. Uses more RAM and battery.',
       keywords: 'performance speed ram memory power gaming fast',
       control: <Switch on={perf.heavy} onChange={(heavy) => setPerf({ heavy })} />
     },
@@ -578,7 +578,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           {
             category: 'performance' as const,
             label: 'Memory per page',
-            hint: 'How much JavaScript memory a single page may use. Applies after you restart Ovyra.',
+            hint: 'How much JavaScript memory a single page may use. Applies after you restart Alchemy.',
             keywords: 'heap ram v8',
             control: (
               <Segmented
@@ -595,7 +595,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'performance',
       label: 'RAM limit',
-      hint: 'When Ovyra uses more than this, the tabs you haven’t used for the longest go to sleep. Playing tabs never do.',
+      hint: 'When Alchemy uses more than this, the tabs you haven’t used for the longest go to sleep. Playing tabs never do.',
       keywords: 'memory ram limit budget cap',
       wide: true,
       control: (
@@ -627,7 +627,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'performance',
       label: 'Network limiter',
-      hint: 'Caps how fast Ovyra downloads and uploads, so games, calls and other apps keep their share of your connection.',
+      hint: 'Caps how fast Alchemy downloads and uploads, so games, calls and other apps keep their share of your connection.',
       keywords: 'bandwidth internet speed limit throttle download upload gaming',
       control: (
         <Select
@@ -659,7 +659,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       label: 'Use graphics acceleration',
       hint:
         gpuNow !== null && gpuNow !== perf.hardwareAcceleration
-          ? 'Restart Ovyra to apply this change.'
+          ? 'Restart Alchemy to apply this change.'
           : 'Draws pages with your graphics card. Turn off if videos flicker or pages show glitches.',
       keywords: 'hardware acceleration gpu graphics card flicker',
       control: (
@@ -771,7 +771,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     // ---- startup & import ----
     {
       category: 'startup',
-      label: 'When Ovyra starts',
+      label: 'When Alchemy starts',
       control: (
         <Select
           value={s.startup}
@@ -788,11 +788,11 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'startup',
       label: 'Default browser',
       hint: isDefault
-        ? 'Links you open in other apps open in Ovyra.'
-        : 'Open links from other apps in Ovyra. Windows asks you to confirm in its Settings.',
+        ? 'Links you open in other apps open in Alchemy.'
+        : 'Open links from other apps in Alchemy. Windows asks you to confirm in its Settings.',
       keywords: 'default browser links windows',
       control: isDefault ? (
-        <span className="good">Ovyra is your default</span>
+        <span className="good">Alchemy is your default</span>
       ) : (
         <button className="btn small" onClick={() => api.invoke('defaultbrowser:open')}>
           Make default…
@@ -802,7 +802,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'startup',
       label: 'Ask to be the default browser',
-      hint: 'Shows a reminder on the new tab page while Ovyra isn’t the default.',
+      hint: 'Shows a reminder on the new tab page while Alchemy isn’t the default.',
       control: <Switch on={s.askDefaultBrowser} onChange={(v) => set({ askDefaultBrowser: v })} />
     },
     {
@@ -970,7 +970,7 @@ function ImportDialog({ source, onClose }: { source: ImportSource; onClose: (msg
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="modal" role="dialog" aria-modal>
         <h2>Import from {source.name}</h2>
-        <p>Your {source.name} data stays where it is; Ovyra gets a copy.</p>
+        <p>Your {source.name} data stays where it is; Alchemy gets a copy.</p>
         {options
           .filter((o) => o.show)
           .map((o) => (
@@ -1117,7 +1117,7 @@ function AboutSection(): React.JSX.Element {
       <div className="set-card about">
         <BrandLogo size={72} />
         <div>
-          <div className="about-name">Ovyra {info?.version}</div>
+          <div className="about-name">Alchemy {info?.version}</div>
           <div className="set-hint">
             Chromium {info?.chrome} · Electron {info?.electron}
           </div>

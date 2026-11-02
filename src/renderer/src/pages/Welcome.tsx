@@ -25,7 +25,7 @@ import { backgroundUrl, saveAppearance, saveSettings, useSettings } from '../lib
 import { BrandLogo, setPageIcon } from '../lib/ui'
 import { ImportButtons, Segmented, ThemeGrid } from './Settings'
 
-document.title = 'Welcome to Ovyra'
+document.title = 'Welcome to Alchemy'
 setPageIcon('<path d="M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z"/>')
 
 interface Step {
@@ -66,14 +66,14 @@ const STEPS: Step[] = [
   {
     id: 'welcome',
     icon: Sparkle,
-    title: 'Welcome to Ovyra',
+    title: 'Welcome to Alchemy',
     text: 'A fast, private browser that’s yours to shape. Let’s set it up in a minute.'
   },
   {
     id: 'look',
     icon: Palette,
     title: 'Pick your look',
-    text: 'Choose a theme and a mode: light, the Ovyra navy, or true black. You can change this any time.',
+    text: 'Choose a theme and a mode: light, the Alchemy navy, or true black. You can change this any time.',
     body: (s) => (
       <>
         <div className="wz-center">
@@ -82,7 +82,7 @@ const STEPS: Step[] = [
             onChange={(mode) => saveAppearance({ mode })}
             options={[
               { value: 'light', label: 'Light', icon: Sun },
-              { value: 'ovyra', label: 'Ovyra', icon: LogoMark },
+              { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
               { value: 'dark', label: 'Dark', icon: Moon },
               { value: 'system', label: 'System', icon: Monitor }
             ]}
@@ -123,7 +123,7 @@ const STEPS: Step[] = [
     id: 'privacy',
     icon: Shield,
     title: 'How private?',
-    text: 'Ovyra blocks ads and trackers with the same lists as uBlock Origin. Pick how strict to be.',
+    text: 'Alchemy blocks ads and trackers with the same lists as uBlock Origin. Pick how strict to be.',
     body: (s) => (
       <div className="wz-options column">
         {PRIVACY_LEVELS.map((l) => (
@@ -204,7 +204,7 @@ export default function Welcome(): React.JSX.Element {
   const bg = backgroundUrl(settings)
   const finish = async (): Promise<void> => {
     await saveSettings({ onboarded: true })
-    void api.invoke('page:navigate', 'ovyra://newtab/')
+    void api.invoke('page:navigate', 'alchemy://newtab/')
   }
 
   return (

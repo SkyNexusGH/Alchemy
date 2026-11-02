@@ -8,7 +8,7 @@ import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 're
 import { createRoot } from 'react-dom/client'
 import './lib/settings'
 
-// One bundle serves every ovyra:// host; each loads only the code for its own page.
+// One bundle serves every alchemy:// host; each loads only the code for its own page.
 const pages: Record<string, LazyExoticComponent<ComponentType>> = {
   shell: lazy(() => import('./shell/Shell')),
   overlay: lazy(() => import('./overlay/Overlay')),

@@ -10,7 +10,7 @@ export interface SelectOption<T extends string | number> {
 }
 
 /**
- * Ovyra's dropdown: replaces the native <select> everywhere in the browser's own pages.
+ * Alchemy's dropdown: replaces the native <select> everywhere in the browser's own pages.
  * Opens below (or above, if there's no room), keyboard friendly, closes on outside click.
  */
 export function Select<T extends string | number>({

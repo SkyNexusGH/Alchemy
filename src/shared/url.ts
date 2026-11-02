@@ -1,7 +1,7 @@
 // Decides whether omnibox input is an address or a search. Pure, so both the main
 // process and the UI (to label the top suggestion instantly) can use it.
 
-const SCHEMES = /^(https?|file|ovyra|view-source|about|data|blob|mailto|chrome):/i
+const SCHEMES = /^(https?|file|alchemy|ovyra|view-source|about|data|blob|mailto|chrome):/i
 const HOST_LIKE =
   /^(localhost|(\d{1,3}\.){3}\d{1,3}|\[[0-9a-f:]+\]|([a-z0-9¡-￿-]+\.)+([a-z¡-￿]{2,}|xn--[a-z0-9]+))(:\d{1,5})?([/?#].*)?$/i
 

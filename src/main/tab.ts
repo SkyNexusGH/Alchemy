@@ -14,7 +14,7 @@ import { getSettings } from './settings'
 export const tabsByContents = new Map<number, Tab>()
 
 export const PRELOAD = join(__dirname, '../preload/index.js')
-const ERROR_PAGE = 'ovyra://error/'
+const ERROR_PAGE = 'alchemy://error/'
 const MAX_ENTRIES = 50
 
 export interface TabSnapshot {
@@ -78,13 +78,18 @@ export class Tab {
     private readonly host: TabHost,
     init: Partial<TabSnapshot> & { webContents?: WebContents }
   ) {
-    this.url = init.url ?? NEW_TAB_URL
+    // Tabs saved before the rename point at the old ovyra:// pages.
+    const renamed = (u: string): string => u.replace(/^ovyra:\/\//, 'alchemy://')
+    this.url = renamed(init.url ?? NEW_TAB_URL)
     this.title = init.title ?? ''
     this.favicon = init.favicon ?? null
     this.pinned = init.pinned ?? false
     this.workspaceId = init.workspaceId ?? host.defaultWorkspace
     this.islandId = init.islandId ?? null
-    if (init.entries?.length) this.saved = { entries: init.entries, index: init.index ?? init.entries.length - 1 }
+    if (init.entries?.length) {
+      const entries = init.entries.map((e) => ({ ...e, url: renamed(e.url) }))
+      this.saved = { entries, index: init.index ?? entries.length - 1 }
+    }
     if (init.webContents) this.pendingContents = init.webContents
   }
 
@@ -121,7 +126,7 @@ export class Tab {
           }
         })
     view.setBorderRadius(0)
-    view.setBackgroundColor(this.url.startsWith('ovyra:') ? '#0d0b14' : '#ffffff')
+    view.setBackgroundColor(this.url.startsWith('alchemy:') ? '#0d0b14' : '#ffffff')
     this.view = view
     this.attach(view.webContents)
     view.webContents.setAudioMuted(this.muted)
@@ -225,7 +230,7 @@ export class Tab {
 
   security(): Security {
     const url = this.displayUrl()
-    if (url.startsWith('ovyra:') || !url) return 'internal'
+    if (url.startsWith('alchemy:') || !url) return 'internal'
     if (url.startsWith('https:')) return 'secure'
     if (url.startsWith('http:')) {
       const host = new URL(url).hostname
@@ -298,7 +303,7 @@ export class Tab {
     const url = this.displayUrl()
     try {
       const u = new URL(url)
-      if (u.protocol === 'ovyra:') return u.host.charAt(0).toUpperCase() + u.host.slice(1)
+      if (u.protocol === 'alchemy:') return u.host.charAt(0).toUpperCase() + u.host.slice(1)
       return u.host || url
     } catch {
       return url

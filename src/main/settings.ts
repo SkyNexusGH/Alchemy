@@ -93,7 +93,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
     return {
       id: w.id,
       name: w.name,
-      // Emoji icons became Ovyra's own icons; anything unknown falls back to the letter.
+      // Emoji icons became Alchemy's own icons; anything unknown falls back to the letter.
       icon: isIconId ? old.icon : w.id === DEFAULT_WORKSPACE ? 'home' : '',
       accent: w.accent !== undefined ? w.accent : w.id === DEFAULT_WORKSPACE ? null : (OLD_THEME_ACCENTS[old.theme ?? ''] ?? null)
     }
@@ -101,7 +101,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
   // The original default speed dial is replaced by the new defaults, unless edited.
   const OLD_DIAL = ['yt', 'gh', 'rd', 'wk', 'gm', 'tw']
   if (s.speedDial.length && s.speedDial.every((d) => OLD_DIAL.includes(d.id))) s.speedDial = DEFAULT_SPEED_DIAL
-  // v2: "dark" used to be the navy look, which is now its own mode, Ovyra; dark is true black.
+  // v2: "dark" used to be the navy look, which is now its own mode, Alchemy; dark is true black.
   if ((s.version ?? 1) < 2) {
     if (s.appearance.mode === 'dark') s.appearance.mode = 'ovyra'
     s.version = 2

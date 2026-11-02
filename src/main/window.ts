@@ -119,15 +119,15 @@ export class BrowserWin implements TabHost {
       minWidth: 520,
       minHeight: 360,
       show: false,
-      title: 'Ovyra',
+      title: 'Alchemy',
       icon: join(__dirname, '../../resources/icon.png'),
       titleBarStyle: 'hidden',
-      titleBarOverlay: titleBarColors(),
-      backgroundColor: windowBase(),
+      titleBarOverlay: titleBarColors(this.incognito),
+      backgroundColor: this.incognito ? MASKED_BASE : windowBase(),
       webPreferences: { preload: PRELOAD, sandbox: true, contextIsolation: true, spellcheck: true }
     })
     if (init?.maximized) this.win.maximize()
-    this.win.loadURL('ovyra://shell/')
+    this.win.loadURL('alchemy://shell/')
     // With a transparent Mica window `ready-to-show` doesn't always fire; show on whichever comes first.
     const show = (): void => {
       if (!this.win.isDestroyed() && !this.win.isVisible()) this.win.show()
@@ -139,7 +139,7 @@ export class BrowserWin implements TabHost {
       webPreferences: { preload: PRELOAD, sandbox: true, contextIsolation: true }
     })
     this.overlay.setBackgroundColor('#00000000')
-    this.overlay.webContents.loadURL('ovyra://overlay/')
+    this.overlay.webContents.loadURL('alchemy://overlay/')
     this.overlay.webContents.on('before-input-event', (e, input) => {
       if (this.handleKey(input)) e.preventDefault()
     })
@@ -270,7 +270,7 @@ export class BrowserWin implements TabHost {
     const context = { private: this.incognito, workspaceId: this.workspaceId }
     this.send('context', context)
     if (!this.overlay.webContents.isDestroyed()) this.overlay.webContents.send('context', context)
-    for (const t of this.tabs) if (t.wc && t.url.startsWith('ovyra:')) t.wc.send('context', context)
+    for (const t of this.tabs) if (t.wc && t.url.startsWith('alchemy:')) t.wc.send('context', context)
     this.changed()
   }
 
@@ -473,7 +473,7 @@ export class BrowserWin implements TabHost {
     }
   }
 
-  /** Moves a tab's page (with its marked video) into Ovyra's floating player. */
+  /** Moves a tab's page (with its marked video) into Alchemy's floating player. */
   floatTab(tab: Tab): void {
     if (!tab.view) return
     if (this.shown.includes(tab)) this.win.contentView.removeChildView(tab.view)
@@ -641,7 +641,7 @@ export class BrowserWin implements TabHost {
   }
 
   openInternal(page: InternalPage): void {
-    const prefix = `ovyra://${page}/`
+    const prefix = `alchemy://${page}/`
     const existing = this.visible().find((t) => t.url.startsWith(prefix))
     if (existing) return this.activate(existing)
     const tab = this.active
@@ -1096,8 +1096,11 @@ function roundRect(r: Rect): Rectangle {
 }
 
 /** Window buttons (minimize/maximize/close) drawn in the right color for the mode. */
-export function titleBarColors(): Electron.TitleBarOverlayOptions {
-  const dark = nativeTheme.shouldUseDarkColors
+/** Masked Mode windows are always dark, whatever the mode. */
+const MASKED_BASE = '#07080a'
+
+export function titleBarColors(incognito = false): Electron.TitleBarOverlayOptions {
+  const dark = incognito || nativeTheme.shouldUseDarkColors
   return { color: '#00000000', symbolColor: dark ? '#e6e9f0' : '#090e17', height: tabStripHeight() }
 }
 
@@ -1114,7 +1117,7 @@ export function applyColorMode(mode: ColorMode): void {
 
 export function repaintWindowChrome(): void {
   for (const w of BrowserWin.all) {
-    w.win.setTitleBarOverlay(titleBarColors())
-    w.win.setBackgroundColor(windowBase())
+    w.win.setTitleBarOverlay(titleBarColors(w.incognito))
+    w.win.setBackgroundColor(w.incognito ? MASKED_BASE : windowBase())
   }
 }

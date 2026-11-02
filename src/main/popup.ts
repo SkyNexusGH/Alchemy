@@ -3,7 +3,7 @@ import type { MenuModel } from '@shared/types'
 import type { BrowserWin } from './window'
 
 /**
- * Ovyra draws its own menus (right-click, app menu, tab menu…) in the overlay layer,
+ * Alchemy draws its own menus (right-click, app menu, tab menu…) in the overlay layer,
  * so they match the browser instead of looking like Windows. Menus are described with
  * Electron's usual menu templates; this turns them into a plain model and keeps the
  * click handlers here until an item is chosen.

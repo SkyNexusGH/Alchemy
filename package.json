@@ -1,6 +1,6 @@
 {
   "name": "ovyra",
-  "productName": "Ovyra",
+  "productName": "Alchemy",
   "version": "0.1.4",
   "description": "A fast, private, colorful browser.",
   "author": "SkyNexusGH",
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "com.ovyra.browser",
-    "productName": "Ovyra",
+    "productName": "Alchemy",
     "copyright": "Copyright © 2026 SkyNexusGH",
     "directories": {
       "output": "dist",
@@ -48,8 +48,8 @@
       "oneClick": true,
       "perMachine": false,
       "differentialPackage": true,
-      "artifactName": "Ovyra-Setup-${version}.${ext}",
-      "shortcutName": "Ovyra",
+      "artifactName": "Alchemy-Setup-${version}.${ext}",
+      "shortcutName": "Alchemy",
       "deleteAppDataOnUninstall": false,
       "include": "resources/installer.nsh"
     },

@@ -11,7 +11,7 @@ interface PageContext {
 export const useSettings = create<{ settings: Settings | null; context: PageContext; dark: boolean }>(() => ({
   settings: null,
   context: { private: false, workspaceId: null },
-  // Windows' light/dark setting follows Ovyra's mode, so the media query is the truth.
+  // Windows' light/dark setting follows Alchemy's mode, so the media query is the truth.
   dark: matchMedia('(prefers-color-scheme: dark)').matches
 }))
 
@@ -19,12 +19,12 @@ export const useSettings = create<{ settings: Settings | null; context: PageCont
 function applyTheme(): void {
   const { settings, context, dark } = useSettings.getState()
   if (!settings) return
-  // Masked Mode has its own violet, whatever the theme.
-  const accent = context.private ? '#b06cff' : (currentWorkspace()?.accent ?? settings.appearance.accent)
+  // Masked Mode has its own silver, whatever the theme.
+  const accent = context.private ? '#d3d7de' : (currentWorkspace()?.accent ?? settings.appearance.accent)
   const mode = settings.appearance.mode
-  const base = baseColor(mode, dark)
+  const base = context.private ? '#07080a' : baseColor(mode, dark)
   const root = document.documentElement
-  // Dark comes in two shades: Ovyra's navy, or true black.
+  // Dark comes in two shades: Alchemy's navy, or true black.
   root.dataset.shade = dark ? (mode === 'ovyra' ? 'ovyra' : 'black') : 'light'
   root.style.setProperty('--accent', accent)
   root.style.setProperty('--accent-ink', inkOn(accent))
@@ -47,7 +47,7 @@ export function useWorkspace(): Workspace | undefined {
 /** The background image URL for the new tab page (null for a plain background). */
 export function backgroundUrl(settings: Settings, thumb = false): string | null {
   const a = settings.appearance
-  if (a.background === 'custom') return a.customBackground ? `ovyra://assets/${a.customBackground}` : null
+  if (a.background === 'custom') return a.customBackground ? `alchemy://assets/${a.customBackground}` : null
   const preset = THEME_PRESETS.find((p) => p.id === a.background)
   return preset?.image ? `/backgrounds/${preset.image}${thumb ? '-thumb' : ''}.jpg` : null
 }

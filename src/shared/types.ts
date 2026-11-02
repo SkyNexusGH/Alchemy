@@ -16,7 +16,7 @@ export interface TabState {
   muted: boolean
   pinned: boolean
   sleeping: boolean
-  /** The page is playing in Ovyra's floating video window. */
+  /** The page is playing in Alchemy's floating video window. */
   floating: boolean
   /** Volume boost, 1 = normal. */
   boost: number
@@ -34,7 +34,7 @@ export interface TabState {
 export interface Workspace {
   id: string
   name: string
-  /** An Ovyra workspace icon id, or '' to show the name's first letter. */
+  /** An Alchemy workspace icon id, or '' to show the name's first letter. */
   icon: string
   /** The workspace's own accent, or null to use the browser's. */
   accent: string | null
@@ -189,7 +189,7 @@ export interface Settings {
 export interface Performance {
   /** Heavy Mode: tabs and panels never sleep or slow down, and pages may use more memory. */
   heavy: boolean
-  /** When Ovyra uses more than this (GB), the least recently used tabs go to sleep. 0 = no limit. */
+  /** When Alchemy uses more than this (GB), the least recently used tabs go to sleep. 0 = no limit. */
   ramLimitGB: number
   /** JavaScript memory each page may use in Heavy Mode, in MB. Applies after a restart. */
   pageMemoryMB: number
@@ -197,7 +197,7 @@ export interface Performance {
   hardwareAcceleration: boolean
   /** Sites (hosts) whose tabs never go to sleep. */
   awakeSites: string[]
-  /** Network limiter: the most Ovyra may download or upload, in Mbit/s. 0 = no limit. */
+  /** Network limiter: the most Alchemy may download or upload, in Mbit/s. 0 = no limit. */
   networkLimitMbps: number
 }
 
@@ -279,7 +279,7 @@ export type OverlayPayload =
   | { kind: 'eyedropper'; image: string }
   | { kind: 'tabcard'; tabId: number }
 
-/** What the Ovyra menu (the logo button) shows. */
+/** What the Alchemy menu (the logo button) shows. */
 export interface AppMenuInfo {
   version: string
   update: UpdateState
@@ -329,13 +329,13 @@ export interface ThemePreset {
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
-  { id: 'default', name: 'Ovyra', image: 'default', accent: '#ec4856', mode: 'ovyra' },
+  { id: 'default', name: 'Alchemy', image: 'default', accent: '#ec4856', mode: 'ovyra' },
   { id: 'dark-synth', name: 'Dark Synth', image: 'dark-synth', accent: '#4488bd', mode: 'dark' },
   { id: 'light-synth', name: 'Light Synth', image: 'light-synth', accent: '#fee9c4', mode: 'light' },
   { id: 'myrical', name: 'Myrical', image: 'myrical', accent: '#af7ab6', mode: 'dark' },
   { id: 'nomad', name: 'Nomad', image: 'nomad', accent: '#fea757', mode: 'light' },
   { id: 'soul-hills', name: 'Soul Hills', image: 'soul-hills', accent: '#77793e', mode: 'light' },
-  { id: 'plain-ovyra', name: 'Plain Ovyra', image: null, accent: '#ec4856', mode: 'ovyra' },
+  { id: 'plain-ovyra', name: 'Plain Alchemy', image: null, accent: '#ec4856', mode: 'ovyra' },
   { id: 'plain-dark', name: 'Plain black', image: null, accent: '#ec4856', mode: 'dark' },
   { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' }
 ]
@@ -369,7 +369,7 @@ export const BASE_DARK = '#090e17'
 export const BASE_LIGHT = '#d6dae4'
 export const BASE_BLACK = '#000000'
 
-/** Light; Ovyra (the navy brand look); Dark (true black, easy on OLED); or follow Windows. */
+/** Light; Alchemy (the navy brand look); Dark (true black, easy on OLED); or follow Windows. */
 export type ColorMode = 'light' | 'ovyra' | 'dark' | 'system'
 
 /** The base color behind the interface in a mode, given whether Windows is dark. */
@@ -502,4 +502,4 @@ export function engineSearchUrl(engine: EngineInfo, query: string): string {
 export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error', 'whatsnew'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
-export const NEW_TAB_URL = 'ovyra://newtab/'
+export const NEW_TAB_URL = 'alchemy://newtab/'

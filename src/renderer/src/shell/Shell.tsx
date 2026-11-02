@@ -35,7 +35,7 @@ export default function Shell(): React.JSX.Element {
       <header className="titlebar">
         <button
           className="brand"
-          title="Ovyra menu"
+          title="Alchemy menu"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
             api.invoke('menu:app', r.left + 6, r.bottom + 2)

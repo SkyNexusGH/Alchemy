@@ -172,7 +172,7 @@ export function registerIpc(): void {
     if (what.cookies) await s.clearStorageData()
   })
 
-  /** Lets the user pick their own new tab background; a copy is kept with Ovyra's data. */
+  /** Lets the user pick their own new tab background; a copy is kept with Alchemy's data. */
   handle('appearance:pickBackground', async ({ sender }) => {
     const owner = BrowserWin.fromWebContents(sender)?.win
     const opts: Electron.OpenDialogOptions = {
@@ -227,7 +227,7 @@ export function registerIpc(): void {
     else bw.activate(tab)
   })
   // The video toolbar's screenshot button: a PNG of the frame (or of the screen, for videos
-  // from other sites), saved to PicturesOvyra and copied.
+  // from other sites), saved to PicturesAlchemy and copied.
   ipcMain.handle('ovyra:video-shot', async (event, data: string | null, title: string, rect: Rect | null) => {
     if (!tabsByContents.has(event.sender.id)) return null
     let image = data?.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(data) : null
@@ -241,7 +241,7 @@ export function registerIpc(): void {
       })
     }
     if (!image || image.isEmpty()) return null
-    const dir = join(app.getPath('pictures'), 'Ovyra')
+    const dir = join(app.getPath('pictures'), 'Alchemy')
     mkdirSync(dir, { recursive: true })
     const base = String(title).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'Video'
     const file = join(dir, `${base} ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`)

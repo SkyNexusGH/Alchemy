@@ -1,4 +1,4 @@
-/* Ovyra design tokens: flat surfaces, one solid accent, no gradients or glows. */
+/* Alchemy design tokens: flat surfaces, one solid accent, no gradients or glows. */
 
 :root {
   /* Set from settings: the accent, text drawn on it, and a variant readable on the background. */
@@ -40,6 +40,15 @@
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'cv11', 'ss01';
+}
+
+/* The Alchemy icon: its artwork is a single-color shape, used as a mask over the accent. */
+.brand-logo {
+  display: inline-block;
+  flex-shrink: 0;
+  background: var(--accent-fg);
+  -webkit-mask: url(/alchemy-icon.svg) center / contain no-repeat;
+  mask: url(/alchemy-icon.svg) center / contain no-repeat;
 }
 
 /* Interface fonts (Settings → Appearance). */
@@ -90,7 +99,7 @@
   }
 }
 
-/* Dark mode proper: true black, neutral grays (Ovyra mode keeps the navy above). */
+/* Dark mode proper: true black, neutral grays (Alchemy mode keeps the navy above). */
 :root[data-shade='black'] {
   --bg: #000000;
   --bg-raised: #0b0b0d;
@@ -330,20 +339,29 @@ img {
   }
 }
 
-/* Masked Mode (private windows): near-black violet, on every Ovyra page in the window. */
+/* Masked Mode (private windows): graphite and brushed silver, always dark, on every Alchemy
+   page in the window. Made to sit with its masquerade-mask background. */
 :root[data-private='true'] {
-  --bg: #0e0a17;
-  --bg-raised: #1a1328;
-  --field: #150f22;
-  --page: #0e0a17;
-  --panel: #1a1328;
-}
-@media (prefers-color-scheme: light) {
-  :root[data-private='true'] {
-    --bg: #e4dcf5;
-    --bg-raised: #f1ecfb;
-    --field: #f7f4fd;
-    --page: #efe9fa;
-    --panel: #f7f4fd;
-  }
+  --accent: #d3d7de;
+  --accent-ink: #0b0c0e;
+  --accent-fg: #d3d7de;
+  --bg: #07080a;
+  --bg-raised: #131518;
+  --page: #07080a;
+  --panel: #15171b;
+  --panel-2: #1c1f24;
+  --field: #0e1013;
+  --surface: rgba(228, 231, 236, 0.05);
+  --surface-2: rgba(228, 231, 236, 0.08);
+  --hover: rgba(228, 231, 236, 0.08);
+  --press: rgba(228, 231, 236, 0.13);
+  --border: rgba(228, 231, 236, 0.08);
+  --border-2: rgba(228, 231, 236, 0.16);
+  --text: #eceef1;
+  --text-2: rgba(236, 238, 241, 0.66);
+  --text-3: rgba(236, 238, 241, 0.42);
+  --shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  /* Brushed metal, for the badge and the few highlights. */
+  --metal: linear-gradient(135deg, #f4f5f7 0%, #a7adb6 38%, #e3e6ea 55%, #7d838c 100%);
+  color-scheme: dark;
 }

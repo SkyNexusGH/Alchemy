@@ -69,7 +69,7 @@ function PaletteHost(): React.JSX.Element {
 
 // ---- menus -------------------------------------------------------------------------
 
-/** Ovyra's own menus: right-click, app menu, tab menu. Keyboard: arrows, Enter, Esc. */
+/** Alchemy's own menus: right-click, app menu, tab menu. Keyboard: arrows, Enter, Esc. */
 function MenuHost({ items, x, y }: { items: MenuModel[]; x: number; y: number }): React.JSX.Element {
   useDismiss()
   const choose = (item: MenuModel): void => {

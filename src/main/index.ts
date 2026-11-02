@@ -90,7 +90,7 @@ if (!app.requestSingleInstanceLock()) {
       BrowserWin.focused()?.openInternal('whatsnew')
       updateSettings({ lastSeenVersion: version })
     }
-    // So Windows lists Ovyra under Default apps → Web browser.
+    // So Windows lists Alchemy under Default apps → Web browser.
     void registerAsBrowser()
 
     // Updates download in the background and apply on restart.

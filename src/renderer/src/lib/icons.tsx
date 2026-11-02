@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 
 /**
- * Ovyra's own icon set. Drawn on a 24px grid with a 1.8 stroke, rounded joins and
+ * Alchemy's own icon set. Drawn on a 24px grid with a 1.8 stroke, rounded joins and
  * soft, rounded shapes. Same prop names as the usual icon
  * libraries (size, strokeWidth, fill) so they drop in anywhere.
  */
@@ -18,7 +18,7 @@ export interface IconProps {
 export type Icon = (props: IconProps) => React.JSX.Element
 
 function icon(body: ReactNode): Icon {
-  return function OvyraIcon({ size = 18, strokeWidth = 1.8, fill = 'none', className, style, title }: IconProps) {
+  return function AlchemyIcon({ size = 18, strokeWidth = 1.8, fill = 'none', className, style, title }: IconProps) {
     return (
       <svg
         width={size}

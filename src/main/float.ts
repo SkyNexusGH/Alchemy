@@ -2,7 +2,7 @@ import { BaseWindow, screen, WebContentsView, type Rectangle } from 'electron'
 import type { Tab } from './tab'
 
 /**
- * Ovyra's floating video player. Instead of Chromium's picture-in-picture window, the
+ * Alchemy's floating video player. Instead of Chromium's picture-in-picture window, the
  * whole tab moves into a small window that keeps putting itself back on top, so a video
  * stays visible over borderless-fullscreen games. Inside the page, the video (marked by
  * the video toolbar with data-ovyra-float) is stretched over everything else.
@@ -32,7 +32,7 @@ const BAR_HTML = `<!doctype html><meta charset="utf-8"><style>
     display: flex; align-items: center; background: rgba(255,255,255,.14); }
   a:hover { background: rgba(255,255,255,.28); }
   span { margin-right: auto; padding-left: 4px; opacity: .8; }
-</style><span>Ovyra</span><a href="https://float.ovyra/back">Back to tab</a><a href="https://float.ovyra/close">✕</a>`
+</style><span>Alchemy</span><a href="https://float.ovyra/back">Back to tab</a><a href="https://float.ovyra/close">✕</a>`
 
 const BAR_HEIGHT = 34
 
@@ -90,7 +90,7 @@ export function floatTab(tab: Tab, onBack: () => void): void {
     fullscreenable: false,
     skipTaskbar: true,
     backgroundColor: '#000000',
-    title: tab.title || 'Ovyra video',
+    title: tab.title || 'Alchemy video',
     minWidth: 240,
     minHeight: 135
   })

@@ -2,14 +2,14 @@ import { Globe, Logo as LogoMark } from './icons'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { hostOf } from '@shared/url'
 
-/** The Ovyra mark, in one color (the current text color unless given). */
+/** The Alchemy mark, in one color (the current text color unless given). */
 export function Logo({ size = 22, color }: { size?: number; color?: string }): React.JSX.Element {
   return <LogoMark size={size} style={color ? { color } : undefined} />
 }
 
-/** The Ovyra in-app icon (the artwork in public/in-app-icon.svg). */
+/** The Alchemy in-app icon (public/alchemy-icon.svg), drawn in the current accent color. */
 export function BrandLogo({ size = 64 }: { size?: number }): React.JSX.Element {
-  return <img className="brand-logo" src="/in-app-icon.svg" width={size} height={size} alt="Ovyra" draggable={false} />
+  return <span className="brand-logo" role="img" aria-label="Alchemy" style={{ width: size, height: size }} />
 }
 
 /** A site icon that falls back to a colorful letter tile when there's no favicon. */

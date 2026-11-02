@@ -1,11 +1,11 @@
-# Ovyra privacy policy
+# Alchemy privacy policy
 
-**Short version: Ovyra has no servers, no accounts, no analytics and no telemetry. Everything you do stays on your
-computer.** This page lists every connection Ovyra itself makes, so you can check that for yourself in the source code.
+**Short version: Alchemy has no servers, no accounts, no analytics and no telemetry. Everything you do stays on your
+computer.** This page lists every connection Alchemy itself makes, so you can check that for yourself in the source code.
 
-## What Ovyra stores, and where
+## What Alchemy stores, and where
 
-Everything lives in your Windows profile, in `%APPDATA%\Ovyra`, and nowhere else:
+Everything lives in your Windows profile, in `%APPDATA%\Alchemy`, and nowhere else:
 
 | What | File | Notes |
 | --- | --- | --- |
@@ -17,22 +17,22 @@ Everything lives in your Windows profile, in `%APPDATA%\Ovyra`, and nowhere else
 | Cookies, site data, cache | Chromium's own folders | Cookies are encrypted with Windows' data protection (DPAPI) |
 | Ad-blocking filter lists | `filters-full.bin` | Public lists, nothing personal |
 
-Private windows keep everything in memory and write nothing to disk. Uninstalling Ovyra leaves this folder in place
+Private windows keep everything in memory and write nothing to disk. Uninstalling Alchemy leaves this folder in place
 so a reinstall keeps your data; delete the folder to remove it completely.
 
-## Every connection Ovyra makes on its own
+## Every connection Alchemy makes on its own
 
-Apart from the websites you visit, Ovyra only ever connects to:
+Apart from the websites you visit, Alchemy only ever connects to:
 
 | Where | Why | What it sends |
 | --- | --- | --- |
 | The filter list hosts (EasyList, uBlock Origin's lists on GitHub, Peter Lowe's list, URLhaus) | Download ad and tracker blocking lists, about once a day | Nothing but a normal download request; no cookies |
-| `github.com` (Ovyra's releases) | Check for and download updates, every few hours | Nothing but a normal download request; no cookies |
+| `github.com` (Alchemy's releases) | Check for and download updates, every few hours | Nothing but a normal download request; no cookies |
 | Your search engine's suggestion service | Search suggestions while you type in the address bar | What you type, **only** with suggestions on (Settings → New Tab & Search), from a separate session without your cookies |
 | The sites in your sidebar | Fetch their icons once, so the sidebar looks right | A request for `/favicon.ico`, without cookies |
 | The Chrome Web Store | Only when you install or update an extension | The extension's ID |
 
-There is no crash reporting, usage tracking, "phone home", experiment system, or advertising ID. Ovyra is built on
+There is no crash reporting, usage tracking, "phone home", experiment system, or advertising ID. Alchemy is built on
 Electron, which (unlike Google Chrome) contains none of Google's services: no Safe Browsing lookups, no sync, no usage
 statistics.
 
@@ -50,10 +50,10 @@ statistics.
 ## Extensions
 
 Chrome extensions you install can read and change websites according to their permissions, the same as in Chrome.
-Ovyra asks before installing one. Extensions are not loaded in private windows.
+Alchemy asks before installing one. Extensions are not loaded in private windows.
 
 ## Open source
 
-Ovyra's full source code is public at <https://github.com/SkyNexusGH/Ovyra>, so anyone can verify everything on this
-page. If you find Ovyra sending something not listed here, please [open an issue](https://github.com/SkyNexusGH/Ovyra/issues):
+Alchemy's full source code is public at <https://github.com/SkyNexusGH/Ovyra>, so anyone can verify everything on this
+page. If you find Alchemy sending something not listed here, please [open an issue](https://github.com/SkyNexusGH/Ovyra/issues):
 it's a bug.

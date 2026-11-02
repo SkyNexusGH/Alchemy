@@ -30,14 +30,14 @@ export default function NewTab(): React.JSX.Element {
 
   if (!settings) return <div className="ntp" />
   const a = settings.appearance
-  const bg = isPrivate ? null : backgroundUrl(settings)
+  // Masked Mode always has its own background (the masquerade mask).
+  const bg = isPrivate ? '/backgrounds/masked.jpg' : backgroundUrl(settings)
   const remove = (id: string): void => void saveSettings({ speedDial: dial.filter((d) => d.id !== id) })
 
   return (
     <div className={`ntp${bg ? ' has-bg' : ''}${isPrivate ? ' masked' : ''}`}>
-      {isPrivate && <div className="masked-glow" />}
       {bg && <div className="ntp-bg" style={{ backgroundImage: `url("${bg}")` }} />}
-      {bg && <div className="ntp-dim" style={{ opacity: a.backgroundDim / 100 }} />}
+      {bg && !isPrivate && <div className="ntp-dim" style={{ opacity: a.backgroundDim / 100 }} />}
 
       {!isPrivate && <DefaultBrowserCard />}
 
@@ -59,7 +59,7 @@ export default function NewTab(): React.JSX.Element {
             <div>
               <b>You’re in Masked Mode</b>
               <p>
-                When you close every Masked Mode window, Ovyra forgets your history, cookies, site data and form entries
+                When you close every Masked Mode window, Alchemy forgets your history, cookies, site data and form entries
                 from it. Downloads and bookmarks you make are kept. Sites, your employer or your internet provider can
                 still see what you visit.
               </p>
@@ -116,7 +116,7 @@ export default function NewTab(): React.JSX.Element {
   )
 }
 
-/** A gentle reminder while Ovyra isn't the default browser (turn off in Settings). */
+/** A gentle reminder while Alchemy isn't the default browser (turn off in Settings). */
 function DefaultBrowserCard(): React.JSX.Element | null {
   const [show, setShow] = useState(false)
   useEffect(() => {
@@ -129,7 +129,7 @@ function DefaultBrowserCard(): React.JSX.Element | null {
   }
   return (
     <div className="default-card">
-      <span>Make Ovyra your default browser?</span>
+      <span>Make Alchemy your default browser?</span>
       <button className="btn primary small" onClick={() => {
         void api.invoke('defaultbrowser:open')
         dismiss(false)

@@ -1,5 +1,5 @@
 # Pushing a version tag (e.g. `npm run release`, which tags v0.1.1) builds the Windows
-# installer and publishes it as a GitHub Release. Installed copies of Ovyra find the new
+# installer and publishes it as a GitHub Release. Installed copies of Alchemy find the new
 # release on their own and update in place.
 name: Release
 
@@ -28,7 +28,7 @@ jobs:
       # Create the release up front: electron-builder uploads files in parallel, and if the
       # release doesn't exist yet each upload creates its own, splitting the files apart.
       - name: Create release
-        run: gh release create ${{ github.ref_name }} --title "Ovyra ${{ github.ref_name }}" --generate-notes
+        run: gh release create ${{ github.ref_name }} --title "Alchemy ${{ github.ref_name }}" --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

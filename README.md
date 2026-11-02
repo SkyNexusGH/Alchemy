@@ -1,6 +1,6 @@
-<p align="center"><img src="resources/icon.png" width="96" alt="Ovyra logo"></p>
+<p align="center"><img src="resources/icon.png" width="96" alt="Alchemy logo"></p>
 
-<h1 align="center">Ovyra</h1>
+<h1 align="center">Alchemy</h1>
 
 <p align="center">A fast, private, colorful browser for Windows: Opera's best ideas, Brave-level privacy, real Chromium underneath.</p>
 
@@ -20,8 +20,8 @@
 
 ## Install
 
-Download `Ovyra-Setup-x.y.z.exe` from the [latest release](https://github.com/SkyNexusGH/Ovyra/releases/latest) and run it.
-Ovyra checks for new versions every few hours, downloads them quietly, and shows an **Update** button when one is ready
+Download `Alchemy-Setup-x.y.z.exe` from the [latest release](https://github.com/SkyNexusGH/Ovyra/releases/latest) and run it.
+Alchemy checks for new versions every few hours, downloads them quietly, and shows an **Update** button when one is ready
 (it also installs on the next restart).
 
 > The installer isn't code-signed yet, so Windows SmartScreen may warn the first time: choose *More info → Run anyway*.
@@ -32,7 +32,7 @@ Ovyra checks for new versions every few hours, downloads them quietly, and shows
 npm install
 npm run dev        # run with hot reload
 npm run typecheck
-npm run dist       # build dist/Ovyra-Setup-<version>.exe locally
+npm run dist       # build dist/Alchemy-Setup-<version>.exe locally
 ```
 
 ## Releasing an update
@@ -55,7 +55,7 @@ it as a GitHub Release. Every installed copy picks it up automatically.
 
 ## Privacy and license
 
-Ovyra is free and open source under the [Mozilla Public License 2.0](LICENSE) (the same license as Firefox).
+Alchemy is free and open source under the [Mozilla Public License 2.0](LICENSE) (the same license as Firefox).
 It has no accounts, analytics or telemetry; [PRIVACY.md](PRIVACY.md) lists every connection it makes, and
 [SECURITY.md](SECURITY.md) explains how to report a vulnerability.
 

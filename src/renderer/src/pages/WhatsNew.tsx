@@ -29,6 +29,22 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.5',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Sparkle,
+        title: 'Ovyra is now Alchemy',
+        text: 'A new name and a new logo. The icon in the browser takes on your accent color. Your settings, tabs and logins all came along.'
+      },
+      {
+        icon: Moon,
+        title: 'A new Masked Mode',
+        text: 'Graphite and brushed silver, with a masquerade-mask background on the new tab page.'
+      }
+    ]
+  },
+  {
     version: '0.1.4',
     date: 'November 2026',
     items: [
@@ -65,7 +81,7 @@ const RELEASES: Release[] = [
       {
         icon: Gauge,
         title: 'Network limiter',
-        text: 'Cap Ovyra’s bandwidth in Settings → Performance, so games and calls keep their share.'
+        text: 'Cap Alchemy’s bandwidth in Settings → Performance, so games and calls keep their share.'
       },
       {
         icon: Palette,
@@ -81,12 +97,12 @@ const RELEASES: Release[] = [
       {
         icon: AppWindow,
         title: 'Videos that float over games',
-        text: 'Pop out now opens Ovyra’s own floating player, which stays on top of borderless fullscreen games. Switch away from a playing tab and its video pops out by itself.'
+        text: 'Pop out now opens Alchemy’s own floating player, which stays on top of borderless fullscreen games. Switch away from a playing tab and its video pops out by itself.'
       },
       {
         icon: Volume2,
         title: 'Volume boost and video screenshots',
-        text: 'The video toolbar can make quiet videos up to 3× louder, and save the current frame to Pictures → Ovyra (it’s copied too).'
+        text: 'The video toolbar can make quiet videos up to 3× louder, and save the current frame to Pictures → Alchemy (it’s copied too).'
       },
       {
         icon: Search,
@@ -106,7 +122,7 @@ const RELEASES: Release[] = [
       {
         icon: Pipette,
         title: 'Color picker',
-        text: 'Pick any color on a page from the Ovyra menu or the command palette (Ctrl+K). Its hex code is copied.'
+        text: 'Pick any color on a page from the Alchemy menu or the command palette (Ctrl+K). Its hex code is copied.'
       },
       {
         icon: Moon,
@@ -121,7 +137,7 @@ const RELEASES: Release[] = [
       {
         icon: Keyboard,
         title: 'Default browser',
-        text: 'Ovyra now shows up in Windows’ Default apps, so links from other apps can open here.'
+        text: 'Alchemy now shows up in Windows’ Default apps, so links from other apps can open here.'
       }
     ]
   },
@@ -130,9 +146,9 @@ const RELEASES: Release[] = [
     date: 'November 2026',
     items: [
       { icon: Sparkle, title: 'Video tools', text: 'Pop out, playback speed and Enhance on every video.' },
-      { icon: Layers, title: 'The Ovyra menu', text: 'Click the logo for workspaces, extensions, color modes and zoom in one place.' },
-      { icon: Moon, title: 'Four color modes', text: 'Light, Ovyra (navy), true-black Dark, and System.' },
-      { icon: Gauge, title: 'Heavy Mode and a RAM limit', text: 'Let Ovyra use more of your computer, or keep it under a memory budget.' }
+      { icon: Layers, title: 'The Alchemy menu', text: 'Click the logo for workspaces, extensions, color modes and zoom in one place.' },
+      { icon: Moon, title: 'Four color modes', text: 'Light, Alchemy (navy), true-black Dark, and System.' },
+      { icon: Gauge, title: 'Heavy Mode and a RAM limit', text: 'Let Alchemy use more of your computer, or keep it under a memory budget.' }
     ]
   }
 ]
@@ -145,7 +161,7 @@ export default function WhatsNew(): React.JSX.Element {
       <header className="wn-head">
         <BrandLogo size={64} />
         <div>
-          <h1>What’s new in Ovyra</h1>
+          <h1>What’s new in Alchemy</h1>
           <p>{version ? `You’re on version ${version}.` : ''}</p>
         </div>
       </header>

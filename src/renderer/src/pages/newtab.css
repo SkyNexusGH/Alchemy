@@ -337,22 +337,40 @@
   color: var(--text);
 }
 
-/* Masked Mode: drifting violet light behind everything */
-.masked-glow {
-  position: fixed;
-  inset: -20%;
-  pointer-events: none;
-  background:
-    radial-gradient(40% 35% at 25% 30%, color-mix(in srgb, #8b5cf6 30%, transparent), transparent 70%),
-    radial-gradient(35% 30% at 75% 70%, color-mix(in srgb, #d946ef 22%, transparent), transparent 70%),
-    radial-gradient(30% 25% at 70% 20%, color-mix(in srgb, #6366f1 18%, transparent), transparent 70%);
-  filter: blur(20px);
-  animation: masked-drift 24s ease-in-out infinite alternate;
+/* Masked Mode: the masquerade-mask background, graphite glass and brushed silver. */
+.ntp.masked .ntp-bg {
+  background-position: center 30%;
 }
-@keyframes masked-drift {
-  to {
-    transform: translate(4%, -3%) rotate(6deg);
-  }
+/* The mask sits in the upper middle of the picture; everything else starts below it. */
+.ntp.masked {
+  place-items: start center;
+}
+.ntp.masked .ntp-center {
+  padding-top: max(39vh, 260px);
+}
+.ntp.masked .clock,
+.ntp.masked .date {
+  color: #eceef1;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+}
+.ntp.masked .clock {
+  background: linear-gradient(180deg, #ffffff 0%, #c4c9d1 60%, #8e949d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.7));
+}
+.ntp.masked .searchbox {
+  background: rgba(16, 18, 21, 0.72);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(228, 231, 236, 0.1),
+    0 16px 40px rgba(0, 0, 0, 0.55);
+}
+.ntp.masked .tile-title {
+  color: #eceef1;
 }
 .private-card {
   position: relative;
@@ -362,11 +380,12 @@
   margin: -16px 0 34px;
   padding: 16px 18px;
   border-radius: calc(var(--r) + 8px);
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  backdrop-filter: blur(16px);
+  background: rgba(14, 16, 19, 0.62);
+  backdrop-filter: blur(18px) saturate(1.2);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, #a855f7 35%, transparent),
-    0 12px 40px color-mix(in srgb, #7c3aed 25%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(228, 231, 236, 0.1),
+    0 16px 40px rgba(0, 0, 0, 0.55);
 }
 .mask-badge {
   flex-shrink: 0;
@@ -375,12 +394,15 @@
   width: 42px;
   height: 42px;
   border-radius: 13px;
-  background: linear-gradient(135deg, #8b5cf6, #d946ef);
-  color: #fff;
-  box-shadow: 0 6px 18px color-mix(in srgb, #a855f7 45%, transparent);
+  background: var(--metal, #d3d7de);
+  color: #0b0c0e;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 6px 18px rgba(0, 0, 0, 0.6);
 }
 .private-card b {
   font-size: 15px;
+  letter-spacing: 0.01em;
 }
 .private-card p {
   margin: 4px 0 0;

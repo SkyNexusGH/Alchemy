@@ -25,7 +25,7 @@ function describe(): { icon: typeof CloudOff; title: string; text: string } {
     return {
       icon: ShieldAlert,
       title: "This connection isn't private",
-      text: `${host}'s security certificate isn't valid, so someone could be intercepting your connection. Ovyra stopped loading it to keep you safe.`
+      text: `${host}'s security certificate isn't valid, so someone could be intercepting your connection. Alchemy stopped loading it to keep you safe.`
     }
   if (n === -102)
     return { icon: CloudOff, title: "This site can't be reached", text: `${host} refused to connect.` }

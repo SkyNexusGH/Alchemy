@@ -2,7 +2,7 @@ import { nativeTheme } from 'electron'
 import { getSettings } from './settings'
 
 /**
- * DevTools open docked inside the window, restyled to match Ovyra: the same base
+ * DevTools open docked inside the window, restyled to match Alchemy: the same base
  * colors, the accent for selections and highlights, and the same font. DevTools builds
  * its colors from --sys-color-* variables, which reach into all of its panels.
  */

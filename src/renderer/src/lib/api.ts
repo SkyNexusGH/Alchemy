@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-interface OvyraBridge {
+interface AlchemyBridge {
   invoke<T = any>(channel: string, ...args: unknown[]): Promise<T>
   on(channel: string, fn: (...args: any[]) => void): () => void
 }
 
 declare global {
   interface Window {
-    ovyra: OvyraBridge
+    ovyra: AlchemyBridge
   }
 }
 
-export const api: OvyraBridge = window.ovyra
+export const api: AlchemyBridge = window.ovyra

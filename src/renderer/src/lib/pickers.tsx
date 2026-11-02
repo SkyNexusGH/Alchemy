@@ -63,7 +63,7 @@ export function AccentPicker({
   )
 }
 
-/** Ovyra's workspace icons, plus "first letter of the name". */
+/** Alchemy's workspace icons, plus "first letter of the name". */
 export function WorkspaceIconPicker({
   value,
   name,

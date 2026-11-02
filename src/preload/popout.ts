@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron'
 
 /**
- * Ovyra's video toolbar: hovering a video shows a small pill with Pop out (Ovyra's floating
+ * Alchemy's video toolbar: hovering a video shows a small pill with Pop out (Alchemy's floating
  * player, which stays above games), playback speed, Enhance (crisper contrast and color)
  * and a screenshot button. Also applies the tab's volume boost. Lives in
  * the preload's isolated world inside a closed shadow root, so pages can't see or
@@ -163,7 +163,7 @@ export function setupPopout(toolbar: boolean): void {
       const v = current
       if (!v) return
       if (isTop) {
-        // Ovyra's floating window: the main process moves the whole page into it.
+        // Alchemy's floating window: the main process moves the whole page into it.
         const on = !v.hasAttribute(FLOAT_ATTR)
         if (on) v.setAttribute(FLOAT_ATTR, '')
         ipcRenderer.send('ovyra:float', on)
@@ -204,7 +204,7 @@ export function setupPopout(toolbar: boolean): void {
       const v = current
       if (!v || !shotBtn) return
       void screenshot(v).then((ok) => {
-        shotBtn!.title = ok ? 'Saved to Pictures → Ovyra, and copied' : 'Couldn’t take a screenshot of this video'
+        shotBtn!.title = ok ? 'Saved to Pictures → Alchemy, and copied' : 'Couldn’t take a screenshot of this video'
         shotBtn!.classList.toggle('on', ok)
         setTimeout(() => shotBtn?.classList.remove('on'), 1200)
       })
@@ -226,7 +226,7 @@ export function setupPopout(toolbar: boolean): void {
 
   const eligible = (v: HTMLVideoElement): boolean => {
     const r = v.getBoundingClientRect()
-    // Not in Ovyra's floating player, which has its own buttons.
+    // Not in Alchemy's floating player, which has its own buttons.
     return (
       r.width >= 240 &&
       r.height >= 135 &&

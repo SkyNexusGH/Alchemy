@@ -3,7 +3,7 @@ import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { INTERNAL_PAGES } from '@shared/types'
 
-export const SCHEME = 'ovyra'
+export const SCHEME = 'alchemy'
 
 /** Hosts served from the renderer bundle: the browser UI itself plus the internal pages. */
 const HOSTS = new Set<string>(['shell', 'overlay', ...INTERNAL_PAGES])
@@ -31,7 +31,7 @@ export function serveRendererBundle(ses: Session): void {
 
   ses.protocol.handle(SCHEME, (req) => {
     const url = new URL(req.url)
-    // ovyra://assets/<file>: the user's own files, e.g. a custom background image.
+    // alchemy://assets/<file>: the user's own files, e.g. a custom background image.
     if (url.host === 'assets') {
       const name = decodeURIComponent(url.pathname.slice(1))
       if (!/^[\w.-]+$/.test(name)) return new Response('Forbidden', { status: 403 })
