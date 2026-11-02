@@ -13,8 +13,13 @@ if (location.protocol === 'https:' || location.protocol === 'http:') {
 
   // Ad-blocking scriptlets (uBlock's YouTube rules and friends) have to be in place before
   // the page reads its own data, so they run right now, in the page's world, past its CSP.
-  for (const script of config?.scriptlets ?? []) {
-    void webFrame.executeJavaScript(script).catch(() => {})
+  // Each scriptlet carries its own copy of shared helpers (e.g. a JSONPath class), so each
+  // runs in its own function scope, like uBlock does; sharing the page's global scope
+  // makes the second one fail to redeclare them and leaves sites (YouTube) half-patched.
+  const scriptlets = config?.scriptlets ?? []
+  if (scriptlets.length) {
+    const code = scriptlets.map((s) => `try { (function () {\n${s}\n})() } catch (e) {}`).join('\n')
+    void webFrame.executeJavaScript(code).catch(() => {})
   }
 
   if (config && (config.farble || config.gpc)) {

@@ -8,6 +8,7 @@ import {
   Check,
   EngineIcon,
   Monitor,
+  Logo as LogoMark,
   Moon,
   Palette,
   Rocket,
@@ -72,7 +73,7 @@ const STEPS: Step[] = [
     id: 'look',
     icon: Palette,
     title: 'Pick your look',
-    text: 'Choose a theme and whether Ovyra is light or dark. You can change this any time.',
+    text: 'Choose a theme and a mode: light, the Ovyra navy, or true black. You can change this any time.',
     body: (s) => (
       <>
         <div className="wz-center">
@@ -81,6 +82,7 @@ const STEPS: Step[] = [
             onChange={(mode) => saveAppearance({ mode })}
             options={[
               { value: 'light', label: 'Light', icon: Sun },
+              { value: 'ovyra', label: 'Ovyra', icon: LogoMark },
               { value: 'dark', label: 'Dark', icon: Moon },
               { value: 'system', label: 'System', icon: Monitor }
             ]}

@@ -1,5 +1,5 @@
 import { Globe, Logo as LogoMark } from './icons'
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { hostOf } from '@shared/url'
 
 /** The Ovyra mark, in one color (the current text color unless given). */
@@ -7,9 +7,49 @@ export function Logo({ size = 22, color }: { size?: number; color?: string }): R
   return <LogoMark size={size} style={color ? { color } : undefined} />
 }
 
-/** The full-color Ovyra logo, for big moments (setup, about). */
+// The logo's geometry, traced from the original artwork (375×375).
+const DECAGON = '243.8,14 334.9,80 369.6,187 334.9,294 243.8,360.5 131.2,360.5 40.1,294 5.4,187 40.1,80 131.2,14'
+const DECAGON_INNER = '233.6,45 307.7,98.8 336,187 307.7,275.2 233.6,329.5 141.4,329.5 67.3,275.2 39,187 67.3,98.8 141.4,45'
+const HEXAGON = '94.8,128.9 280.2,128.9 338.8,187.5 280.2,246.1 94.8,246.1 36.2,187.5'
+const DIAMOND = '187.5,95.6 288.6,187.5 187.5,279.4 86.4,187.5'
+const DIAMOND_INNER = '187.5,118 264,187.5 187.5,257 111,187.5'
+
+/** The full-color Ovyra logo as a vector, so it stays sharp at any size. */
 export function BrandLogo({ size = 64 }: { size?: number }): React.JSX.Element {
-  return <img src="/logo.png" width={size} height={size} alt="Ovyra" draggable={false} />
+  const id = useId().replace(/:/g, '')
+  return (
+    <svg width={size} height={size} viewBox="0 0 375 375" role="img" aria-label="Ovyra" className="brand-logo">
+      <defs>
+        <linearGradient id={`${id}r`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#d4d7df" />
+          <stop offset=".45" stopColor="#3a4561" />
+          <stop offset="1" stopColor="#1b2b6b" />
+        </linearGradient>
+        <linearGradient id={`${id}b`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#111827" />
+          <stop offset="1" stopColor="#13225e" />
+        </linearGradient>
+        <linearGradient id={`${id}h`} x1="0" y1="0" x2="1" y2=".4">
+          <stop offset="0" stopColor="#eef0f4" />
+          <stop offset=".55" stopColor="#a9b0c2" />
+          <stop offset="1" stopColor="#3d4a72" />
+        </linearGradient>
+        <linearGradient id={`${id}d`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f7a8c8" />
+          <stop offset="1" stopColor="#ef5a6e" />
+        </linearGradient>
+        <linearGradient id={`${id}f`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ef4f93" />
+          <stop offset="1" stopColor="#ea4a50" />
+        </linearGradient>
+      </defs>
+      <polygon points={DECAGON} fill={`url(#${id}r)`} />
+      <polygon points={DECAGON_INNER} fill={`url(#${id}b)`} />
+      <polygon points={HEXAGON} fill={`url(#${id}h)`} />
+      <polygon points={DIAMOND} fill={`url(#${id}d)`} />
+      <polygon points={DIAMOND_INNER} fill={`url(#${id}f)`} />
+    </svg>
+  )
 }
 
 /** A site icon that falls back to a colorful letter tile when there's no favicon. */

@@ -39,7 +39,9 @@ export async function initExtensions(): Promise<void> {
     },
     removeTab(wc) {
       const owner = ownerOf(wc)
-      owner?.bw.closeTab(owner.tab)
+      // The library also calls this when a page is destroyed, which happens when a tab goes
+      // to sleep; only close tabs whose current page this still is.
+      if (owner && owner.tab.wc === wc) owner.bw.closeTab(owner.tab)
     },
     async createWindow(details) {
       const urls = typeof details.url === 'string' ? [details.url] : (details.url ?? [NEW_TAB_URL])

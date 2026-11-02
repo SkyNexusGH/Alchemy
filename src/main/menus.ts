@@ -1,12 +1,13 @@
 import { app, clipboard, type MenuItemConstructorOptions } from 'electron'
-import { NEW_TAB_URL, SEARCH_ENGINES } from '@shared/types'
+import { NEW_TAB_URL, SEARCH_ENGINES, type AppMenuInfo } from '@shared/types'
 import { children } from './bookmarks'
-import { extensionMenuItems } from './extensions'
+import { extensionMenuItems, listExtensions } from './extensions'
+import { blockStats } from './privacy/shields'
 import { searchUrl } from './omnibox'
 import { showMenu } from './popup'
-import { getSettings, updateSettings } from './settings'
-import { stepZoom, type Tab } from './tab'
-import { installUpdate, updateState } from './updater'
+import { getSettings } from './settings'
+import type { Tab } from './tab'
+import { updateState } from './updater'
 import { BrowserWin } from './window'
 
 type Item = MenuItemConstructorOptions
@@ -156,51 +157,28 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): 
   showMenu(bw, items, x, y)
 }
 
+/** The Ovyra menu: a panel under the logo button. */
 export function appMenu(bw: BrowserWin, x: number, y: number): void {
+  const width = 340
+  bw.showOverlay({ x: x - 14, y: y - 6, width: width + 28, height: 640 }, { kind: 'app' }, true)
+}
+
+export function appMenuInfo(bw: BrowserWin): AppMenuInfo {
   const wc = bw.active?.wc
-  const zoom = Math.round((wc?.getZoomFactor() ?? 1) * 100)
-  const settings = getSettings()
-  const update = updateState()
-  const items: Item[] = [
-    { label: 'New tab', click: () => bw.newTab(), ...hint('Ctrl+T') },
-    { label: 'New window', click: () => BrowserWin.open(), ...hint('Ctrl+N') },
-    { label: 'New private window', click: () => BrowserWin.open({ incognito: true }), ...hint('Ctrl+Shift+N') },
-    SEP,
-    { label: 'History', click: () => bw.openInternal('history'), ...hint('Ctrl+H') },
-    { label: 'Downloads', click: () => bw.openInternal('downloads'), ...hint('Ctrl+J') },
-    { label: 'Bookmarks', click: () => bw.openInternal('bookmarks'), ...hint('Ctrl+Shift+O') },
-    {
-      label: 'Show bookmarks bar',
-      type: 'checkbox',
-      checked: settings.showBookmarksBar,
-      click: () => updateSettings({ showBookmarksBar: !settings.showBookmarksBar }),
-      ...hint('Ctrl+Shift+B')
-    },
-    SEP,
-    {
-      label: `Zoom (${zoom}%)`,
-      enabled: !!wc,
-      submenu: [
-        { label: 'Zoom in', click: () => wc && stepZoom(wc, 1), ...hint('Ctrl+=') },
-        { label: 'Zoom out', click: () => wc && stepZoom(wc, -1), ...hint('Ctrl+-') },
-        { label: 'Reset to 100%', click: () => wc && stepZoom(wc, 0), ...hint('Ctrl+0') }
-      ]
-    },
-    { label: 'Command palette…', click: () => bw.openPalette(), ...hint('Ctrl+K') },
-    { label: 'Find in page…', enabled: !!wc, click: () => bw.openFind(), ...hint('Ctrl+F') },
-    { label: 'Print…', enabled: !!wc, click: () => wc?.print(), ...hint('Ctrl+P') },
-    { label: 'Full screen', click: () => bw.toggleFullscreen(), ...hint('F11') },
-    { label: 'Developer tools', enabled: !!bw.active, click: () => bw.active && bw.toggleDevTools(bw.active), ...hint('F12') },
-    SEP,
-    { label: 'Extensions', click: () => bw.openInternal('extensions') },
-    { label: 'Settings', click: () => bw.openInternal('settings') },
-    SEP,
-    ...(update.status === 'ready'
-      ? [{ label: `Restart to update to ${update.version}`, click: () => installUpdate() }]
-      : []),
-    { label: 'Exit', click: () => app.quit() }
-  ]
-  showMenu(bw, items, x, y)
+  const tabs = [...BrowserWin.all].flatMap((w) => w.tabs)
+  const memoryKB = app.getAppMetrics().reduce((n, m) => n + m.memory.workingSetSize, 0)
+  return {
+    version: app.getVersion(),
+    update: updateState(),
+    zoom: wc ? Math.round(wc.getZoomFactor() * 100) : null,
+    private: bw.incognito,
+    workspaceId: bw.incognito ? null : bw.workspaceId,
+    memoryMB: Math.round(memoryKB / 1024),
+    tabs: tabs.length,
+    sleeping: tabs.filter((t) => t.sleeping).length,
+    blocked: blockStats().blocked,
+    extensions: bw.incognito ? [] : listExtensions().map(({ id, name, icon }) => ({ id, name, icon }))
+  }
 }
 
 export function bookmarkFolderMenu(bw: BrowserWin, folderId: string, x: number, y: number): void {

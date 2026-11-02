@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Columns2, Download, EllipsisVertical, RefreshCw, RotateCw, X } from '../lib/icons'
+import { ArrowLeft, ArrowRight, Columns2, Download,RefreshCw, RotateCw, X } from '../lib/icons'
 import { useEffect, useRef, useState } from 'react'
 import type { UpdateState } from '@shared/types'
 import { api } from '../lib/api'
@@ -47,16 +47,6 @@ export function Toolbar(): React.JSX.Element {
         )}
         <UpdateButton />
         <DownloadsButton />
-        <button
-          className="icon-btn"
-          title="Menu"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect()
-            api.invoke('menu:app', r.right - 4, r.bottom + 4)
-          }}
-        >
-          <EllipsisVertical size={17} />
-        </button>
       </div>
       {tab?.loading && <div className="load-bar" />}
     </div>

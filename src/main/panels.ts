@@ -1,4 +1,4 @@
-import { clipboard, net, session, WebContentsView, type Session } from 'electron'
+import { clipboard, session, WebContentsView, type Session } from 'electron'
 import { showMenu } from './popup'
 import type { PanelItem, PanelState } from '@shared/types'
 import { setupBrowsingSession } from './sessions'
@@ -126,7 +126,7 @@ export function destroyPanel(id: string): void {
 
 function sleepIdlePanels(): void {
   const minutes = getSettings().panelSleepMinutes
-  if (!minutes) return
+  if (!minutes || getSettings().performance.heavy) return
   for (const [id, panel] of live) {
     if (!panel.owner && Date.now() - panel.hiddenSince > minutes * 60_000) destroyPanel(id)
   }
@@ -195,12 +195,16 @@ function createPanel(item: PanelItem): LivePanel {
   return panel
 }
 
+let iconSession: Electron.Session | null = null
+
 /** Gets each site's icon up front, so the rail looks right before a panel is ever opened. */
 async function fetchMissingIcons(): Promise<void> {
   for (const p of getSettings().panels) {
     if (meta.data.favicons[p.id]) continue
     try {
-      const res = await net.fetch(new URL('/favicon.ico', p.url).toString())
+      // A separate, cookie-less session: fetching an icon shouldn't identify the user to the site.
+      iconSession ??= session.fromPartition('ovyra-icons', { cache: false })
+      const res = await iconSession.fetch(new URL('/favicon.ico', p.url).toString(), { credentials: 'omit' })
       const type = res.headers.get('content-type') ?? ''
       if (!res.ok || !type.startsWith('image/')) continue
       const data = Buffer.from(await res.arrayBuffer()).toString('base64')

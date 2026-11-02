@@ -3,7 +3,7 @@ import { VenetianMask } from '../lib/icons'
 import { useRef } from 'react'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
-import { Logo } from '../lib/ui'
+import { BrandLogo, Logo } from '../lib/ui'
 import { BookmarksBar } from './BookmarksBar'
 import { FindBar } from './FindBar'
 import { useReportRect } from './layout'
@@ -37,10 +37,10 @@ export default function Shell(): React.JSX.Element {
           title="Ovyra menu"
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
-            api.invoke('menu:app', r.left, r.bottom + 4)
+            api.invoke('menu:app', r.left + 6, r.bottom + 2)
           }}
         >
-          <Logo size={21} />
+          <BrandLogo size={27} />
         </button>
         {isPrivate && (
           <span className="private-badge" title="Private window: nothing is saved after you close all private windows">

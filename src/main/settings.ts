@@ -1,8 +1,8 @@
-import { PANEL_PRESETS, type Appearance, type Settings, type SpeedDialItem } from '@shared/types'
+import { PANEL_PRESETS, type Appearance, type Performance, type Settings, type SpeedDialItem } from '@shared/types'
 import { JsonStore } from './store'
 
 const DEFAULT_APPEARANCE: Appearance = {
-  mode: 'dark',
+  mode: 'ovyra',
   background: 'default',
   customBackground: null,
   accent: '#ec4856',
@@ -13,6 +13,8 @@ const DEFAULT_APPEARANCE: Appearance = {
   roundness: 'normal',
   compactTabs: false
 }
+
+export const DEFAULT_PERFORMANCE: Performance = { heavy: false, ramLimitGB: 0, pageMemoryMB: 4096 }
 
 const DEFAULT_SPEED_DIAL: SpeedDialItem[] = [
   { id: 'fivenova', title: 'FiveNova', url: 'https://fivenova.org/' },
@@ -41,7 +43,8 @@ const DEFAULTS: Settings = {
   panelWidth: 480,
   panelSleepMinutes: 30,
   tabIslands: true,
-  videoPopout: true
+  videoPopout: true,
+  performance: DEFAULT_PERFORMANCE
 }
 
 export const DEFAULT_WORKSPACE = 'home'
@@ -62,6 +65,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
     electric: '#322eef'
   }
   s.appearance = { ...DEFAULT_APPEARANCE, ...(s.appearance ?? {}) }
+  s.performance = { ...DEFAULT_PERFORMANCE, ...(s.performance ?? {}) }
   delete s.theme
   if (!s.workspaces?.length) s.workspaces = [{ id: DEFAULT_WORKSPACE, name: 'Home', icon: 'home', accent: null }]
   s.workspaces = s.workspaces.map((w) => {
@@ -78,6 +82,11 @@ function migrate(s: Settings & Record<string, unknown>): void {
   // The original default speed dial is replaced by the new defaults, unless edited.
   const OLD_DIAL = ['yt', 'gh', 'rd', 'wk', 'gm', 'tw']
   if (s.speedDial.length && s.speedDial.every((d) => OLD_DIAL.includes(d.id))) s.speedDial = DEFAULT_SPEED_DIAL
+  // v2: "dark" used to be the navy look, which is now its own mode, Ovyra; dark is true black.
+  if ((s.version ?? 1) < 2) {
+    if (s.appearance.mode === 'dark') s.appearance.mode = 'ovyra'
+    s.version = 2
+  }
 }
 
 const listeners = new Set<(s: Settings) => void>()

@@ -25,12 +25,7 @@
 .ntp-dim {
   position: fixed;
   inset: 0;
-  background: #090e17;
-}
-@media (prefers-color-scheme: light) {
-  .ntp-dim {
-    background: #d6dae4;
-  }
+  background: var(--bg);
 }
 
 .ntp-center {

@@ -7,6 +7,7 @@ import { trackTab } from './extensions'
 import { httpsFallback, navigationCommitted } from './privacy/network'
 import { shieldsEnabled } from './privacy/shields'
 import { isInternalUrl } from './protocol'
+import { getSettings } from './settings'
 
 /** Lets network hooks (which only know a webContents id) find the tab a request belongs to. */
 export const tabsByContents = new Map<number, Tab>()
@@ -111,7 +112,9 @@ export class Tab {
             contextIsolation: true,
             nodeIntegration: false,
             spellcheck: true,
-            safeDialogs: true
+            safeDialogs: true,
+            // Heavy Mode: background tabs run at full speed.
+            backgroundThrottling: !getSettings().performance.heavy
           }
         })
     view.setBorderRadius(8)

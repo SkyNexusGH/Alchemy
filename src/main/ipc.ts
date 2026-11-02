@@ -1,10 +1,11 @@
 import { app, dialog, ipcMain, session, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
+import { totalmem } from 'node:os'
 import { copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
 import { SEARCH_ENGINES, type SearchEngineId } from '@shared/types'
-import type { InternalPage, OverlayPayload, PanelItem, Rect, Settings, ShieldsInfo, Workspace } from '@shared/types'
+import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, Settings, ShieldsInfo, Workspace } from '@shared/types'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
@@ -15,7 +16,7 @@ import * as bookmarks from './bookmarks'
 import { broadcast } from './broadcast'
 import { clearDownloads, downloadAction, listDownloads } from './downloads'
 import * as history from './history'
-import { appMenu, bookmarkFolderMenu, tabContextMenu } from './menus'
+import { appMenu, appMenuInfo, bookmarkFolderMenu, tabContextMenu } from './menus'
 import { localSuggestions, remoteSuggestions, resolveInput } from './omnibox'
 import { clearPermissionDecisions } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
@@ -106,6 +107,7 @@ export function registerIpc(): void {
   shell('find:query', ({ bw }, text: string, forward?: boolean, next?: boolean) => bw?.findQuery(text, forward, next))
   shell('find:close', ({ bw }) => bw?.closeFind())
   shell('menu:app', ({ bw }, x: number, y: number) => bw && appMenu(bw, x, y))
+  shell('appmenu:info', ({ bw }) => bw && appMenuInfo(bw))
   shell('menu:bookmarkFolder', ({ bw }, id: string, x: number, y: number) => bw && bookmarkFolderMenu(bw, id, x, y))
   shell('zoom:reset', ({ bw }) => {
     bw?.active?.wc?.setZoomFactor(1)
@@ -178,6 +180,23 @@ export function registerIpc(): void {
     return res.canceled ? null : res.filePaths[0]
   })
 
+  // Warming up speed dial sites: connections (DNS, TCP, TLS) are opened ahead of the click,
+  // with a second one on hover for the page's styles and scripts.
+  handle('speeddial:warm', (_c, urls: string[], hover?: boolean) => {
+    const dial = new Set(getSettings().speedDial.map((d) => d.url))
+    for (const url of urls.filter((u) => dial.has(u)).slice(0, 12)) {
+      session.defaultSession.preconnect({ url, numSockets: hover ? 2 : 1 })
+    }
+  })
+  handle('perf:usage', () => {
+    const tabs = [...BrowserWin.all].flatMap((w) => w.tabs)
+    return {
+      memoryMB: Math.round(app.getAppMetrics().reduce((n, m) => n + m.memory.workingSetSize, 0) / 1024),
+      tabs: tabs.length,
+      sleeping: tabs.filter((t) => t.sleeping).length,
+      totalGB: Math.round(totalmem() / 1024 ** 3)
+    }
+  })
   handle('app:info', () => ({
     version: app.getVersion(),
     chrome: process.versions.chrome,
@@ -324,6 +343,7 @@ export function registerIpc(): void {
       downloads: () => bw.openInternal('downloads'),
       settings: () => bw.openInternal('settings'),
       extensions: () => bw.openInternal('extensions'),
+      palette: () => bw.openPalette(),
       'web-store': () => bw.newTab('https://chromewebstore.google.com/'),
       'bookmarks-bar': () => updateSettings({ showBookmarksBar: !s.showBookmarksBar }),
       bookmark: () => bw.toggleBookmarkActive(),
@@ -333,7 +353,10 @@ export function registerIpc(): void {
       'zoom-reset': () => wc && stepZoom(wc, 0),
       print: () => wc?.print(),
       fullscreen: () => bw.toggleFullscreen(),
-      devtools: () => wc?.openDevTools({ mode: 'detach' }),
+      devtools: () => bw.active && bw.toggleDevTools(bw.active),
+      mode: () => arg && updateSettings({ appearance: { ...s.appearance, mode: arg as ColorMode } }),
+      'install-update': () => installUpdate(),
+      exit: () => app.quit(),
       'toggle-adblock': () => updateSettings({ adblock: !s.adblock }),
       'site-shields': () => {
         const url = bw.active?.pageUrl()

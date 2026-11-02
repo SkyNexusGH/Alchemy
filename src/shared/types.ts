@@ -145,6 +145,18 @@ export interface Settings {
   panelSleepMinutes: number
   tabIslands: boolean
   videoPopout: boolean
+  performance: Performance
+  /** Bumped when saved settings need a one-time migration. */
+  version?: number
+}
+
+export interface Performance {
+  /** Heavy Mode: tabs and panels never sleep or slow down, and pages may use more memory. */
+  heavy: boolean
+  /** When Ovyra uses more than this (GB), the least recently used tabs go to sleep. 0 = no limit. */
+  ramLimitGB: number
+  /** JavaScript memory each page may use in Heavy Mode, in MB. Applies after a restart. */
+  pageMemoryMB: number
 }
 
 export const ISLAND_COLORS = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#fb7185', '#2dd4bf', '#fb923c']
@@ -219,6 +231,23 @@ export type OverlayPayload =
   | { kind: 'add-panel' }
   | { kind: 'palette' }
   | { kind: 'menu'; items: MenuModel[]; x: number; y: number }
+  | { kind: 'app' }
+
+/** What the Ovyra menu (the logo button) shows. */
+export interface AppMenuInfo {
+  version: string
+  update: UpdateState
+  /** Zoom of the current page in percent, or null without a page. */
+  zoom: number | null
+  private: boolean
+  workspaceId: string | null
+  /** Memory used by the whole browser, in MB. */
+  memoryMB: number
+  tabs: number
+  sleeping: number
+  blocked: number
+  extensions: { id: string; name: string; icon: string | null }[]
+}
 
 export interface MenuModel {
   id: string
@@ -248,17 +277,18 @@ export interface ThemePreset {
   /** File name under /backgrounds (without .jpg), or null for a plain background. */
   image: string | null
   accent: string
-  mode: 'dark' | 'light'
+  mode: ColorMode
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
-  { id: 'default', name: 'Default', image: 'default', accent: '#ec4856', mode: 'dark' },
+  { id: 'default', name: 'Ovyra', image: 'default', accent: '#ec4856', mode: 'ovyra' },
   { id: 'dark-synth', name: 'Dark Synth', image: 'dark-synth', accent: '#4488bd', mode: 'dark' },
   { id: 'light-synth', name: 'Light Synth', image: 'light-synth', accent: '#fee9c4', mode: 'light' },
   { id: 'myrical', name: 'Myrical', image: 'myrical', accent: '#af7ab6', mode: 'dark' },
   { id: 'nomad', name: 'Nomad', image: 'nomad', accent: '#fea757', mode: 'light' },
   { id: 'soul-hills', name: 'Soul Hills', image: 'soul-hills', accent: '#77793e', mode: 'light' },
-  { id: 'plain-dark', name: 'Plain dark', image: null, accent: '#ec4856', mode: 'dark' },
+  { id: 'plain-ovyra', name: 'Plain Ovyra', image: null, accent: '#ec4856', mode: 'ovyra' },
+  { id: 'plain-dark', name: 'Plain black', image: null, accent: '#ec4856', mode: 'dark' },
   { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' }
 ]
 
@@ -289,8 +319,16 @@ export const ACCENTS = [
 /** The two base colors of the interface. */
 export const BASE_DARK = '#090e17'
 export const BASE_LIGHT = '#d6dae4'
+export const BASE_BLACK = '#000000'
 
-export type ColorMode = 'dark' | 'light' | 'system'
+/** Light; Ovyra (the navy brand look); Dark (true black, easy on OLED); or follow Windows. */
+export type ColorMode = 'light' | 'ovyra' | 'dark' | 'system'
+
+/** The base color behind the interface in a mode, given whether Windows is dark. */
+export function baseColor(mode: ColorMode, systemDark: boolean): string {
+  if (mode === 'light' || (mode === 'system' && !systemDark)) return BASE_LIGHT
+  return mode === 'ovyra' ? BASE_DARK : BASE_BLACK
+}
 
 export interface Appearance {
   mode: ColorMode

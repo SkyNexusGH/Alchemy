@@ -2,6 +2,7 @@ import './pages.css'
 import './settings.css'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  baseColor,
   SEARCH_ENGINES,
   THEME_PRESETS,
   type FilterStatus,
@@ -16,10 +17,11 @@ import {
   Download,
   EngineIcon,
   Lock,
-  ImageIcon,
   Info,
   Layers,
+  Gauge,
   LayoutGrid,
+  Logo as LogoMark,
   Monitor,
   Moon,
   Palette,
@@ -45,16 +47,16 @@ import { ClearDataDialog } from './ClearDataDialog'
 document.title = 'Settings'
 setPageIcon('<polygon points="15.7,4.2 19.8,8.3 19.8,15.7 15.7,19.8 8.3,19.8 4.2,15.7 4.2,8.3 8.3,4.2"/><path d="M12 8.5l3.5 3.5-3.5 3.5L8.5 12z"/>')
 
-type CategoryId = 'appearance' | 'newtab' | 'workspaces' | 'search' | 'privacy' | 'adblock' | 'tabs' | 'downloads' | 'startup' | 'about'
+type CategoryId = 'appearance' | 'newtab' | 'workspaces' | 'performance' | 'privacy' | 'adblock' | 'tabs' | 'downloads' | 'startup' | 'about'
 
 const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'newtab', label: 'New tab page', icon: LayoutGrid },
+  { id: 'newtab', label: 'New Tab & Search', icon: LayoutGrid },
   { id: 'workspaces', label: 'Workspaces', icon: Layers },
-  { id: 'search', label: 'Search', icon: Search },
   { id: 'adblock', label: 'Ad blocking', icon: Shield },
   { id: 'privacy', label: 'Privacy', icon: Lock },
   { id: 'tabs', label: 'Tabs & sidebar', icon: Sidebar },
+  { id: 'performance', label: 'Performance', icon: Gauge },
   { id: 'downloads', label: 'Downloads', icon: Download },
   { id: 'startup', label: 'Startup & import', icon: Rocket },
   { id: 'about', label: 'About Ovyra', icon: Info }
@@ -225,7 +227,7 @@ export function ThemeGrid({ settings }: { settings: S }): React.JSX.Element {
           >
             <span
               className="theme-thumb"
-              style={thumb ? { backgroundImage: `url(${thumb})` } : { background: p.mode === 'dark' ? '#090e17' : '#d6dae4' }}
+              style={thumb ? { backgroundImage: `url(${thumb})` } : { background: baseColor(p.mode, true) }}
             >
               <span className="theme-dot" style={{ background: p.accent }} />
             </span>
@@ -261,6 +263,14 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
   const [exceptions, setExceptions] = useState<string[]>([])
   const [stats, setStats] = useState<{ blocked: number; since: number } | null>(null)
   const [downloadsDir, setDownloadsDir] = useState('')
+  const [usage, setUsage] = useState<{ memoryMB: number; tabs: number; sleeping: number; totalGB: number } | null>(null)
+
+  useEffect(() => {
+    const load = (): void => void api.invoke<typeof usage>('perf:usage').then(setUsage)
+    load()
+    const id = setInterval(load, 3000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     api.invoke<FilterStatus>('filters:status').then(setFilters)
@@ -277,6 +287,8 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
 
   if (!s) return []
   const set = (patch: Partial<S>): void => void saveSettings(patch)
+  const perf = s.performance
+  const setPerf = (patch: Partial<S['performance']>): void => set({ performance: { ...perf, ...patch } })
   const a = s.appearance
   const listsLine = !filters
     ? ''
@@ -291,14 +303,16 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'appearance',
       label: 'Mode',
-      hint: 'Light, dark, or follow Windows.',
-      keywords: 'dark light theme system night',
+      hint: 'Ovyra is the navy look; Dark is true black.',
+      keywords: 'dark light theme system night black navy ovyra oled',
+      wide: true,
       control: (
         <Segmented
           value={a.mode}
           onChange={(mode) => saveAppearance({ mode })}
           options={[
             { value: 'light', label: 'Light', icon: Sun },
+            { value: 'ovyra', label: 'Ovyra', icon: LogoMark },
             { value: 'dark', label: 'Dark', icon: Moon },
             { value: 'system', label: 'System', icon: Monitor }
           ]}
@@ -320,6 +334,24 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       keywords: 'color colour highlight',
       wide: true,
       control: <AccentPicker value={a.accent} onChange={(accent) => accent && saveAppearance({ accent })} />
+    },
+    {
+      category: 'appearance',
+      label: 'Background dimming',
+      hint: 'Darkens (or lightens) the background so text stays readable.',
+      keywords: 'wallpaper brightness',
+      control: (
+        <div className="range">
+          <input
+            type="range"
+            min={0}
+            max={70}
+            value={a.backgroundDim}
+            onChange={(e) => saveAppearance({ backgroundDim: Number(e.target.value) })}
+          />
+          <span>{a.backgroundDim}%</span>
+        </div>
+      )
     },
     {
       category: 'appearance',
@@ -370,43 +402,12 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'newtab',
-      label: 'Background dimming',
-      hint: 'Darkens (or lightens) the background so text stays readable.',
-      keywords: 'wallpaper brightness',
-      control: (
-        <div className="range">
-          <input
-            type="range"
-            min={0}
-            max={70}
-            value={a.backgroundDim}
-            onChange={(e) => saveAppearance({ backgroundDim: Number(e.target.value) })}
-          />
-          <span>{a.backgroundDim}%</span>
-        </div>
-      )
-    },
-    {
-      category: 'newtab',
-      label: 'Background',
-      hint: 'Change it under Appearance → Theme, or upload your own.',
-      keywords: 'wallpaper image',
-      control: (
-        <button className="btn small" onClick={() => void api.invoke('appearance:pickBackground')}>
-          <ImageIcon size={14} /> Upload image
-        </button>
-      )
-    },
-
-    // ---- search ----
-    {
-      category: 'search',
       label: 'Search engine',
       hint: 'Used by the address bar and the new tab page.',
       control: <Select value={s.searchEngine} options={ENGINE_OPTIONS} onChange={(v) => set({ searchEngine: v })} width={220} />
     },
     {
-      category: 'search',
+      category: 'newtab',
       label: 'Search suggestions',
       hint: 'Send what you type to your search engine for suggestions (without cookies).',
       control: <Switch on={s.searchSuggestions} onChange={(v) => set({ searchSuggestions: v })} />
@@ -512,11 +513,70 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       control: <span className="good">None, ever</span>
     },
 
+    // ---- performance ----
+    {
+      category: 'performance',
+      label: 'Heavy Mode',
+      hint: 'Give Ovyra more of your computer: tabs and panels never sleep or slow down in the background, and pages may use more memory. Uses more RAM and battery.',
+      keywords: 'performance speed ram memory power gaming fast',
+      control: <Switch on={perf.heavy} onChange={(heavy) => setPerf({ heavy })} />
+    },
+    ...(perf.heavy
+      ? [
+          {
+            category: 'performance' as const,
+            label: 'Memory per page',
+            hint: 'How much JavaScript memory a single page may use. Applies after you restart Ovyra.',
+            keywords: 'heap ram v8',
+            control: (
+              <Segmented
+                value={String(perf.pageMemoryMB)}
+                onChange={(v) => setPerf({ pageMemoryMB: Number(v) })}
+                options={[2048, 4096, 8192, 16384]
+                  .filter((mb) => mb / 1024 <= Math.max(2, usage?.totalGB ?? 16) / 2)
+                  .map((mb) => ({ value: String(mb), label: `${mb / 1024} GB` }))}
+              />
+            )
+          }
+        ]
+      : []),
+    {
+      category: 'performance',
+      label: 'RAM limit',
+      hint: 'When Ovyra uses more than this, the tabs you haven’t used for the longest go to sleep. Playing tabs never do.',
+      keywords: 'memory ram limit budget cap',
+      wide: true,
+      control: (
+        <div className="range">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(2, Math.floor(usage?.totalGB ?? 16))}
+            value={perf.ramLimitGB}
+            onChange={(e) => setPerf({ ramLimitGB: Number(e.target.value) })}
+          />
+          <span style={{ minWidth: 72 }}>{perf.ramLimitGB ? `${perf.ramLimitGB} GB` : 'No limit'}</span>
+        </div>
+      )
+    },
+    {
+      category: 'performance',
+      label: 'Right now',
+      hint: usage ? `Your computer has ${usage.totalGB} GB of RAM.` : undefined,
+      keywords: 'usage memory task manager',
+      control: usage ? (
+        <span className="good">
+          {(usage.memoryMB / 1024).toFixed(1)} GB · {usage.tabs} tab{usage.tabs === 1 ? '' : 's'}
+          {usage.sleeping ? ` (${usage.sleeping} asleep)` : ''}
+        </span>
+      ) : null
+    },
+
     // ---- tabs & sidebar ----
     {
       category: 'tabs',
       label: 'Sleeping tabs',
-      hint: 'Unloads background tabs you haven’t looked at in a while to free memory. Pinned and playing tabs never sleep.',
+      hint: 'Unloads background tabs you haven’t looked at in a while to free memory. Pinned and playing tabs never sleep (and nothing sleeps in Heavy Mode).',
       keywords: 'memory ram performance',
       control: (
         <Select

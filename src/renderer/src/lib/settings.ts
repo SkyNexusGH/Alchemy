@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { BASE_DARK, BASE_LIGHT, THEME_PRESETS, type Settings, type ThemePreset, type Workspace } from '@shared/types'
+import { baseColor, THEME_PRESETS, type Settings, type ThemePreset, type Workspace } from '@shared/types'
 import { api } from './api'
 import { inkOn, readableOn } from './color'
 
@@ -20,8 +20,11 @@ function applyTheme(): void {
   const { settings, context, dark } = useSettings.getState()
   if (!settings) return
   const accent = currentWorkspace()?.accent ?? settings.appearance.accent
-  const base = dark ? BASE_DARK : BASE_LIGHT
+  const mode = settings.appearance.mode
+  const base = baseColor(mode, dark)
   const root = document.documentElement
+  // Dark comes in two shades: Ovyra's navy, or true black.
+  root.dataset.shade = dark ? (mode === 'ovyra' ? 'ovyra' : 'black') : 'light'
   root.style.setProperty('--accent', accent)
   root.style.setProperty('--accent-ink', inkOn(accent))
   root.style.setProperty('--accent-fg', readableOn(accent, base))

@@ -53,5 +53,11 @@ it as a GitHub Release. Every installed copy picks it up automatically.
 | `src/renderer` | The UI (React): tab strip, address bar, side rail, overlays and internal pages |
 | `src/shared` | Types and helpers used on both sides |
 
+## Privacy and license
+
+Ovyra is free and open source under the [Mozilla Public License 2.0](LICENSE) (the same license as Firefox).
+It has no accounts, analytics or telemetry; [PRIVACY.md](PRIVACY.md) lists every connection it makes, and
+[SECURITY.md](SECURITY.md) explains how to report a vulnerability.
+
 The original prototype is preserved in the [`original` branch](https://github.com/SkyNexusGH/Ovyra/tree/original) and the
 [original-attempt release](https://github.com/SkyNexusGH/Ovyra/releases/tag/original-attempt).

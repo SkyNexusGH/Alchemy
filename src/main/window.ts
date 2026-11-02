@@ -1,11 +1,11 @@
 import { BrowserWindow, nativeTheme, WebContentsView, screen, session, type Rectangle, type WebContents } from 'electron'
 import { join } from 'node:path'
 import {
-  BASE_DARK,
-  BASE_LIGHT,
+  baseColor,
   ISLAND_COLORS,
   NEW_TAB_URL,
   type IslandState,
+  type ColorMode,
   type FindState,
   type MenuModel,
   type InternalPage,
@@ -26,7 +26,8 @@ import { selectTab as selectExtensionTab } from './extensions'
 import { panelStates, panelView, releasePanels } from './panels'
 import { PRELOAD, stepZoom, Tab, type TabHost, type TabSnapshot } from './tab'
 
-export const TAB_STRIP_HEIGHT = 40
+/** Height of the tab strip, which the native window buttons must match. */
+const tabStripHeight = (): number => (getSettings().appearance.compactTabs ? 32 : 40)
 const MAX_CLOSED = 25
 const SPLIT_GAP = 8
 
@@ -119,7 +120,7 @@ export class BrowserWin implements TabHost {
       icon: join(__dirname, '../../resources/icon.png'),
       titleBarStyle: 'hidden',
       titleBarOverlay: titleBarColors(),
-      backgroundColor: nativeTheme.shouldUseDarkColors ? BASE_DARK : BASE_LIGHT,
+      backgroundColor: windowBase(),
       webPreferences: { preload: PRELOAD, sandbox: true, contextIsolation: true, spellcheck: true }
     })
     if (init?.maximized) this.win.maximize()
@@ -534,6 +535,14 @@ export class BrowserWin implements TabHost {
     this.closeDevTools(tab)
     tab.sleep()
     this.changed()
+  }
+
+  /** Background tabs that may be put to sleep, least recently used first. */
+  sleepCandidates(): Tab[] {
+    return this.tabs
+      .filter((t) => t !== this.active && !this.shown.includes(t) && !t.sleeping && !t.audible)
+      .filter((t) => !t.wc?.isDevToolsOpened() && !t.wc?.isCurrentlyAudible())
+      .sort((a, b) => a.lastActive - b.lastActive)
   }
 
   /** Puts idle background tabs to sleep. Audible, pinned and DevTools-inspected tabs stay awake. */
@@ -999,18 +1008,23 @@ function roundRect(r: Rect): Rectangle {
 /** Window buttons (minimize/maximize/close) drawn in the right color for the mode. */
 export function titleBarColors(): Electron.TitleBarOverlayOptions {
   const dark = nativeTheme.shouldUseDarkColors
-  return { color: '#00000000', symbolColor: dark ? '#e6e9f0' : '#090e17', height: TAB_STRIP_HEIGHT }
+  return { color: '#00000000', symbolColor: dark ? '#e6e9f0' : '#090e17', height: tabStripHeight() }
 }
 
 /** Light/dark mode: Windows' own theme follows it, and with it every page and window. */
-export function applyColorMode(mode: 'dark' | 'light' | 'system'): void {
-  nativeTheme.themeSource = mode
+let colorMode: ColorMode = 'ovyra'
+const windowBase = (): string => baseColor(colorMode, nativeTheme.shouldUseDarkColors)
+
+/** The color mode: Windows' own theme follows it, and with it every page and window. */
+export function applyColorMode(mode: ColorMode): void {
+  colorMode = mode
+  nativeTheme.themeSource = mode === 'light' || mode === 'system' ? mode : 'dark'
   repaintWindowChrome()
 }
 
 export function repaintWindowChrome(): void {
   for (const w of BrowserWin.all) {
     w.win.setTitleBarOverlay(titleBarColors())
-    w.win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? BASE_DARK : BASE_LIGHT)
+    w.win.setBackgroundColor(windowBase())
   }
 }

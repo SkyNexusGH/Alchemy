@@ -1,14 +1,13 @@
-import { Bookmark, Clock, Download, LayoutGrid, Plus, Settings } from '../lib/icons'
+import { Bookmark, Clock, Download, Plus, Settings } from '../lib/icons'
 import { WorkspaceIcon } from '../lib/icons'
 import { useEffect, useRef } from 'react'
-import { BASE_DARK, BASE_LIGHT, type InternalPage, type PanelState, type Workspace } from '@shared/types'
+import { baseColor, type InternalPage, type PanelState, type Workspace } from '@shared/types'
 import { inkOn, readableOn } from '../lib/color'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
 import { useActiveTab, useShell } from './store'
 
 const TOOLS: { page: InternalPage; label: string; icon: typeof Clock }[] = [
-  { page: 'newtab', label: 'Speed dial', icon: LayoutGrid },
   { page: 'bookmarks', label: 'Bookmarks', icon: Bookmark },
   { page: 'history', label: 'History', icon: Clock },
   { page: 'downloads', label: 'Downloads', icon: Download }
@@ -73,7 +72,7 @@ export function SideRail(): React.JSX.Element {
           key={page}
           className={`rail-btn small${current === page ? ' active' : ''}`}
           title={label}
-          onClick={() => (page === 'newtab' ? api.invoke('tab:new') : api.invoke('internal:open', page))}
+          onClick={() => api.invoke('internal:open', page)}
         >
           <Icon size={17} />
         </button>
@@ -116,11 +115,12 @@ function WorkspaceButton({ ws, refMap }: { ws: Workspace; refMap: Map<string, HT
 export function useWorkspaceColors(ws: Workspace): React.CSSProperties {
   const fallback = useSettings((s) => s.settings?.appearance.accent ?? '#ec4856')
   const dark = useSettings((s) => s.dark)
+  const mode = useSettings((s) => s.settings?.appearance.mode ?? 'ovyra')
   const accent = ws.accent ?? fallback
   return {
     '--wa': accent,
     '--wa-ink': inkOn(accent),
-    '--wa-fg': readableOn(accent, dark ? BASE_DARK : BASE_LIGHT)
+    '--wa-fg': readableOn(accent, baseColor(mode, dark))
   } as React.CSSProperties
 }
 

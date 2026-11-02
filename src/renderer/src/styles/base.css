@@ -66,6 +66,25 @@
   }
 }
 
+/* Dark mode proper: true black, neutral grays (Ovyra mode keeps the navy above). */
+:root[data-shade='black'] {
+  --bg: #000000;
+  --bg-raised: #0b0b0d;
+  --page: #050506;
+  --panel: #111114;
+  --panel-2: #19191d;
+  --field: #09090b;
+  --surface: rgba(236, 236, 240, 0.05);
+  --surface-2: rgba(236, 236, 240, 0.08);
+  --hover: rgba(236, 236, 240, 0.08);
+  --press: rgba(236, 236, 240, 0.13);
+  --border: rgba(236, 236, 240, 0.08);
+  --border-2: rgba(236, 236, 240, 0.15);
+  --text: #ececf0;
+  --text-2: rgba(236, 236, 240, 0.68);
+  --text-3: rgba(236, 236, 240, 0.44);
+}
+
 :root[data-roundness='sharp'] {
   --r: 4px;
 }

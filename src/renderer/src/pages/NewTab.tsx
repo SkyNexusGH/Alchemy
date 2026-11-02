@@ -22,8 +22,11 @@ export default function NewTab(): React.JSX.Element {
     if (isPrivate) document.title = 'Private Tab'
   }, [isPrivate])
   useEffect(() => {
-    if (dial.length) api.invoke('history:favicons', dial.map((d) => d.url)).then(setIcons)
-  }, [dial.map((d) => d.url).join()])
+    if (!dial.length) return
+    api.invoke('history:favicons', dial.map((d) => d.url)).then(setIcons)
+    // Open connections to the speed dial sites now, so a click skips DNS and TLS setup.
+    if (!isPrivate) void api.invoke('speeddial:warm', dial.map((d) => d.url))
+  }, [dial.map((d) => d.url).join(), isPrivate])
 
   if (!settings) return <div className="ntp" />
   const a = settings.appearance
@@ -62,7 +65,12 @@ export default function NewTab(): React.JSX.Element {
         {a.showSpeedDial && (
           <div className="dial">
             {dial.map((d) => (
-              <a key={d.id} className="tile" href={d.url}>
+              <a
+                key={d.id}
+                className="tile"
+                href={d.url}
+                onPointerEnter={() => !isPrivate && void api.invoke('speeddial:warm', [d.url], true)}
+              >
                 <span className="tile-icon">
                   <Favicon src={icons[d.url]} url={d.url} size={30} />
                 </span>
