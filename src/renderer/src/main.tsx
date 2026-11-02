@@ -1,4 +1,8 @@
 import '@fontsource-variable/inter'
+import '@fontsource-variable/nunito'
+import '@fontsource-variable/space-grotesk'
+import '@fontsource-variable/outfit'
+import '@fontsource-variable/jetbrains-mono'
 import './styles/base.css'
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -15,6 +19,7 @@ const pages: Record<string, LazyExoticComponent<ComponentType>> = {
   settings: lazy(() => import('./pages/Settings')),
   extensions: lazy(() => import('./pages/Extensions')),
   welcome: lazy(() => import('./pages/Welcome')),
+  whatsnew: lazy(() => import('./pages/WhatsNew')),
   error: lazy(() => import('./pages/ErrorPage'))
 }
 

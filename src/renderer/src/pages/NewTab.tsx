@@ -1,6 +1,6 @@
 import './newtab.css'
 import { useEffect, useRef, useState } from 'react'
-import { SEARCH_ENGINES, type LocalSuggestions, type SearchEngineId, type SpeedDialItem, type Suggestion } from '@shared/types'
+import { allEngines, engineOf, type LocalSuggestions, type SearchEngineId, type SpeedDialItem, type Suggestion } from '@shared/types'
 import { hostOf, toUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { Check, ChevronDown, EngineIcon, Globe, Plus, Search, VenetianMask, X } from '../lib/icons'
@@ -37,6 +37,8 @@ export default function NewTab(): React.JSX.Element {
     <div className={`ntp${bg ? ' has-bg' : ''}`}>
       {bg && <div className="ntp-bg" style={{ backgroundImage: `url("${bg}")` }} />}
       {bg && <div className="ntp-dim" style={{ opacity: a.backgroundDim / 100 }} />}
+
+      {!isPrivate && <DefaultBrowserCard />}
 
       <div className="ntp-center">
         {a.showClock && (
@@ -109,6 +111,36 @@ export default function NewTab(): React.JSX.Element {
   )
 }
 
+/** A gentle reminder while Ovyra isn't the default browser (turn off in Settings). */
+function DefaultBrowserCard(): React.JSX.Element | null {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    void api.invoke<{ isDefault: boolean; prompt: boolean }>('defaultbrowser:status').then((s) => setShow(s.prompt && !s.isDefault))
+  }, [])
+  if (!show) return null
+  const dismiss = (forever: boolean): void => {
+    setShow(false)
+    void api.invoke('defaultbrowser:dismiss', forever)
+  }
+  return (
+    <div className="default-card">
+      <span>Make Ovyra your default browser?</span>
+      <button className="btn primary small" onClick={() => {
+        void api.invoke('defaultbrowser:open')
+        dismiss(false)
+      }}>
+        Set as default
+      </button>
+      <button className="btn small" onClick={() => dismiss(true)}>
+        Don’t ask again
+      </button>
+      <button className="dc-close" title="Not now" onClick={() => dismiss(false)}>
+        <X size={13} strokeWidth={2.4} />
+      </button>
+    </div>
+  )
+}
+
 /**
  * The new tab search box: pick an engine at the start, get suggestions from history,
  * bookmarks and the engine as you type, and search (or go to an address) with Enter.
@@ -121,6 +153,8 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
   const [picking, setPicking] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const seq = useRef(0)
+  const settings = useSettings((s) => s.settings)!
+  const engineName = engineOf(settings, engine).name
 
   useEffect(() => {
     const q = text.trim()
@@ -161,7 +195,7 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
         <div className="sb-engine">
           <button
             className="sb-engine-btn"
-            title={`Searching with ${SEARCH_ENGINES[engine].name}`}
+            title={`Searching with ${engineName}`}
             onClick={() => setPicking(!picking)}
             onBlur={() => setTimeout(() => setPicking(false), 120)}
           >
@@ -170,7 +204,7 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
           </button>
           {picking && (
             <div className="sb-engines">
-              {(Object.keys(SEARCH_ENGINES) as SearchEngineId[]).map((id) => (
+              {allEngines(settings).map(({ id, name }) => (
                 <button
                   key={id}
                   className={id === engine ? 'on' : ''}
@@ -182,7 +216,7 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
                   }}
                 >
                   <EngineIcon id={id} size={16} />
-                  <span>{SEARCH_ENGINES[id].name}</span>
+                  <span>{name}</span>
                   {id === engine && <Check size={14} strokeWidth={2.4} />}
                 </button>
               ))}
@@ -193,7 +227,7 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
           ref={input}
           value={text}
           spellCheck={false}
-          placeholder={`Search ${SEARCH_ENGINES[engine].name} or type a URL`}
+          placeholder={`Search ${engineName} or type a URL`}
           onChange={(e) => setText(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setTimeout(() => setFocused(false), 120)}

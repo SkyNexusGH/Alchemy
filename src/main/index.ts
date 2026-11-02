@@ -1,5 +1,6 @@
 import './bootstrap'
 import { app, Menu, nativeTheme, session } from 'electron'
+import { registerAsBrowser, urlFromArgs } from './defaultbrowser'
 import { initExtensions } from './extensions'
 import { registerIpc } from './ipc'
 import { initPanels } from './panels'
@@ -8,7 +9,7 @@ import { onRequestBlocked, registerPrivacyIpc } from './privacy/network'
 import { registerSchemePrivileges } from './protocol'
 import { setupBrowsingSession } from './sessions'
 import { loadSession, saveSessionNow, setSessionProvider } from './sessionstore'
-import { getSettings, onSettingsChanged } from './settings'
+import { getSettings, onSettingsChanged, updateSettings } from './settings'
 import { flushAllStores } from './store'
 import { tabsByContents } from './tab'
 import { initUpdater } from './updater'
@@ -26,7 +27,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', (_e, argv) => {
     const bw = BrowserWin.focused()
-    const url = argv.find((a) => /^https?:\/\//i.test(a))
+    const url = urlFromArgs(argv)
     if (!bw) return void BrowserWin.open()
     if (url) bw.newTab(url)
     if (bw.win.isMinimized()) bw.win.restore()
@@ -78,10 +79,19 @@ if (!app.requestSingleInstanceLock()) {
     // Dev builds expose internals to the debugger (`npm run dev -- --inspect`).
     if (!app.isPackaged) Object.assign(globalThis, { __ovyra: { BrowserWin } })
 
-    const url = process.argv.find((a) => /^https?:\/\//i.test(a))
+    const url = urlFromArgs(process.argv)
     if (url) BrowserWin.focused()?.newTab(url)
-    // First run: open the setup wizard.
-    if (!getSettings().onboarded) BrowserWin.focused()?.openInternal('welcome')
+    // First run: open the setup wizard. After an update: show what's new, once.
+    const version = app.getVersion()
+    if (!getSettings().onboarded) {
+      BrowserWin.focused()?.openInternal('welcome')
+      updateSettings({ lastSeenVersion: version })
+    } else if (getSettings().lastSeenVersion !== version && app.isPackaged) {
+      BrowserWin.focused()?.openInternal('whatsnew')
+      updateSettings({ lastSeenVersion: version })
+    }
+    // So Windows lists Ovyra under Default apps → Web browser.
+    void registerAsBrowser()
 
     // Updates download in the background and apply on restart.
     initUpdater(() => {})

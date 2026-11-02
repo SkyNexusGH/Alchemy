@@ -1,6 +1,6 @@
 import './welcome.css'
 import { useState, type ReactNode } from 'react'
-import { PANEL_PRESETS, SEARCH_ENGINES, type SearchEngineId, type Settings } from '@shared/types'
+import { PANEL_PRESETS, SEARCH_ENGINES, type BuiltinEngineId, type Settings } from '@shared/types'
 import { api } from '../lib/api'
 import {
   ArrowLeft,
@@ -110,7 +110,7 @@ const STEPS: Step[] = [
     text: 'Used in the address bar and the new tab page. You can switch from the search box too.',
     body: (s) => (
       <div className="wz-options">
-        {(Object.keys(SEARCH_ENGINES) as SearchEngineId[]).map((id) => (
+        {(Object.keys(SEARCH_ENGINES) as BuiltinEngineId[]).map((id) => (
           <OptionCard key={id} on={s.searchEngine === id} onClick={() => saveSettings({ searchEngine: id })}>
             <EngineIcon id={id} size={22} />
             <b>{SEARCH_ENGINES[id].name}</b>

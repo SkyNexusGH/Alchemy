@@ -183,12 +183,24 @@ const Tab = memo(function Tab({ tab, active, dragging, island, ref, ...handlers 
     island && 'in-island',
     island?.end && 'island-end'
   ]
+  // The tooltip shows how much memory the tab uses, read fresh each time it's hovered.
+  const [memory, setMemory] = useState<number | null>(null)
+  const tooltip = tab.sleeping
+    ? `${tab.title}
+Sleeping · using no memory`
+    : memory !== null
+      ? `${tab.title}
+Memory: ${memory >= 1024 ? `${(memory / 1024).toFixed(1)} GB` : `${memory} MB`}`
+      : tab.title
   return (
     <div
       ref={ref}
+      onPointerEnter={() => {
+        if (!tab.sleeping) void api.invoke<number | null>('tab:memory', tab.id).then(setMemory)
+      }}
       className={cls.filter(Boolean).join(' ')}
       style={island ? ({ '--ic': island.color } as React.CSSProperties) : undefined}
-      title={tab.sleeping ? `${tab.title} (sleeping)` : tab.title}
+      title={tooltip}
       onAuxClick={(e) => e.button === 1 && api.invoke('tab:close', tab.id)}
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onContextMenu={(e) => {

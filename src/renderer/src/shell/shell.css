@@ -633,6 +633,27 @@ html[data-compact='true'] .rail-btn {
   color: var(--text-3);
 }
 
+.omni-engine {
+  flex-shrink: 0;
+  height: 22px;
+  margin-right: 8px;
+  padding: 0 9px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  animation: engine-in 0.18s var(--spring);
+}
+@keyframes engine-in {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
 .omni-chip {
   height: 24px;
   margin-left: 4px;
@@ -883,6 +904,13 @@ browser-action-list::part(badge) {
   background: var(--page);
   color: var(--text-3);
   box-shadow: 0 0 0 1px var(--border);
+}
+.floating-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-2);
 }
 .content svg {
   opacity: 0.25;

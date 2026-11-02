@@ -1,19 +1,22 @@
 import { session } from 'electron'
-import { SEARCH_ENGINES, type LocalSuggestions, type SearchEngineId, type Suggestion } from '@shared/types'
+import { engineOf, engineSearchUrl, type LocalSuggestions, type SearchEngineId, type Suggestion } from '@shared/types'
 import { toUrl } from '@shared/url'
 import { searchBookmarks } from './bookmarks'
 import { inlineCandidate, searchUrls, stripUrl } from './history'
 import { getSettings } from './settings'
 
-/** Turns whatever the user typed into a URL: either the address itself or a search. */
-export function resolveInput(input: string): string {
+/**
+ * Turns whatever the user typed into a URL: either the address itself or a search. With an
+ * engine picked (keyword + Tab in the address bar), everything typed is a search.
+ */
+export function resolveInput(input: string, engine?: SearchEngineId): string {
   const text = input.trim()
   if (!text) return ''
-  return toUrl(text) ?? searchUrl(text)
+  return (engine ? null : toUrl(text)) ?? searchUrl(text, engine)
 }
 
-export function searchUrl(query: string): string {
-  return SEARCH_ENGINES[getSettings().searchEngine].search.replace('%s', encodeURIComponent(query))
+export function searchUrl(query: string, engine?: SearchEngineId): string {
+  return engineSearchUrl(engineOf(getSettings(), engine), query)
 }
 
 export function looksLikeUrl(input: string): boolean {
@@ -48,7 +51,7 @@ let inflight: AbortController | null = null
 
 export async function remoteSuggestions(text: string, engine?: SearchEngineId): Promise<string[]> {
   const settings = getSettings()
-  const endpoint = SEARCH_ENGINES[engine ?? settings.searchEngine].suggest
+  const endpoint = engineOf(settings, engine).suggest
   const q = text.trim()
   if (!settings.searchSuggestions || !endpoint || !q || looksLikeUrl(q)) return []
   inflight?.abort()

@@ -30,6 +30,7 @@ import { inkOn } from '../lib/color'
 import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { useSettings } from '../lib/settings'
 import { AppMenu } from './AppMenu'
+import { Eyedropper } from './Eyedropper'
 import { Palette } from './Palette'
 import { Favicon, formatBytes } from '../lib/ui'
 
@@ -53,6 +54,7 @@ export default function Overlay(): React.JSX.Element {
       {payload?.kind === 'add-panel' && <AddPanel />}
       {payload?.kind === 'palette' && <PaletteHost />}
       {payload?.kind === 'app' && <AppMenu />}
+      {payload?.kind === 'eyedropper' && <Eyedropper key={payload.image.length} image={payload.image} />}
       {payload?.kind === 'menu' && <MenuHost key={`${payload.x},${payload.y}`} items={payload.items} x={payload.x} y={payload.y} />}
     </div>
   )

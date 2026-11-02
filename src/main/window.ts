@@ -17,6 +17,8 @@ import {
 import { toggleBookmark } from './bookmarks'
 import { markTyped } from './history'
 import { pageContextMenu } from './menus'
+import { isAwakeSite } from './awake'
+import { floatTab, isFloating, markPlayingVideo, unfloatTab } from './float'
 import { looksLikeUrl, resolveInput } from './omnibox'
 import { isFrozen, resumeSessionSaving, saveSessionNow, scheduleSessionSave } from './sessionstore'
 import { endPrivateBrowsing, getPrivateSession } from './sessions'
@@ -393,6 +395,8 @@ export class BrowserWin implements TabHost {
       prev.lastActive = Date.now()
       if (this.find.open) this.closeFind()
     }
+    // Coming back to a floating video's tab puts the page back in the window.
+    if (isFloating(tab)) unfloatTab(tab)
     this.activeId = tab.id
     tab.lastActive = Date.now()
     if (tab.workspaceId !== this.workspaceId) {
@@ -416,6 +420,24 @@ export class BrowserWin implements TabHost {
         })
       }
     } else if (this.win.isFocused()) tab.wc?.focus()
+    this.changed()
+    // Leaving a tab that plays a video: keep watching in a floating window.
+    if (prev && prev !== tab && !this.shown.includes(prev) && prev.audible && !isFloating(prev) && getSettings().autoPopout) {
+      void markPlayingVideo(prev).then((found) => {
+        if (found && this.activeId !== prev.id && this.tabs.includes(prev)) this.floatTab(prev)
+      })
+    }
+  }
+
+  /** Moves a tab's page (with its marked video) into Ovyra's floating player. */
+  floatTab(tab: Tab): void {
+    if (!tab.view) return
+    if (this.shown.includes(tab)) this.win.contentView.removeChildView(tab.view)
+    floatTab(tab, () => {
+      this.activate(tab)
+      if (this.win.isMinimized()) this.win.restore()
+      this.win.focus()
+    })
     this.changed()
   }
 
@@ -445,6 +467,7 @@ export class BrowserWin implements TabHost {
     if (index === -1) return
     const visIndex = this.visible().indexOf(tab)
     this.closeDevTools(tab)
+    unfloatTab(tab)
     if (tab.view) this.win.contentView.removeChildView(tab.view)
     this.shown = this.shown.filter((t) => t !== tab)
     if (this.split?.includes(tab.id)) this.split = null
@@ -541,7 +564,7 @@ export class BrowserWin implements TabHost {
   sleepCandidates(): Tab[] {
     return this.tabs
       .filter((t) => t !== this.active && !this.shown.includes(t) && !t.sleeping && !t.audible)
-      .filter((t) => !t.wc?.isDevToolsOpened() && !t.wc?.isCurrentlyAudible())
+      .filter((t) => !t.wc?.isDevToolsOpened() && !t.wc?.isCurrentlyAudible() && !isAwakeSite(t.pageUrl()) && !isFloating(t))
       .sort((a, b) => a.lastActive - b.lastActive)
   }
 
@@ -550,7 +573,7 @@ export class BrowserWin implements TabHost {
     const now = Date.now()
     for (const t of this.tabs) {
       if (t === this.active || this.shown.includes(t) || t.sleeping || t.pinned || t.audible) continue
-      if (t.wc?.isDevToolsOpened() || t.wc?.isCurrentlyAudible()) continue
+      if (t.wc?.isDevToolsOpened() || t.wc?.isCurrentlyAudible() || isAwakeSite(t.pageUrl()) || isFloating(t)) continue
       if (now - t.lastActive > maxIdleMs) t.sleep()
     }
     this.changed()
@@ -558,10 +581,10 @@ export class BrowserWin implements TabHost {
 
   // ---- navigation -----------------------------------------------------------------
 
-  navigate(input: string, opts: { newTab?: boolean; background?: boolean } = {}): void {
-    const url = resolveInput(input)
+  navigate(input: string, opts: { newTab?: boolean; background?: boolean; engine?: string } = {}): void {
+    const url = resolveInput(input, opts.engine)
     if (!url) return
-    if (looksLikeUrl(input)) markTyped(url)
+    if (!opts.engine && looksLikeUrl(input)) markTyped(url)
     if (opts.newTab || !this.active) {
       this.newTab(url, { foreground: !opts.background, opener: this.active })
       return
@@ -649,7 +672,8 @@ export class BrowserWin implements TabHost {
       this.devtoolsShown.setBounds(fullscreen ? { x: 0, y: 0, width: 0, height: 0 } : roundRect(this.devtoolsRect))
     }
     const view = this.active?.view
-    if (!view) return
+    // A floating tab's page is in its own window.
+    if (!view || isFloating(this.active)) return
     // Fullscreen (F11 or a video) gives the whole screen to the page, like Chrome.
     if (fullscreen) {
       const [width, height] = this.win.getContentSize()
@@ -767,6 +791,15 @@ export class BrowserWin implements TabHost {
     this.lastActiveIn.set(tab.workspaceId, tab.id)
     selectExtensionTab(tab.wc, this.incognito)
     this.changed()
+  }
+
+  /** The color picker: a still of the page under a magnifier; clicking copies the color. */
+  async pickColor(): Promise<void> {
+    const wc = this.active?.wc
+    if (!wc || isFloating(this.active)) return
+    const image = await wc.capturePage()
+    if (image.isEmpty()) return
+    this.showOverlay(this.contentRect, { kind: 'eyedropper', image: image.toDataURL() }, true)
   }
 
   openPalette(): void {

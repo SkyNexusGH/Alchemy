@@ -1,3 +1,4 @@
+import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
 import { join } from 'node:path'
 import { NEW_TAB_URL, type Security, type TabState } from '@shared/types'
@@ -229,6 +230,7 @@ export class Tab {
       muted: this.muted,
       pinned: this.pinned,
       sleeping: this.sleeping,
+      floating: isFloating(this),
       zoom: wc && !wc.isDestroyed() ? wc.getZoomFactor() : 1,
       security: this.security(),
       bookmarked: isBookmarked(this.pageUrl()),

@@ -1,5 +1,7 @@
 import { app, clipboard, type MenuItemConstructorOptions } from 'electron'
-import { NEW_TAB_URL, SEARCH_ENGINES, type AppMenuInfo } from '@shared/types'
+import { engineOf, NEW_TAB_URL, type AppMenuInfo } from '@shared/types'
+import { hostOf } from '@shared/url'
+import { isAwakeSite, setAwakeSite } from './awake'
 import { children } from './bookmarks'
 import { extensionMenuItems, listExtensions } from './extensions'
 import { blockStats } from './privacy/shields'
@@ -71,7 +73,7 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
     )
   } else if (selection) {
     const short = selection.length > 28 ? `${selection.slice(0, 28)}…` : selection
-    const engine = SEARCH_ENGINES[getSettings().searchEngine].name
+    const engine = engineOf(getSettings()).name
     items.push(
       { label: 'Copy', click: () => wc.copy(), ...hint('Ctrl+C') },
       { label: `Search ${engine} for “${short}”`, click: () => bw.newTab(searchUrl(selection), { opener: tab }) },
@@ -127,13 +129,23 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number): 
       enabled: !tab.sleeping && tab.id !== bw.activeId,
       click: () => bw.sleepTab(tab)
     },
+    ...(/^https?:/.test(tab.pageUrl())
+      ? [
+          {
+            label: `Keep ${hostOf(tab.pageUrl())} awake`,
+            type: 'checkbox' as const,
+            checked: isAwakeSite(tab.pageUrl()),
+            click: () => setAwakeSite(tab.pageUrl(), !isAwakeSite(tab.pageUrl()))
+          }
+        ]
+      : []),
     ...(bw.incognito
       ? []
       : [
           {
             label: 'Move to workspace',
             submenu: getSettings().workspaces.map((w) => ({
-              label: `${w.icon ? `${w.icon}  ` : ''}${w.name}`,
+              label: w.name,
               type: 'radio' as const,
               checked: w.id === tab.workspaceId,
               click: () => bw.moveToWorkspace(tab, w.id)

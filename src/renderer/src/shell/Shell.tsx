@@ -26,6 +26,7 @@ export default function Shell(): React.JSX.Element {
   // The split frames only matter while one of the split tabs is the one on screen.
   const split = useShell((s) => (s.win.split?.includes(s.win.activeId ?? -1) ? s.win.split : null))
   const activeId = useShell((s) => s.win.activeId)
+  const floating = useShell((s) => s.win.tabs.find((t) => t.id === s.win.activeId)?.floating ?? false)
   const content = useRef<HTMLDivElement>(null)
   useReportRect(content, 'layout:content')
 
@@ -61,6 +62,14 @@ export default function Shell(): React.JSX.Element {
           <div className={`content${split ? ' split' : ''}`} ref={content}>
             {split ? (
               split.map((id) => <div key={id} className={`split-pane${id === activeId ? ' focused' : ''}`} />)
+            ) : floating ? (
+              <div className="floating-note">
+                <Logo size={44} />
+                <b>Playing in the floating window</b>
+                <button className="btn" onClick={() => api.invoke('tab:activate', activeId)}>
+                  Bring it back
+                </button>
+              </div>
             ) : (
               <Logo size={44} />
             )}

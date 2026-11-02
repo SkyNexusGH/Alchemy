@@ -345,3 +345,60 @@ html[data-page='settings'] body {
   font-size: 20px;
   font-weight: 750;
 }
+
+/* Search shortcuts */
+.engines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.engine-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 4px 0 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.engine-row .engine-name {
+  font-weight: 600;
+  min-width: 90px;
+}
+.engine-row kbd {
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--field);
+  border: 1px solid var(--border-2);
+  font: 600 11.5px/1.3 inherit;
+}
+.engine-row .engine-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.engine-row.add {
+  padding: 0;
+  background: none;
+  gap: 6px;
+}
+.engine-row.add .field {
+  width: 140px;
+}
+.engine-row.add .field.kw {
+  width: 90px;
+}
+.engine-row.add .field.url {
+  flex: 1;
+  width: auto;
+}
+.chip-input.field {
+  height: 28px;
+  width: 260px;
+  border-radius: 999px;
+}

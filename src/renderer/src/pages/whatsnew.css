@@ -1,0 +1,72 @@
+.whatsnew {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 28px 64px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.wn-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 34px;
+}
+.wn-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+.wn-head p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+}
+.wn-release {
+  margin-bottom: 34px;
+}
+.wn-release h2 {
+  font-size: 17px;
+  margin: 0 0 12px;
+}
+.wn-release h2 small {
+  margin-left: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.wn-release:not(.latest) {
+  opacity: 0.75;
+}
+.wn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 10px;
+}
+.wn-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.wn-item b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 13.5px;
+}
+.wn-item p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.wn-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-fg);
+}

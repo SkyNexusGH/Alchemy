@@ -2,11 +2,12 @@ import './pages.css'
 import './settings.css'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  allEngines,
   baseColor,
-  SEARCH_ENGINES,
   THEME_PRESETS,
+  type CustomEngine,
   type FilterStatus,
-  type SearchEngineId,
+  type UiFont,
   type Settings as S,
   type UpdateState,
   type Workspace
@@ -42,6 +43,7 @@ import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { Select } from '../lib/Select'
 import { presetThumb, saveAppearance, saveSettings, useSettings } from '../lib/settings'
 import { BrandLogo, setPageIcon } from '../lib/ui'
+import { hostOf } from '@shared/url'
 import { ClearDataDialog } from './ClearDataDialog'
 
 document.title = 'Settings'
@@ -252,11 +254,18 @@ export function ThemeGrid({ settings }: { settings: S }): React.JSX.Element {
   )
 }
 
-export const ENGINE_OPTIONS = (Object.keys(SEARCH_ENGINES) as SearchEngineId[]).map((id) => ({
-  value: id,
-  label: SEARCH_ENGINES[id].name,
-  icon: <EngineIcon id={id} size={16} />
-}))
+export function engineOptions(s: S): { value: string; label: string; icon: ReactNode }[] {
+  return allEngines(s).map((e) => ({ value: e.id, label: e.name, icon: <EngineIcon id={e.id} size={16} /> }))
+}
+
+const FONTS: { value: UiFont; label: string; family: string }[] = [
+  { value: 'inter', label: 'Inter', family: 'Inter Variable' },
+  { value: 'segoe', label: 'Segoe UI (Windows)', family: 'Segoe UI Variable Text' },
+  { value: 'nunito', label: 'Nunito (rounded)', family: 'Nunito Variable' },
+  { value: 'outfit', label: 'Outfit (geometric)', family: 'Outfit Variable' },
+  { value: 'grotesk', label: 'Space Grotesk', family: 'Space Grotesk Variable' },
+  { value: 'mono', label: 'JetBrains Mono', family: 'JetBrains Mono Variable' }
+]
 
 function useSettingRows(s: S | null, onClear: () => void): Row[] {
   const [filters, setFilters] = useState<FilterStatus | null>(null)
@@ -264,6 +273,17 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
   const [stats, setStats] = useState<{ blocked: number; since: number } | null>(null)
   const [downloadsDir, setDownloadsDir] = useState('')
   const [usage, setUsage] = useState<{ memoryMB: number; tabs: number; sleeping: number; totalGB: number } | null>(null)
+  // Whether the graphics card is in use right now (the setting applies after a restart).
+  const [gpuNow, setGpuNow] = useState<boolean | null>(null)
+  const [isDefault, setIsDefault] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const check = (): void => void api.invoke<{ isDefault: boolean }>('defaultbrowser:status').then((r) => setIsDefault(r.isDefault))
+    check()
+    // Coming back from Windows' Settings.
+    window.addEventListener('focus', check)
+    return () => window.removeEventListener('focus', check)
+  }, [])
 
   useEffect(() => {
     const load = (): void => void api.invoke<typeof usage>('perf:usage').then(setUsage)
@@ -276,7 +296,10 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     api.invoke<FilterStatus>('filters:status').then(setFilters)
     api.invoke<string[]>('shields:exceptions').then(setExceptions)
     api.invoke<{ blocked: number; since: number }>('shields:stats').then(setStats)
-    api.invoke<{ downloads: string }>('app:info').then((i) => setDownloadsDir(i.downloads))
+    api.invoke<{ downloads: string; gpu: boolean }>('app:info').then((i) => {
+      setDownloadsDir(i.downloads)
+      setGpuNow(i.gpu)
+    })
     const off1 = api.on('filters', setFilters)
     const off2 = api.on('shields:exceptions', setExceptions)
     return () => {
@@ -371,6 +394,24 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'appearance',
+      label: 'Interface font',
+      hint: 'The font used for tabs, menus and Ovyra’s own pages.',
+      keywords: 'typeface text letters',
+      control: (
+        <Select
+          value={a.font}
+          width={220}
+          onChange={(font) => saveAppearance({ font })}
+          options={FONTS.map((f) => ({
+            value: f.value,
+            label: f.label,
+            icon: <span style={{ fontFamily: f.family, fontWeight: 600 }}>Aa</span>
+          }))}
+        />
+      )
+    },
+    {
+      category: 'appearance',
       label: 'Compact tabs',
       hint: 'Smaller tabs, so more fit across the top.',
       keywords: 'density small',
@@ -404,7 +445,15 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'newtab',
       label: 'Search engine',
       hint: 'Used by the address bar and the new tab page.',
-      control: <Select value={s.searchEngine} options={ENGINE_OPTIONS} onChange={(v) => set({ searchEngine: v })} width={220} />
+      control: <Select value={s.searchEngine} options={engineOptions(s)} onChange={(v) => set({ searchEngine: v })} width={220} />
+    },
+    {
+      category: 'newtab',
+      label: 'Search shortcuts',
+      hint: 'Type a keyword in the address bar and press Tab to search that site, like “yt” then Tab for YouTube.',
+      keywords: 'custom search engine keyword tab youtube wikipedia',
+      wide: true,
+      control: <EnginesEditor settings={s} />
     },
     {
       category: 'newtab',
@@ -572,6 +621,34 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       ) : null
     },
 
+    {
+      category: 'performance',
+      label: 'Keep these sites awake',
+      hint: 'Their tabs never go to sleep. You can also right-click a tab and choose Keep awake.',
+      keywords: 'never sleep always awake exceptions music',
+      wide: true,
+      control: <AwakeSites sites={perf.awakeSites} onChange={(awakeSites) => setPerf({ awakeSites })} />
+    },
+    {
+      category: 'performance',
+      label: 'Use graphics acceleration',
+      hint:
+        gpuNow !== null && gpuNow !== perf.hardwareAcceleration
+          ? 'Restart Ovyra to apply this change.'
+          : 'Draws pages with your graphics card. Turn off if videos flicker or pages show glitches.',
+      keywords: 'hardware acceleration gpu graphics card flicker',
+      control: (
+        <div className="row-actions">
+          {gpuNow !== null && gpuNow !== perf.hardwareAcceleration && (
+            <button className="btn small" onClick={() => api.invoke('app:restart')}>
+              Restart now
+            </button>
+          )}
+          <Switch on={perf.hardwareAcceleration} onChange={(hardwareAcceleration) => setPerf({ hardwareAcceleration })} />
+        </div>
+      )
+    },
+
     // ---- tabs & sidebar ----
     {
       category: 'tabs',
@@ -607,6 +684,13 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       hint: 'A “Pop out” button on videos that floats them above other windows.',
       keywords: 'picture in picture pip',
       control: <Switch on={s.videoPopout} onChange={(v) => set({ videoPopout: v })} />
+    },
+    {
+      category: 'tabs',
+      label: 'Pop out videos automatically',
+      hint: 'When you switch away from a tab playing a video, it keeps playing in a floating window, and goes back when you return.',
+      keywords: 'picture in picture pip auto float',
+      control: <Switch on={s.autoPopout} onChange={(v) => set({ autoPopout: v })} />
     },
     {
       category: 'tabs',
@@ -674,6 +758,27 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           ]}
         />
       )
+    },
+    {
+      category: 'startup',
+      label: 'Default browser',
+      hint: isDefault
+        ? 'Links you open in other apps open in Ovyra.'
+        : 'Open links from other apps in Ovyra. Windows asks you to confirm in its Settings.',
+      keywords: 'default browser links windows',
+      control: isDefault ? (
+        <span className="good">Ovyra is your default</span>
+      ) : (
+        <button className="btn small" onClick={() => api.invoke('defaultbrowser:open')}>
+          Make default…
+        </button>
+      )
+    },
+    {
+      category: 'startup',
+      label: 'Ask to be the default browser',
+      hint: 'Shows a reminder on the new tab page while Ovyra isn’t the default.',
+      control: <Switch on={s.askDefaultBrowser} onChange={(v) => set({ askDefaultBrowser: v })} />
     },
     {
       category: 'startup',
@@ -886,6 +991,99 @@ interface Info {
   electron: string
 }
 
+/** The user's search shortcuts: name, keyword and address. */
+function EnginesEditor({ settings }: { settings: S }): React.JSX.Element {
+  const [draft, setDraft] = useState({ name: '', keyword: '', search: '' })
+  const list = settings.customEngines
+  const save = (customEngines: CustomEngine[]): void => void saveSettings({ customEngines })
+  const engines = allEngines(settings)
+  const keyword = draft.keyword.trim()
+  const taken = !!keyword && engines.some((e) => e.keyword.toLowerCase() === keyword.toLowerCase())
+  const search = draft.search.trim()
+  const valid = !!draft.name.trim() && !!keyword && !/\s/.test(keyword) && !taken && /^https?:\/\/.+%s/.test(search)
+
+  return (
+    <div className="engines">
+      {list.map((e) => (
+        <div key={e.id} className="engine-row">
+          <EngineIcon id={e.id} size={16} />
+          <span className="engine-name">{e.name}</span>
+          <kbd>{e.keyword}</kbd>
+          <span className="engine-url">{e.search}</span>
+          <button
+            className="icon-btn"
+            title={`Remove ${e.name}`}
+            onClick={() => {
+              save(list.filter((x) => x.id !== e.id))
+              if (settings.searchEngine === e.id) void saveSettings({ searchEngine: 'google' })
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <form
+        className="engine-row add"
+        onSubmit={(ev) => {
+          ev.preventDefault()
+          if (!valid) return
+          save([...list, { id: crypto.randomUUID(), name: draft.name.trim(), keyword, search }])
+          setDraft({ name: '', keyword: '', search: '' })
+        }}
+      >
+        <input className="field" placeholder="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+        <input className="field kw" placeholder="Keyword" value={draft.keyword} onChange={(e) => setDraft({ ...draft, keyword: e.target.value })} />
+        <input
+          className="field url"
+          placeholder="https://example.com/search?q=%s"
+          value={draft.search}
+          onChange={(e) => setDraft({ ...draft, search: e.target.value })}
+        />
+        <button className="btn small" disabled={!valid} title="%s marks where your search goes">
+          <Plus size={13} /> Add
+        </button>
+      </form>
+      <div className="set-hint">
+        {taken
+          ? 'That keyword is already used.'
+          : `Built in: ${engines
+              .filter((e) => !e.custom)
+              .map((e) => `${e.name} (${e.keyword})`)
+              .join(' · ')}`}
+      </div>
+    </div>
+  )
+}
+
+function AwakeSites({ sites, onChange }: { sites: string[]; onChange: (s: string[]) => void }): React.JSX.Element {
+  const [text, setText] = useState('')
+  return (
+    <div className="chips">
+      {sites.map((site) => (
+        <button key={site} className="chip" title="Let this site sleep again" onClick={() => onChange(sites.filter((x) => x !== site))}>
+          {site} <X size={12} />
+        </button>
+      ))}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          const t = text.trim()
+          const host = hostOf(t.includes('://') ? t : `https://${t}`)
+          if (host && !sites.includes(host)) onChange([...sites, host])
+          setText('')
+        }}
+      >
+        <input
+          className="field chip-input"
+          placeholder="Add a site, like music.youtube.com"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </form>
+    </div>
+  )
+}
+
 function AboutSection(): React.JSX.Element {
   const [info, setInfo] = useState<Info | null>(null)
   useEffect(() => void api.invoke<Info>('app:info').then(setInfo), [])
@@ -908,6 +1106,17 @@ function AboutSection(): React.JSX.Element {
           </div>
           <div className="set-control">
             <UpdateStatus />
+          </div>
+        </div>
+        <div className="set-row">
+          <div className="set-text">
+            <div className="set-label">What’s new</div>
+            <div className="set-hint">See what changed in this version.</div>
+          </div>
+          <div className="set-control">
+            <button className="btn small" onClick={() => api.invoke('internal:open', 'whatsnew')}>
+              Open
+            </button>
           </div>
         </div>
       </div>

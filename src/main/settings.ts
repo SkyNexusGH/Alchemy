@@ -1,4 +1,4 @@
-import { PANEL_PRESETS, type Appearance, type Performance, type Settings, type SpeedDialItem } from '@shared/types'
+import { PANEL_PRESETS, type Appearance, type CustomEngine, type Performance, type Settings, type SpeedDialItem } from '@shared/types'
 import { JsonStore } from './store'
 
 const DEFAULT_APPEARANCE: Appearance = {
@@ -11,14 +11,28 @@ const DEFAULT_APPEARANCE: Appearance = {
   showSpeedDial: true,
   backgroundDim: 25,
   roundness: 'normal',
-  compactTabs: false
+  compactTabs: false,
+  font: 'inter'
 }
 
-export const DEFAULT_PERFORMANCE: Performance = { heavy: false, ramLimitGB: 0, pageMemoryMB: 4096 }
+export const DEFAULT_PERFORMANCE: Performance = {
+  heavy: false,
+  ramLimitGB: 0,
+  pageMemoryMB: 4096,
+  hardwareAcceleration: true,
+  awakeSites: []
+}
 
 const DEFAULT_SPEED_DIAL: SpeedDialItem[] = [
   { id: 'fivenova', title: 'FiveNova', url: 'https://fivenova.org/' },
   { id: 'myhue', title: 'MyHue', url: 'https://myhue.uk/' }
+]
+
+// Ready to use with Tab in the address bar: "yt" then Tab searches YouTube.
+const DEFAULT_ENGINES: CustomEngine[] = [
+  { id: 'youtube', name: 'YouTube', keyword: 'yt', search: 'https://www.youtube.com/results?search_query=%s' },
+  { id: 'wikipedia', name: 'Wikipedia', keyword: 'w', search: 'https://en.wikipedia.org/w/index.php?search=%s' },
+  { id: 'github', name: 'GitHub', keyword: 'gh', search: 'https://github.com/search?q=%s' }
 ]
 
 const DEFAULTS: Settings = {
@@ -44,6 +58,9 @@ const DEFAULTS: Settings = {
   panelSleepMinutes: 30,
   tabIslands: true,
   videoPopout: true,
+  autoPopout: true,
+  customEngines: DEFAULT_ENGINES,
+  askDefaultBrowser: true,
   performance: DEFAULT_PERFORMANCE
 }
 
@@ -66,6 +83,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
   }
   s.appearance = { ...DEFAULT_APPEARANCE, ...(s.appearance ?? {}) }
   s.performance = { ...DEFAULT_PERFORMANCE, ...(s.performance ?? {}) }
+  s.customEngines ??= DEFAULT_ENGINES
   delete s.theme
   if (!s.workspaces?.length) s.workspaces = [{ id: DEFAULT_WORKSPACE, name: 'Home', icon: 'home', accent: null }]
   s.workspaces = s.workspaces.map((w) => {

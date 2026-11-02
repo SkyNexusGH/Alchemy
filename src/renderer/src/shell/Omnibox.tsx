@@ -1,6 +1,6 @@
 import { Info, Lock, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from '../lib/icons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { SEARCH_ENGINES, type LocalSuggestions, type Suggestion, type TabState } from '@shared/types'
+import { allEngines, engineOf, type EngineInfo, type LocalSuggestions, type Settings, type Suggestion, type TabState } from '@shared/types'
 import { prettyUrl, toUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { Logo } from '../lib/ui'
@@ -28,6 +28,14 @@ function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
   )
 }
 
+/** The engine a typed word picks with Tab: its keyword ("yt"), or the start of its name ("wiki"). */
+function engineFor(settings: Settings | null, text: string): EngineInfo | null {
+  const q = text.trim().toLowerCase()
+  if (!settings || !q || /s/.test(q)) return null
+  const list = allEngines(settings)
+  return list.find((e) => e.keyword.toLowerCase() === q) ?? (q.length >= 2 ? list.find((e) => e.name.toLowerCase().startsWith(q)) : null) ?? null
+}
+
 export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -36,6 +44,10 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const [text, setText] = useState(tab?.displayUrl ?? '')
   const [items, setItems] = useState<Suggestion[]>([])
   const [selected, setSelected] = useState(0)
+  /** Searching with a different engine, picked with keyword + Tab. */
+  const [engine, setEngine] = useState<EngineInfo | null>(null)
+  const engineRef = useRef<EngineInfo | null>(null)
+  engineRef.current = engine
 
   // What the user actually typed, apart from inline autocomplete.
   const typed = useRef('')
@@ -120,15 +132,20 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   function rebuild(): void {
     const q = typed.current.trim()
     if (!q) return setItems([])
-    const engine = SEARCH_ENGINES[settings?.searchEngine ?? 'google'].name
-    const first: Suggestion = inline.current
-      ? { kind: 'url', title: inline.current, value: inline.current, detail: 'Go to site' }
-      : toUrl(q)
-        ? { kind: 'url', title: q, value: q, detail: 'Go to site' }
-        : { kind: 'search', title: q, value: q, detail: `${engine} search` }
+    const picked = engineRef.current
+    const engineName = picked?.name ?? (settings ? engineOf(settings).name : 'Google')
+    const tabTo = picked ? null : engineFor(settings, typed.current)
+    const first: Suggestion = picked
+      ? { kind: 'search', title: q, value: q, detail: `${engineName} search` }
+      : inline.current
+        ? { kind: 'url', title: inline.current, value: inline.current, detail: 'Go to site' }
+        : toUrl(q)
+          ? { kind: 'url', title: q, value: q, detail: 'Go to site' }
+          : { kind: 'search', title: q, value: q, detail: `${engineName} search` }
+    if (tabTo) first.detail = `Press Tab to search ${tabTo.name}`
     const out: Suggestion[] = [first]
     const seen = new Set([first.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')])
-    for (const s of local.current) {
+    for (const s of picked ? [] : local.current) {
       const key = s.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
       if (seen.has(key) || out.length >= 5) continue
       seen.add(key)
@@ -152,7 +169,8 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       return
     }
     rebuild()
-    api.invoke<LocalSuggestions>('omnibox:local', value).then((res) => {
+    const picked = engineRef.current
+    if (!picked) api.invoke<LocalSuggestions>('omnibox:local', value).then((res) => {
       if (id !== seq.current) return
       local.current = res.items
       const lower = value.toLowerCase()
@@ -164,7 +182,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       }
       rebuild()
     })
-    api.invoke<string[]>('omnibox:remote', value).then((list) => {
+    api.invoke<string[]>('omnibox:remote', value, picked?.id).then((list) => {
       if (id !== seq.current) return
       remote.current = list
       rebuild()
@@ -177,18 +195,41 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
     setItems([])
     close()
     input.current?.blur()
-    api.invoke('tab:navigate', item.value, { newTab })
+    const searching = item.kind === 'search' || item.kind === 'suggest'
+    api.invoke('tab:navigate', item.value, { newTab, engine: searching ? engineRef.current?.id : undefined })
+    setEngine(null)
   }
 
   function revert(): void {
     editing.current = false
     seq.current++
     setItems([])
+    setEngine(null)
     // Read the latest tab: this often runs from a timer set before the tab changed.
     setText(tabRef.current?.displayUrl ?? '')
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
+    // "yt" then Tab: search YouTube instead of the default engine.
+    if (e.key === 'Tab' && !e.shiftKey && !engine) {
+      const next = engineFor(settings, typed.current)
+      if (next) {
+        e.preventDefault()
+        engineRef.current = next
+        setEngine(next)
+        typed.current = ''
+        inline.current = null
+        setText('')
+        query('', false)
+        return
+      }
+    }
+    if (e.key === 'Backspace' && engine && !input.current!.value) {
+      e.preventDefault()
+      engineRef.current = null
+      setEngine(null)
+      return
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!items.length) return
       e.preventDefault()
@@ -209,7 +250,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       if (e.ctrlKey && !/[.\s/:]/.test(raw)) return go({ kind: 'url', title: raw, value: `www.${raw}.com` }, e.altKey)
       const item = items[selected]
       const usesItem = item && (selected > 0 || item.value === raw || inline.current)
-      go(usesItem ? item : { kind: 'url', title: raw, value: raw }, e.altKey)
+      go(usesItem ? item : { kind: engine ? 'search' : 'url', title: raw, value: raw }, e.altKey)
       return
     }
     if (e.key === 'Escape') {
@@ -225,7 +266,9 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const pretty = prettyUrl(display)
   const slash = pretty.indexOf('/')
   const [host, rest] = slash === -1 ? [pretty, ''] : [pretty.slice(0, slash), pretty.slice(slash)]
-  const placeholder = `Search ${SEARCH_ENGINES[settings?.searchEngine ?? 'google'].name} or type a URL`
+  const placeholder = engine
+    ? `Search ${engine.name}`
+    : `Search ${settings ? engineOf(settings).name : 'Google'} or type a URL`
 
   return (
     <div ref={box} className={`omnibox${focused ? ' focused' : ''}`}>
@@ -245,6 +288,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           <Info size={14} />
         )}
       </span>
+      {engine && <span className="omni-engine">{engine.name}</span>}
       <div className="omni-field">
         <input
           ref={input}

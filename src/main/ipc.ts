@@ -1,23 +1,23 @@
-import { app, dialog, ipcMain, session, type WebContents } from 'electron'
+import { app, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, session, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { totalmem } from 'node:os'
-import { copyFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
-import { SEARCH_ENGINES, type SearchEngineId } from '@shared/types'
-import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, Settings, ShieldsInfo, Workspace } from '@shared/types'
+import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, Workspace } from '@shared/types'
+import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
 import { destroyPanel, hidePanel, panelStates, reloadPanel, showPanel, togglePanel } from './panels'
-import { stepZoom } from './tab'
+import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
 import * as bookmarks from './bookmarks'
 import { broadcast } from './broadcast'
 import { clearDownloads, downloadAction, listDownloads } from './downloads'
 import * as history from './history'
 import { appMenu, appMenuInfo, bookmarkFolderMenu, tabContextMenu } from './menus'
-import { localSuggestions, remoteSuggestions, resolveInput } from './omnibox'
+import { localSuggestions, remoteSuggestions, resolveInput, searchUrl } from './omnibox'
 import { clearPermissionDecisions } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
@@ -51,6 +51,11 @@ function handle(channel: string, fn: Handler, shellOnly = false): void {
 
 const shell = (channel: string, fn: Handler): void => handle(channel, fn, true)
 
+function restartApp(): void {
+  app.relaunch()
+  app.quit()
+}
+
 export function registerIpc(): void {
   // ---- window UI ----
   shell('window:state', ({ bw }) => bw?.state())
@@ -64,6 +69,14 @@ export function registerIpc(): void {
     const tab = bw?.tab(id)
     if (tab) bw!.closeTab(tab)
   })
+  /** Memory used by the process showing a tab, in MB (null while it sleeps). */
+  shell('tab:memory', ({ bw }, id: number) => {
+    const wc = bw?.tab(id)?.wc
+    if (!wc || wc.isDestroyed()) return null
+    const pid = wc.getOSProcessId()
+    const metric = app.getAppMetrics().find((m) => m.pid === pid)
+    return metric ? Math.round(metric.memory.workingSetSize / 1024) : null
+  })
   shell('tab:move', ({ bw }, id: number, to: number) => bw?.moveTab(id, to))
   shell('tab:mute', ({ bw }, id: number) => {
     const tab = bw?.tab(id)
@@ -73,7 +86,7 @@ export function registerIpc(): void {
     const tab = bw?.tab(id)
     if (tab) tabContextMenu(bw!, tab, x, y)
   })
-  shell('tab:navigate', ({ bw }, input: string, opts?: { newTab?: boolean; background?: boolean }) =>
+  shell('tab:navigate', ({ bw }, input: string, opts?: { newTab?: boolean; background?: boolean; engine?: string }) =>
     bw?.navigate(input, opts)
   )
   shell('nav', ({ bw }, action: 'back' | 'forward' | 'reload' | 'hardReload' | 'stop') => {
@@ -114,7 +127,7 @@ export function registerIpc(): void {
     bw?.tabChanged()
   })
   shell('bookmark:toggleActive', ({ bw }) => bw?.toggleBookmarkActive())
-  shell('internal:open', ({ bw }, page: InternalPage) => bw?.openInternal(page))
+  handle('internal:open', ({ bw }, page: InternalPage) => bw?.openInternal(page))
 
   // ---- any internal page ----
   handle('settings:get', () => getSettings())
@@ -197,12 +210,62 @@ export function registerIpc(): void {
       totalGB: Math.round(totalmem() / 1024 ** 3)
     }
   })
+  handle('app:restart', () => restartApp())
+  // The video toolbar's Pop out button (top frames only; videos in frames use Chromium's own).
+  ipcMain.on('ovyra:float', (event, on: boolean) => {
+    const tab = tabsByContents.get(event.sender.id)
+    const bw = tab && BrowserWin.fromWebContents(event.sender)
+    if (!tab || !bw || event.senderFrame !== event.sender.mainFrame) return
+    if (on) bw.floatTab(tab)
+    else bw.activate(tab)
+  })
+  // The video toolbar's screenshot button: a PNG of the frame (or of the screen, for videos
+  // from other sites), saved to PicturesOvyra and copied.
+  ipcMain.handle('ovyra:video-shot', async (event, data: string | null, title: string, rect: Rect | null) => {
+    if (!tabsByContents.has(event.sender.id)) return null
+    let image = data?.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(data) : null
+    if (!image && rect) {
+      const zoom = event.sender.getZoomFactor()
+      image = await event.sender.capturePage({
+        x: Math.round(rect.x * zoom),
+        y: Math.round(rect.y * zoom),
+        width: Math.round(rect.width * zoom),
+        height: Math.round(rect.height * zoom)
+      })
+    }
+    if (!image || image.isEmpty()) return null
+    const dir = join(app.getPath('pictures'), 'Ovyra')
+    mkdirSync(dir, { recursive: true })
+    const base = String(title).replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'Video'
+    const file = join(dir, `${base} ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`)
+    const png = image.toPNG()
+    writeFileSync(file, png)
+    void clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(png)], { type: 'image/png' }) })]).catch(() => {})
+    return file
+  })
+  // The color picker copies what was picked.
+  shell('color:picked', ({ bw }, hex: string) => {
+    if (/^#[0-9a-f]{6}$/i.test(hex)) void clipboard.writeText(hex)
+    bw?.hideOverlay()
+  })
+  // Default browser: Windows only lets the user choose it, in its own Settings.
+  let defaultPromptHidden = false
+  handle('defaultbrowser:status', async () => ({
+    isDefault: await isDefaultBrowser(),
+    prompt: getSettings().askDefaultBrowser && getSettings().onboarded && !defaultPromptHidden
+  }))
+  handle('defaultbrowser:open', () => openDefaultAppsSettings())
+  handle('defaultbrowser:dismiss', (_c, forever: boolean) => {
+    defaultPromptHidden = true
+    if (forever) updateSettings({ askDefaultBrowser: false })
+  })
   handle('app:info', () => ({
     version: app.getVersion(),
     chrome: process.versions.chrome,
     electron: process.versions.electron,
     userData: app.getPath('userData'),
-    downloads: app.getPath('downloads')
+    downloads: app.getPath('downloads'),
+    gpu: app.isHardwareAccelerationEnabled()
   }))
 
   // ---- privacy ----
@@ -314,7 +377,7 @@ export function registerIpc(): void {
     const tab = bw?.tabs.find((t) => t.wc === sender)
     const text = input.trim()
     if (!tab || !text) return
-    const url = toUrl(text) ?? SEARCH_ENGINES[engine ?? getSettings().searchEngine].search.replace('%s', encodeURIComponent(text))
+    const url = toUrl(text) ?? searchUrl(text, engine)
     tab.load(url)
     tab.wc?.focus()
   })
@@ -357,6 +420,8 @@ export function registerIpc(): void {
       mode: () => arg && updateSettings({ appearance: { ...s.appearance, mode: arg as ColorMode } }),
       'install-update': () => installUpdate(),
       exit: () => app.quit(),
+      restart: () => restartApp(),
+      'color-picker': () => void bw.pickColor(),
       'toggle-adblock': () => updateSettings({ adblock: !s.adblock }),
       'site-shields': () => {
         const url = bw.active?.pageUrl()

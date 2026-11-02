@@ -12,6 +12,7 @@ import {
   PanelTop,
   Pin,
   Plus,
+  Pipette,
   Printer,
   Puzzle,
   RefreshCw,
@@ -29,7 +30,7 @@ import {
   WorkspaceIcon
 } from '../lib/icons'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { SEARCH_ENGINES, type LocalSuggestions, type TabState } from '@shared/types'
+import { engineOf, type LocalSuggestions, type TabState } from '@shared/types'
 import { inkOn } from '../lib/color'
 import { toUrl } from '@shared/url'
 import { api } from '../lib/api'
@@ -74,6 +75,7 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'Reset zoom', cmd: 'zoom-reset', shortcut: 'Ctrl+0', icon: <Search size={16} /> },
   { title: 'Print', cmd: 'print', shortcut: 'Ctrl+P', icon: <Printer size={16} /> },
   { title: 'Full screen', cmd: 'fullscreen', shortcut: 'F11', icon: <Expand size={16} /> },
+  { title: 'Pick a color from the page', cmd: 'color-picker', keywords: 'eyedropper hex colour', icon: <Pipette size={16} /> },
   { title: 'Developer tools', cmd: 'devtools', shortcut: 'F12', keywords: 'inspect console', icon: <Code size={16} /> }
 ]
 
@@ -183,7 +185,7 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
       pool.push({
         key: 'go',
         group: 'Go',
-        title: url ? `Go to ${query.trim()}` : `Search ${SEARCH_ENGINES[settings?.searchEngine ?? 'google'].name} for “${query.trim()}”`,
+        title: url ? `Go to ${query.trim()}` : `Search ${(settings ? engineOf(settings).name : 'Google')} for “${query.trim()}”`,
         icon: url ? <Globe size={16} /> : <Search size={16} />,
         cmd: 'open',
         arg: query.trim(),

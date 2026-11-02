@@ -9,6 +9,7 @@ import {
   Logo as LogoMark,
   Monitor,
   Moon,
+  Pipette,
   Plus,
   Printer,
   Puzzle,
@@ -201,6 +202,9 @@ export function AppMenu(): React.JSX.Element {
         </button>
         <button onClick={() => run('print')} title="Print (Ctrl+P)">
           <Printer size={15} /> Print
+        </button>
+        <button onClick={() => run('color-picker')} title="Pick a color from the page">
+          <Pipette size={15} /> Color
         </button>
         <button onClick={() => run('devtools')} title="Developer tools (F12)">
           <Code size={15} /> DevTools

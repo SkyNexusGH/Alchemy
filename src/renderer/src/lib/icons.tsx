@@ -112,6 +112,14 @@ export const TextSearch = icon(
     <path d="M18.8 18.8l1.7 1.7" />
   </>
 )
+export const Pipette = icon(
+  <>
+    <path d="M14.5 6.5l3 3M16 3.5a2.1 2.1 0 0 1 3 0l1.5 1.5a2.1 2.1 0 0 1 0 3L18 10.5 13.5 6z" />
+    <path d="M15 9L6.5 17.5l-2.5 3-.5-.5 3-2.5L15 9" />
+    <path d="M12 6l6 6" />
+  </>
+)
+
 export const Globe = icon(
   <>
     <polygon points={decagon(8.6)} />
@@ -536,6 +544,162 @@ export const WORKSPACE_ICONS: Record<string, { label: string; icon: Icon }> = {
       </>
     )
   },
+  book: {
+    label: 'Reading',
+    icon: icon(
+      <>
+        <path d="M12 6.5c-2-1.5-5-2-8.5-1.5v13c3.5-.5 6.5 0 8.5 1.5 2-1.5 5-2 8.5-1.5V5c-3.5-.5-6.5 0-8.5 1.5z" />
+        <path d="M12 6.5v13" />
+      </>
+    )
+  },
+  movie: {
+    label: 'Movies',
+    icon: icon(
+      <>
+        <path d="M3.5 9h17v10.5h-17z" />
+        <path d="M3.5 9l1-4.5 16 1.5-.5 3M8.5 5l-1 4M13.5 5.5l-1 3.5" />
+      </>
+    )
+  },
+  headphones: {
+    label: 'Listening',
+    icon: icon(
+      <>
+        <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+        <path d="M4 14.5h3.5v6H4zM16.5 14.5H20v6h-3.5z" />
+      </>
+    )
+  },
+  sport: {
+    label: 'Sports',
+    icon: icon(
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5l4 3-1.5 4.5h-5L8 10.5zM12 3.5v4M16 10.5l4-1.5M14.5 15l2.5 3.5M9.5 15L7 18.5M8 10.5L4 9" />
+      </>
+    )
+  },
+  car: {
+    label: 'Cars',
+    icon: icon(
+      <>
+        <path d="M3.5 16.5v-4l2-5h13l2 5v4z" />
+        <path d="M3.5 12.5h17M7 16.5V19M17 16.5V19M7 14.5h.1M17 14.5h.1" />
+      </>
+    )
+  },
+  pet: {
+    label: 'Pets',
+    icon: icon(
+      <>
+        <path d="M12 12c-3 0-5.5 3-5.5 5.5 0 2 2 2.5 3 2s1.5-.5 2.5-.5 1.5 0 2.5.5 3 0 3-2c0-2.5-2.5-5.5-5.5-5.5z" />
+        <path d="M5.5 10.5h.1M9.5 6.5h.1M14.5 6.5h.1M18.5 10.5h.1" strokeWidth={3.5} />
+      </>
+    )
+  },
+  coffee: {
+    label: 'Break',
+    icon: icon(
+      <>
+        <path d="M4.5 9h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5z" />
+        <path d="M16.5 10.5h1.5a2.5 2.5 0 0 1 0 5h-1.5M8.5 3.5v2.5M12.5 3.5v2.5" />
+      </>
+    )
+  },
+  calendar: {
+    label: 'Planning',
+    icon: icon(
+      <>
+        <path d="M4 6h16v14H4z" />
+        <path d="M4 10.5h16M8.5 3.5V8M15.5 3.5V8M8 14h.1M12 14h.1M16 14h.1M8 17h.1M12 17h.1" />
+      </>
+    )
+  },
+  mail: {
+    label: 'Mail',
+    icon: icon(
+      <>
+        <path d="M3.5 6h17v12.5h-17z" />
+        <path d="M3.5 6.5L12 13l8.5-6.5" />
+      </>
+    )
+  },
+  cart: {
+    label: 'Deals',
+    icon: icon(
+      <>
+        <path d="M2.5 4h3l2.5 11h11l2-7.5H6.5" />
+        <path d="M9.5 19.5h.1M17 19.5h.1" strokeWidth={3} />
+      </>
+    )
+  },
+  bolt: { label: 'Fast', icon: icon(<path d="M13.5 2.5L5 13.5h6l-1 8 8.5-11h-6z" />) },
+  moon: { label: 'Night', icon: icon(<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z" />) },
+  sun: {
+    label: 'Day',
+    icon: icon(
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" />
+      </>
+    )
+  },
+  flag: {
+    label: 'Goals',
+    icon: icon(
+      <>
+        <path d="M5.5 21V3.5" />
+        <path d="M5.5 4h12l-2.5 4 2.5 4h-12" />
+      </>
+    )
+  },
+  trophy: {
+    label: 'Wins',
+    icon: icon(
+      <>
+        <path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0z" />
+        <path d="M7.5 6H4.5a3 3 0 0 0 3 4.5M16.5 6h3a3 3 0 0 1-3 4.5M12 13.5V17M8.5 20.5h7l-1-3.5h-5z" />
+      </>
+    )
+  },
+  crown: { label: 'VIP', icon: icon(<path d="M4 18.5h16M4.5 16L3 7l5 4 4-6.5 4 6.5 5-4-1.5 9z" />) },
+  ghost: {
+    label: 'Fun',
+    icon: icon(
+      <>
+        <path d="M5.5 20.5V11a6.5 6.5 0 0 1 13 0v9.5l-2.2-1.5-2.1 1.5-2.2-1.5-2.2 1.5-2.1-1.5z" />
+        <path d="M9.5 10.5h.1M14.5 10.5h.1" strokeWidth={3} />
+      </>
+    )
+  },
+  terminal: {
+    label: 'Terminal',
+    icon: icon(
+      <>
+        <path d="M3.5 4.5h17v15h-17z" />
+        <path d="M7.5 9.5l3 2.5-3 2.5M12.5 15h4" />
+      </>
+    )
+  },
+  server: {
+    label: 'Servers',
+    icon: icon(
+      <>
+        <path d="M4 4h16v7H4zM4 13h16v7H4z" />
+        <path d="M7.5 7.5h.1M7.5 16.5h.1" strokeWidth={3} />
+      </>
+    )
+  },
+  lock: {
+    label: 'Private',
+    icon: icon(
+      <>
+        <path d="M5 10.5h14v10H5z" />
+        <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3M12 14.5v2.5" />
+      </>
+    )
+  },
   sparkle: { label: 'Ideas', icon: Sparkle },
   layers: { label: 'Stack', icon: Layers }
 }
@@ -589,7 +753,9 @@ export const ENGINE_MARKS: Record<string, { color: string; icon: Icon }> = {
 }
 
 export function EngineIcon({ id, size = 16 }: { id: string; size?: number }): React.JSX.Element {
-  const mark = ENGINE_MARKS[id] ?? ENGINE_MARKS.google
+  const mark = ENGINE_MARKS[id]
+  // The user's own engines get a plain globe.
+  if (!mark) return <Globe size={size} style={{ color: 'var(--text-2)' }} />
   const C = mark.icon
   return <C size={size} style={{ color: mark.color }} />
 }

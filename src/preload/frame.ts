@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
+import { setupJsonViewer } from './json'
 import { setupPopout } from './popout'
 import { protect, type PrivacyConfig } from './privacy'
 
@@ -30,4 +31,5 @@ if (location.protocol === 'https:' || location.protocol === 'http:') {
     }
   }
   if (config?.popout) setupPopout()
+  setupJsonViewer()
 }

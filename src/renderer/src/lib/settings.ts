@@ -31,6 +31,7 @@ function applyTheme(): void {
   root.dataset.private = String(context.private)
   root.dataset.roundness = settings.appearance.roundness
   root.dataset.compact = String(settings.appearance.compactTabs)
+  root.dataset.font = settings.appearance.font ?? 'inter'
 }
 
 export function currentWorkspace(): Workspace | undefined {

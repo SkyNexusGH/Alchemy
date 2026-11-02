@@ -16,6 +16,8 @@ export interface TabState {
   muted: boolean
   pinned: boolean
   sleeping: boolean
+  /** The page is playing in Ovyra's floating video window. */
+  floating: boolean
   zoom: number
   security: Security
   bookmarked: boolean
@@ -109,7 +111,18 @@ export interface WindowState {
   devtools: boolean
 }
 
-export type SearchEngineId = 'google' | 'duckduckgo' | 'brave' | 'bing' | 'startpage'
+export type BuiltinEngineId = 'google' | 'duckduckgo' | 'brave' | 'bing' | 'startpage'
+/** A built-in engine id, or the id of one of the user's own engines. */
+export type SearchEngineId = string
+
+/** A search engine the user added. `search` has %s where the query goes. */
+export interface CustomEngine {
+  id: string
+  name: string
+  /** Typed in the address bar, then Tab, to search with this engine. */
+  keyword: string
+  search: string
+}
 
 export interface SpeedDialItem {
   id: string
@@ -145,6 +158,13 @@ export interface Settings {
   panelSleepMinutes: number
   tabIslands: boolean
   videoPopout: boolean
+  /** Switching away from a tab with a playing video floats the video. */
+  autoPopout: boolean
+  customEngines: CustomEngine[]
+  /** Offer to become the default browser at startup. */
+  askDefaultBrowser: boolean
+  /** The version whose What's new page was last shown. */
+  lastSeenVersion?: string
   performance: Performance
   /** Bumped when saved settings need a one-time migration. */
   version?: number
@@ -157,6 +177,10 @@ export interface Performance {
   ramLimitGB: number
   /** JavaScript memory each page may use in Heavy Mode, in MB. Applies after a restart. */
   pageMemoryMB: number
+  /** Use the graphics card for drawing pages. Applies after a restart. */
+  hardwareAcceleration: boolean
+  /** Sites (hosts) whose tabs never go to sleep. */
+  awakeSites: string[]
 }
 
 export const ISLAND_COLORS = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#fb7185', '#2dd4bf', '#fb923c']
@@ -232,6 +256,7 @@ export type OverlayPayload =
   | { kind: 'palette' }
   | { kind: 'menu'; items: MenuModel[]; x: number; y: number }
   | { kind: 'app' }
+  | { kind: 'eyedropper'; image: string }
 
 /** What the Ovyra menu (the logo button) shows. */
 export interface AppMenuInfo {
@@ -346,37 +371,70 @@ export interface Appearance {
   /** Rounder or squarer corners across the interface. */
   roundness: 'sharp' | 'normal' | 'round'
   compactTabs: boolean
+  font: UiFont
 }
 
-export const SEARCH_ENGINES: Record<SearchEngineId, { name: string; search: string; suggest: string | null }> = {
+export type UiFont = 'inter' | 'segoe' | 'nunito' | 'grotesk' | 'outfit' | 'mono'
+
+export interface EngineInfo {
+  id: string
+  name: string
+  keyword: string
+  search: string
+  suggest: string | null
+  custom: boolean
+}
+
+export const SEARCH_ENGINES: Record<BuiltinEngineId, { name: string; keyword: string; search: string; suggest: string | null }> = {
   google: {
+    keyword: 'g',
     name: 'Google',
     search: 'https://www.google.com/search?q=%s',
     suggest: 'https://suggestqueries.google.com/complete/search?client=firefox&q=%s'
   },
   duckduckgo: {
+    keyword: 'd',
     name: 'DuckDuckGo',
     search: 'https://duckduckgo.com/?q=%s',
     suggest: 'https://duckduckgo.com/ac/?type=list&q=%s'
   },
   brave: {
+    keyword: 'br',
     name: 'Brave Search',
     search: 'https://search.brave.com/search?q=%s',
     suggest: 'https://search.brave.com/api/suggest?q=%s'
   },
   bing: {
+    keyword: 'b',
     name: 'Bing',
     search: 'https://www.bing.com/search?q=%s',
     suggest: 'https://api.bing.com/osjson.aspx?query=%s'
   },
   startpage: {
+    keyword: 'sp',
     name: 'Startpage',
     search: 'https://www.startpage.com/do/search?q=%s',
     suggest: null
   }
 }
 
-export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error'] as const
+/** Every engine: the built-in ones first, then the user's. */
+export function allEngines(s: Pick<Settings, 'customEngines'>): EngineInfo[] {
+  const builtin = (Object.keys(SEARCH_ENGINES) as BuiltinEngineId[]).map((id) => ({ id, ...SEARCH_ENGINES[id], custom: false }))
+  return [...builtin, ...(s.customEngines ?? []).map((e) => ({ ...e, suggest: null, custom: true }))]
+}
+
+/** The engine with this id (the default engine when not given), falling back to Google. */
+export function engineOf(s: Pick<Settings, 'customEngines' | 'searchEngine'>, id?: string): EngineInfo {
+  const list = allEngines(s)
+  return list.find((e) => e.id === (id ?? s.searchEngine)) ?? list.find((e) => e.id === s.searchEngine) ?? list[0]
+}
+
+export function engineSearchUrl(engine: EngineInfo, query: string): string {
+  return engine.search.replace('%s', encodeURIComponent(query))
+}
+
+export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error', 'whatsnew'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 export const NEW_TAB_URL = 'ovyra://newtab/'

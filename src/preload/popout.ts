@@ -1,12 +1,17 @@
+import { ipcRenderer } from 'electron'
+
 /**
- * Ovyra's video toolbar: hovering a video shows a small pill with Pop out (floating
- * Picture-in-Picture), playback speed and Enhance (crisper contrast and color). Lives in
+ * Ovyra's video toolbar: hovering a video shows a small pill with Pop out (Ovyra's floating
+ * player, which stays above games), playback speed, Enhance (crisper contrast and color),
+ * volume boost and a screenshot button. Lives in
  * the preload's isolated world inside a closed shadow root, so pages can't see or
  * restyle it. Built with plain DOM calls: sites like YouTube enforce Trusted Types,
  * which forbids building HTML from strings.
  */
 
 const SPEEDS = [1, 1.25, 1.5, 2, 0.75]
+const BOOSTS = [1, 1.5, 2, 3]
+const FLOAT_ATTR = 'data-ovyra-float'
 // Subtle "enhance": a touch more contrast and color, like TV picture modes.
 const ENHANCE_FILTER = 'contrast(1.08) saturate(1.18) brightness(1.02)'
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -49,6 +54,7 @@ const CSS = `
   }
   button:hover { background: rgba(255,255,255,.14); }
   button.on { background: #ec4856; }
+  button:disabled { opacity: .45; cursor: default; }
   .sep { width: 1px; height: 16px; background: rgba(255,255,255,.18); }
   svg { width: 15px; height: 15px; }
 `
@@ -61,10 +67,47 @@ export function setupPopout(): void {
   let popBtn: HTMLButtonElement | null = null
   let speedBtn: HTMLButtonElement | null = null
   let enhanceBtn: HTMLButtonElement | null = null
+  let volumeBtn: HTMLButtonElement | null = null
+  let shotBtn: HTMLButtonElement | null = null
   let current: HTMLVideoElement | null = null
   let hideTimer = 0
   let frame = 0
   const enhanced = new WeakSet<HTMLVideoElement>()
+  // Volume boost runs the video's sound through Web Audio; once routed, it stays routed.
+  const gains = new WeakMap<HTMLVideoElement, GainNode>()
+  let audio: AudioContext | null = null
+  const isTop = window.top === window
+
+  // Web Audio silences media from other sites unless they allow it (CORS).
+  const canBoost = (v: HTMLVideoElement): boolean => {
+    const src = v.currentSrc
+    if (!src || src.startsWith('blob:') || v.crossOrigin !== null) return true
+    try {
+      return new URL(src, location.href).origin === location.origin
+    } catch {
+      return false
+    }
+  }
+
+  const screenshot = async (v: HTMLVideoElement): Promise<boolean> => {
+    let data: string | null = null
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = v.videoWidth
+      canvas.height = v.videoHeight
+      canvas.getContext('2d')!.drawImage(v, 0, 0)
+      data = canvas.toDataURL('image/png')
+    } catch {
+      // Video from another site: capture what's on screen instead (top frames only).
+      if (!isTop) return false
+      bar?.classList.remove('show')
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const r = v.getBoundingClientRect()
+      const rect = { x: r.left, y: r.top, width: r.width, height: r.height }
+      return ipcRenderer.invoke('ovyra:video-shot', null, document.title, rect).then(Boolean, () => false)
+    }
+    return ipcRenderer.invoke('ovyra:video-shot', data, document.title, null).then(Boolean, () => false)
+  }
 
   const makeButton = (label: string, title: string, icon?: SVGSVGElement): HTMLButtonElement => {
     const b = document.createElement('button')
@@ -100,7 +143,13 @@ export function setupPopout(): void {
     popBtn.addEventListener('click', () => {
       const v = current
       if (!v) return
-      if (document.pictureInPictureElement === v) void document.exitPictureInPicture()
+      if (isTop) {
+        // Ovyra's floating window: the main process moves the whole page into it.
+        const on = !v.hasAttribute(FLOAT_ATTR)
+        if (on) v.setAttribute(FLOAT_ATTR, '')
+        ipcRenderer.send('ovyra:float', on)
+        hide()
+      } else if (document.pictureInPictureElement === v) void document.exitPictureInPicture()
       else void v.requestPictureInPicture().catch(() => {})
     })
 
@@ -127,8 +176,44 @@ export function setupPopout(): void {
       refresh()
     })
 
+    volumeBtn = makeButton(
+      '100%',
+      'Volume boost',
+      svgIcon([{ d: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z' }, { d: 'M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11' }])
+    )
+    volumeBtn.addEventListener('click', () => {
+      const v = current
+      if (!v || !canBoost(v)) return
+      let gain = gains.get(v)
+      if (!gain) {
+        audio ??= new AudioContext()
+        gain = audio.createGain()
+        audio.createMediaElementSource(v).connect(gain).connect(audio.destination)
+        gains.set(v, gain)
+      }
+      void audio?.resume()
+      const i = BOOSTS.indexOf(gain.gain.value)
+      gain.gain.value = BOOSTS[(i + 1) % BOOSTS.length]
+      refresh()
+    })
+
+    shotBtn = makeButton('', 'Save a screenshot of this frame (also copied)', svgIcon([
+      { d: 'M3.5 7.5h4l1.5-2.5h6l1.5 2.5h4v12h-17z' },
+      { d: 'M12 10a3 3 0 1 0 0 6 3 3 0 0 0 0-6z' }
+    ]))
+    shotBtn.querySelector('span')!.remove()
+    shotBtn.addEventListener('click', () => {
+      const v = current
+      if (!v || !shotBtn) return
+      void screenshot(v).then((ok) => {
+        shotBtn!.title = ok ? 'Saved to Pictures → Ovyra, and copied' : 'Couldn’t take a screenshot of this video'
+        shotBtn!.classList.toggle('on', ok)
+        setTimeout(() => shotBtn?.classList.remove('on'), 1200)
+      })
+    })
+
     const sep = (): HTMLDivElement => Object.assign(document.createElement('div'), { className: 'sep' })
-    bar.append(popBtn, sep(), speedBtn, sep(), enhanceBtn)
+    bar.append(popBtn, sep(), speedBtn, sep(), enhanceBtn, sep(), volumeBtn, sep(), shotBtn)
     bar.addEventListener('pointerenter', () => window.clearTimeout(hideTimer))
     root.append(style, bar)
     document.documentElement.appendChild(host)
@@ -136,8 +221,13 @@ export function setupPopout(): void {
 
   const refresh = (): void => {
     const v = current
-    if (!v || !popBtn || !speedBtn || !enhanceBtn) return
-    setLabel(popBtn, document.pictureInPictureElement === v ? 'Back to tab' : 'Pop out')
+    if (!v || !popBtn || !speedBtn || !enhanceBtn || !volumeBtn) return
+    setLabel(popBtn, document.pictureInPictureElement === v || v.hasAttribute(FLOAT_ATTR) ? 'Back to tab' : 'Pop out')
+    const boost = gains.get(v)?.gain.value ?? 1
+    setLabel(volumeBtn, `${Math.round(boost * 100)}%`)
+    volumeBtn.classList.toggle('on', boost > 1)
+    volumeBtn.disabled = !canBoost(v)
+    volumeBtn.title = volumeBtn.disabled ? 'This site doesn’t allow boosting its volume' : 'Volume boost'
     setLabel(speedBtn, `${v.playbackRate}×`)
     enhanceBtn.classList.toggle('on', enhanced.has(v))
   }
@@ -152,7 +242,8 @@ export function setupPopout(): void {
     refresh()
     const r = v.getBoundingClientRect()
     const b = bar!
-    b.style.top = `${Math.max(r.top, 0) + 12}px`
+    // In the floating window, below its own strip of buttons.
+    b.style.top = `${Math.max(r.top, 0) + (v.hasAttribute(FLOAT_ATTR) ? 42 : 12)}px`
     b.style.left = `${r.left + r.width / 2 - b.offsetWidth / 2}px`
     b.classList.add('show')
   }

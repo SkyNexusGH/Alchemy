@@ -314,3 +314,47 @@
   font-size: 12.5px;
   line-height: 1.55;
 }
+
+/* Default browser reminder */
+.default-card {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3), inset 0 0 0 1px var(--border);
+  font-weight: 600;
+  white-space: nowrap;
+  animation: dc-in 0.3s var(--spring);
+}
+.default-card span {
+  margin-right: 6px;
+}
+.default-card .btn {
+  border-radius: 999px;
+}
+.dc-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--text-3);
+}
+.dc-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+@keyframes dc-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
