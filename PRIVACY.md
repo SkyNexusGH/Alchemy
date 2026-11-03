@@ -31,6 +31,7 @@ Apart from the websites you visit, Alchemy only ever connects to:
 | Your search engine's suggestion service | Search suggestions while you type in the address bar | What you type, **only** with suggestions on (Settings → New Tab & Search), from a separate session without your cookies |
 | The sites in your sidebar | Fetch their icons once, so the sidebar looks right | A request for `/favicon.ico`, without cookies |
 | The Chrome Web Store | Only when you install or update an extension | The extension's ID |
+| The Tor network | Only while an Alchemy Tor window is open | Tor's own encrypted traffic. If Tor can't connect, Alchemy uses Snowflake bridges, which reach Tor through volunteer proxies and a CDN |
 
 There is no crash reporting, usage tracking, "phone home", experiment system, or advertising ID. Alchemy is built on
 Electron, which (unlike Google Chrome) contains none of Google's services: no Safe Browsing lookups, no sync, no usage
@@ -47,6 +48,14 @@ statistics.
 - DNS over HTTPS whenever your DNS provider supports it
 - Search suggestions sent without cookies
 
+## Alchemy Tor
+
+Alchemy Tor windows send all of their traffic through the Tor network, using the Tor Expert Bundle from the Tor Project
+(bundled with the installer and checked against the Tor Project's published checksums). Sites see a Tor exit address
+instead of yours. Like Masked Mode, nothing from these windows is kept after you close them. Sidebar sites don't go
+through Tor, so they're hidden in these windows. Alchemy Tor protects your IP address; it is not Tor Browser, which
+also guards against browser fingerprinting.
+
 ## Extensions
 
 Chrome extensions you install can read and change websites according to their permissions, the same as in Chrome.
@@ -54,6 +63,6 @@ Alchemy asks before installing one. Extensions are not loaded in private windows
 
 ## Open source
 
-Alchemy's full source code is public at <https://github.com/SkyNexusGH/Ovyra>, so anyone can verify everything on this
-page. If you find Alchemy sending something not listed here, please [open an issue](https://github.com/SkyNexusGH/Ovyra/issues):
+Alchemy's full source code is public at <https://github.com/SkyNexusGH/Alchemy>, so anyone can verify everything on this
+page. If you find Alchemy sending something not listed here, please [open an issue](https://github.com/SkyNexusGH/Alchemy/issues):
 it's a bug.

@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security problems privately through GitHub's
-[private vulnerability reporting](https://github.com/SkyNexusGH/Ovyra/security/advisories/new) rather than in a public
+[private vulnerability reporting](https://github.com/SkyNexusGH/Alchemy/security/advisories/new) rather than in a public
 issue. Include the Alchemy version (Settings → About Alchemy) and the steps to reproduce it. You'll get a reply as soon as
 possible, and fixes ship through Alchemy's automatic updates.
 

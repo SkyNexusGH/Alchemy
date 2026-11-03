@@ -53,6 +53,7 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'New tab', cmd: 'new-tab', shortcut: 'Ctrl+T', icon: <Plus size={16} /> },
   { title: 'New window', cmd: 'new-window', shortcut: 'Ctrl+N', icon: <AppWindow size={16} /> },
   { title: 'New Masked Mode window', cmd: 'new-private', shortcut: 'Ctrl+Shift+N', keywords: 'incognito private', icon: <VenetianMask size={16} /> },
+  { title: 'New Alchemy Tor window', cmd: 'new-tor', keywords: 'tor onion anonymous vpn ip hide', icon: <VenetianMask size={16} /> },
   { title: 'Reopen closed tab', cmd: 'reopen-tab', shortcut: 'Ctrl+Shift+T', keywords: 'undo restore', icon: <RotateCcw size={16} /> },
   { title: 'Close tab', cmd: 'close-tab', shortcut: 'Ctrl+W', icon: <X size={16} /> },
   { title: 'Split view', cmd: 'split-view', keywords: 'side by side tile two tabs', icon: <Columns2 size={16} /> },

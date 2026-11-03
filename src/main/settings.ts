@@ -64,6 +64,7 @@ const DEFAULTS: Settings = {
   autoPopout: true,
   customEngines: DEFAULT_ENGINES,
   askDefaultBrowser: true,
+  torBridges: false,
   performance: DEFAULT_PERFORMANCE
 }
 

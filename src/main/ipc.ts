@@ -23,6 +23,7 @@ import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
 import { isInternalUrl, userAssetsDir } from './protocol'
 import { getSettings, onSettingsChanged, updateSettings } from './settings'
+import { retryTor, torStatus } from './tor'
 import { BrowserWin } from './window'
 
 interface Ctx {
@@ -303,7 +304,12 @@ export function registerIpc(): void {
   handle('shields:stats', () => blockStats())
   handle('filters:status', () => filterStatus())
   handle('filters:update', () => updateFilters())
-  handle('page:context', ({ bw }) => ({ private: !!bw?.incognito, workspaceId: bw?.workspaceId ?? null }))
+  handle('page:context', ({ bw }) => ({ private: !!bw?.incognito, tor: !!bw?.tor, workspaceId: bw?.workspaceId ?? null }))
+
+  // ---- Alchemy Tor ----
+  handle('tor:status', () => torStatus())
+  handle('tor:retry', (_c, bridges?: boolean) => retryTor(bridges))
+  handle('window:newTor', () => void BrowserWin.open({ tor: true }))
 
   // ---- workspaces ----
   shell('workspace:switch', ({ bw }, id: string) => bw?.switchWorkspace(id))
@@ -404,6 +410,7 @@ export function registerIpc(): void {
       'new-tab': () => bw.newTab(),
       'new-window': () => BrowserWin.open(),
       'new-private': () => BrowserWin.open({ incognito: true }),
+      'new-tor': () => BrowserWin.open({ tor: true }),
       'reopen-tab': () => bw.reopenClosed(),
       'close-tab': () => bw.active && bw.closeTab(bw.active),
       'pin-tab': () => bw.active && bw.setPinned(bw.active, !bw.active.pinned),

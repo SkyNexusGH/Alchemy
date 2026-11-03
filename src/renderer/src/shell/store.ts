@@ -16,6 +16,7 @@ export const useShell = create<ShellStore>(() => ({
     fullscreen: false,
     maximized: false,
     private: false,
+    tor: false,
     workspaceId: '',
     islands: [],
     panelId: null,

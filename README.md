@@ -20,7 +20,7 @@
 
 ## Install
 
-Download `Alchemy-Setup-x.y.z.exe` from the [latest release](https://github.com/SkyNexusGH/Ovyra/releases/latest) and run it.
+Download `Alchemy-Setup-x.y.z.exe` from the [latest release](https://github.com/SkyNexusGH/Alchemy/releases/latest) and run it.
 Alchemy checks for new versions every few hours, downloads them quietly, and shows an **Update** button when one is ready
 (it also installs on the next restart).
 
@@ -61,5 +61,5 @@ open under the same license and keep the credits.
 It has no accounts, analytics or telemetry; [PRIVACY.md](PRIVACY.md) lists every connection it makes, and
 [SECURITY.md](SECURITY.md) explains how to report a vulnerability.
 
-The original prototype is preserved in the [`original` branch](https://github.com/SkyNexusGH/Ovyra/tree/original) and the
-[original-attempt release](https://github.com/SkyNexusGH/Ovyra/releases/tag/original-attempt).
+The original prototype is preserved in the [`original` branch](https://github.com/SkyNexusGH/Alchemy/tree/original) and the
+[original-attempt release](https://github.com/SkyNexusGH/Alchemy/releases/tag/original-attempt).

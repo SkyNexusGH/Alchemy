@@ -13,14 +13,15 @@ setPageIcon('<path d="M7.5 3.5l4 4-4 4-4-4z"/><path d="M16.5 3.5l4 4-4 4-4-4z"/>
 export default function NewTab(): React.JSX.Element {
   const settings = useSettings((s) => s.settings)
   const isPrivate = useSettings((s) => s.context.private)
+  const isTor = useSettings((s) => !!s.context.tor)
   const dial = settings?.speedDial ?? []
   const [icons, setIcons] = useState<Record<string, string | null>>({})
   const [adding, setAdding] = useState(false)
   const now = useClock()
 
   useEffect(() => {
-    if (isPrivate) document.title = 'Masked Mode'
-  }, [isPrivate])
+    if (isPrivate) document.title = isTor ? 'Alchemy Tor' : 'Masked Mode'
+  }, [isPrivate, isTor])
   useEffect(() => {
     if (!dial.length) return
     api.invoke('history:favicons', dial.map((d) => d.url)).then(setIcons)
@@ -57,12 +58,25 @@ export default function NewTab(): React.JSX.Element {
               <VenetianMask size={22} />
             </span>
             <div>
-              <b>You’re in Masked Mode</b>
-              <p>
-                When you close every Masked Mode window, Alchemy forgets your history, cookies, site data and form entries
-                from it. Downloads and bookmarks you make are kept. Sites, your employer or your internet provider can
-                still see what you visit.
-              </p>
+              {isTor ? (
+                <>
+                  <b>You’re using Alchemy Tor</b>
+                  <p>
+                    This window goes through the Tor network, so sites and your internet provider can’t see your real IP
+                    address, and Alchemy forgets everything from it when you close it. It’s slower than normal browsing.
+                    For the strongest protection against tracking, use Tor Browser.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <b>You’re in Masked Mode</b>
+                  <p>
+                    When you close every Masked Mode window, Alchemy forgets your history, cookies, site data and form
+                    entries from it. Downloads and bookmarks you make are kept. Sites, your employer or your internet
+                    provider can still see what you visit.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}

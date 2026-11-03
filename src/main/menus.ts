@@ -34,6 +34,9 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
       ...(bw.incognito
         ? []
         : [{ label: 'Open link in Masked Mode', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: true }) }]),
+      ...(bw.tor
+        ? []
+        : [{ label: 'Open link in Alchemy Tor', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, tor: true }) }]),
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       SEP
     )

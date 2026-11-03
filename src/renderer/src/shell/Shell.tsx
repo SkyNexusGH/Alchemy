@@ -22,6 +22,7 @@ export default function Shell(): React.JSX.Element {
   const findOpen = useShell((s) => s.win.find.open)
   const maximized = useShell((s) => s.win.maximized)
   const isPrivate = useShell((s) => s.win.private)
+  const isTor = useShell((s) => s.win.tor)
   const panelOpen = useShell((s) => s.win.panelId !== null)
   // The split frames only matter while one of the split tabs is the one on screen.
   const split = useShell((s) => (s.win.split?.includes(s.win.activeId ?? -1) ? s.win.split : null))
@@ -44,9 +45,16 @@ export default function Shell(): React.JSX.Element {
           <BrandLogo size={27} />
         </button>
         {isPrivate && (
-          <span className="private-badge" title="Masked Mode: nothing is saved after you close all Masked Mode windows">
+          <span
+            className="private-badge"
+            title={
+              isTor
+                ? 'Alchemy Tor: this window goes through the Tor network, and nothing is saved after you close it'
+                : 'Masked Mode: nothing is saved after you close all Masked Mode windows'
+            }
+          >
             <VenetianMask size={14} />
-            Masked Mode
+            {isTor ? 'Alchemy Tor' : 'Masked Mode'}
           </span>
         )}
         <TabStrip />

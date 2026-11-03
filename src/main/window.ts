@@ -22,6 +22,7 @@ import { floatTab, isFloating, markPlayingVideo, unfloatTab } from './float'
 import { looksLikeUrl, resolveInput } from './omnibox'
 import { isFrozen, resumeSessionSaving, saveSessionNow, scheduleSessionSave } from './sessionstore'
 import { endPrivateBrowsing, getPrivateSession } from './sessions'
+import { endTorBrowsing, getTorSession, startTor, torStatus } from './tor'
 import { getSettings, updateSettings } from './settings'
 import { devtoolsCss } from './devtools'
 import { selectTab as selectExtensionTab } from './extensions'
@@ -56,6 +57,8 @@ export class BrowserWin implements TabHost {
   readonly win: BrowserWindow
   readonly overlay: WebContentsView
   readonly incognito: boolean
+  /** An Alchemy Tor window (also counts as incognito). */
+  readonly tor: boolean
   readonly session: Electron.Session
   tabs: Tab[] = []
   /** Private windows keep their closed tabs to themselves. */
@@ -82,7 +85,7 @@ export class BrowserWin implements TabHost {
   private htmlFullscreenTab: Tab | null = null
   private pushQueued = false
 
-  static open(init?: Partial<WindowSnapshot> & { incognito?: boolean }): BrowserWin {
+  static open(init?: Partial<WindowSnapshot> & { incognito?: boolean; tor?: boolean }): BrowserWin {
     return new BrowserWin(init)
   }
 
@@ -98,11 +101,23 @@ export class BrowserWin implements TabHost {
     return BrowserWin.lastFocused ?? [...BrowserWin.all][0]
   }
 
-  private constructor(init?: Partial<WindowSnapshot> & { incognito?: boolean }) {
+  private constructor(init?: Partial<WindowSnapshot> & { incognito?: boolean; tor?: boolean }) {
     BrowserWin.all.add(this)
     BrowserWin.lastFocused = this
-    this.incognito = !!init?.incognito
-    this.session = this.incognito ? getPrivateSession() : session.defaultSession
+    // Alchemy Tor windows are Masked Mode windows whose traffic goes through Tor.
+    this.tor = !!init?.tor
+    this.incognito = !!init?.incognito || this.tor
+    this.session = this.tor ? getTorSession() : this.incognito ? getPrivateSession() : session.defaultSession
+    if (this.tor) {
+      void startTor()
+      // Until Tor is connected, the first tab shows the connecting page, which then opens
+      // the page that was asked for (a link opened in Alchemy Tor) or a new tab.
+      if (torStatus().state !== 'ready') {
+        const then = init?.tabs?.[0]?.url
+        const url = then ? `alchemy://tor/?then=${encodeURIComponent(then)}` : 'alchemy://tor/'
+        init = { ...init, tabs: [{ url, title: 'Alchemy Tor', favicon: null, pinned: false }], active: 0 }
+      }
+    }
     this.closed = this.incognito ? [] : closedTabs
     if (!this.incognito) resumeSessionSaving()
     const workspaces = getSettings().workspaces
@@ -185,7 +200,8 @@ export class BrowserWin implements TabHost {
       this.tabs = []
       BrowserWin.all.delete(this)
       if (BrowserWin.lastFocused === this) BrowserWin.lastFocused = [...BrowserWin.all][0] ?? null
-      if (this.incognito && ![...BrowserWin.all].some((w) => w.incognito)) void endPrivateBrowsing()
+      if (this.tor && ![...BrowserWin.all].some((w) => w.tor)) void endTorBrowsing()
+      else if (this.incognito && !this.tor && ![...BrowserWin.all].some((w) => w.incognito && !w.tor)) void endPrivateBrowsing()
       scheduleSessionSave()
     })
 
@@ -267,7 +283,7 @@ export class BrowserWin implements TabHost {
 
   /** Tells this window's pages which workspace (and so which theme) they're in. */
   contextChanged(): void {
-    const context = { private: this.incognito, workspaceId: this.workspaceId }
+    const context = { private: this.incognito, tor: this.tor, workspaceId: this.workspaceId }
     this.send('context', context)
     if (!this.overlay.webContents.isDestroyed()) this.overlay.webContents.send('context', context)
     for (const t of this.tabs) if (t.wc && t.url.startsWith('alchemy:')) t.wc.send('context', context)
@@ -944,6 +960,7 @@ export class BrowserWin implements TabHost {
       fullscreen: this.win.isFullScreen(),
       maximized: this.win.isMaximized(),
       private: this.incognito,
+      tor: this.tor,
       workspaceId: this.workspaceId,
       islands: [...this.islands].map(([id, i]) => ({ id, ...i })),
       panelId: this.panelId,

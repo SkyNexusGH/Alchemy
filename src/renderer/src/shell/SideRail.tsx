@@ -15,6 +15,8 @@ function openBeside(el: HTMLElement, payload: object, width = 320): void {
 
 export function SideRail(): React.JSX.Element {
   const isPrivate = useShell((s) => s.win.private)
+  // Sidebar sites don't go through Tor, so Alchemy Tor windows leave them out.
+  const isTor = useShell((s) => s.win.tor)
   const workspaces = useSettings((s) => s.settings?.workspaces ?? [])
   const panels = useShell((s) => s.win.panels)
   const wsRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -47,16 +49,20 @@ export function SideRail(): React.JSX.Element {
         </>
       )}
 
-      {panels.map((p) => (
-        <PanelButton key={p.id} panel={p} />
-      ))}
-      <button
-        className="rail-add"
-        title="Add a messenger or site to the sidebar"
-        onClick={(e) => openBeside(e.currentTarget, { kind: 'add-panel' }, 360)}
-      >
-        <Plus size={14} />
-      </button>
+      {!isTor && (
+        <>
+          {panels.map((p) => (
+            <PanelButton key={p.id} panel={p} />
+          ))}
+          <button
+            className="rail-add"
+            title="Add a messenger or site to the sidebar"
+            onClick={(e) => openBeside(e.currentTarget, { kind: 'add-panel' }, 360)}
+          >
+            <Plus size={14} />
+          </button>
+        </>
+      )}
 
     </nav>
   )

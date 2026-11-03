@@ -29,6 +29,22 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.9',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Moon,
+        title: 'Alchemy Tor',
+        text: 'A Masked Mode window that goes through the Tor network, so sites can’t see your real IP address. Open one from Settings → Privacy, Ctrl+K, or by right-clicking a link. Free, built in, no account.'
+      },
+      {
+        icon: Gauge,
+        title: 'Works where Tor is blocked',
+        text: 'If your network blocks Tor, Alchemy connects through Snowflake bridges by itself.'
+      }
+    ]
+  },
+  {
     version: '0.1.8',
     date: 'November 2026',
     items: [

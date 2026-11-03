@@ -6,6 +6,8 @@ import { inkOn, readableOn } from './color'
 interface PageContext {
   private: boolean
   workspaceId: string | null
+  /** An Alchemy Tor window. */
+  tor?: boolean
 }
 
 export const useSettings = create<{ settings: Settings | null; context: PageContext; dark: boolean }>(() => ({

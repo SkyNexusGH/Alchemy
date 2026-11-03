@@ -579,6 +579,24 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      label: 'Alchemy Tor',
+      hint: 'A Masked Mode window that goes through the Tor network, so sites can’t see your real IP address. Slower than normal browsing.',
+      keywords: 'tor onion vpn anonymous ip hide proxy',
+      control: (
+        <button className="btn small" onClick={() => api.invoke('window:newTor')}>
+          Open Alchemy Tor
+        </button>
+      )
+    },
+    {
+      category: 'privacy',
+      label: 'Always use Tor bridges',
+      hint: 'Connect through Snowflake bridges, for networks that block Tor. Alchemy switches to them by itself when Tor can’t connect.',
+      keywords: 'tor bridges snowflake censorship blocked',
+      control: <Switch on={s.torBridges} onChange={(v) => set({ torBridges: v })} />
+    },
+    {
+      category: 'privacy',
       label: 'Clear browsing data',
       hint: 'History, cookies, cache, permissions.',
       keywords: 'delete history cookies cache',

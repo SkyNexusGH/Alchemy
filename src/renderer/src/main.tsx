@@ -20,6 +20,7 @@ const pages: Record<string, LazyExoticComponent<ComponentType>> = {
   extensions: lazy(() => import('./pages/Extensions')),
   welcome: lazy(() => import('./pages/Welcome')),
   whatsnew: lazy(() => import('./pages/WhatsNew')),
+  tor: lazy(() => import('./pages/Tor')),
   error: lazy(() => import('./pages/ErrorPage'))
 }
 

@@ -86,6 +86,18 @@ export interface ShieldsInfo {
   since: number
 }
 
+/** Alchemy Tor's connection, shown on its connecting page and in Settings. */
+export interface TorStatus {
+  state: 'off' | 'starting' | 'ready' | 'error'
+  /** Tor's own bootstrap progress, 0 to 100. */
+  progress: number
+  message: string
+  /** Connecting through Snowflake bridges (for networks that block Tor). */
+  bridges: boolean
+  /** This build of Alchemy includes Tor. */
+  available?: boolean
+}
+
 export interface UpdateState {
   /** 'disabled' in development builds, which can't update themselves. */
   status: 'disabled' | 'idle' | 'checking' | 'downloading' | 'ready' | 'latest' | 'error'
@@ -116,6 +128,8 @@ export interface WindowState {
   fullscreen: boolean
   maximized: boolean
   private: boolean
+  /** An Alchemy Tor window (Masked Mode through Tor). */
+  tor: boolean
   workspaceId: string
   islands: IslandState[]
   /** The side panel open in this window, if any. */
@@ -191,6 +205,8 @@ export interface Settings {
   customEngines: CustomEngine[]
   /** Offer to become the default browser at startup. */
   askDefaultBrowser: boolean
+  /** Alchemy Tor always connects through Snowflake bridges. */
+  torBridges: boolean
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
@@ -516,7 +532,7 @@ export function engineSearchUrl(engine: EngineInfo, query: string): string {
   return engine.search.replace('%s', encodeURIComponent(query))
 }
 
-export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error', 'whatsnew'] as const
+export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'extensions', 'welcome', 'error', 'whatsnew', 'tor'] as const
 export type InternalPage = (typeof INTERNAL_PAGES)[number]
 
 export const NEW_TAB_URL = 'alchemy://newtab/'
