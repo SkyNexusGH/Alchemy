@@ -248,6 +248,9 @@ function AddPanel(): React.JSX.Element {
   const added = new Set(panels.map((p) => p.url))
   const available = PANEL_PRESETS.filter((p) => !added.has(p.url))
   const resolved = toUrl(url)
+  // Each suggestion's real icon; letters show until they arrive (or if a site has none).
+  const [icons, setIcons] = useState<Record<string, string>>({})
+  useEffect(() => void api.invoke<Record<string, string>>('panels:presetIcons').then(setIcons), [])
 
   const add = (item: PanelItem): void => {
     void api.invoke('panels:add', item)
@@ -262,9 +265,15 @@ function AddPanel(): React.JSX.Element {
         <div className="ap-grid">
           {available.map((p) => (
             <button key={p.id} className="ap-item" onClick={() => add(p)}>
-              <span className="letter-icon" style={{ width: 34, height: 34, fontSize: 16, background: p.color }}>
-                {p.title.charAt(0)}
-              </span>
+              {icons[p.id] ? (
+                <span className="ap-icon">
+                  <img src={icons[p.id]} width={22} height={22} alt="" draggable={false} />
+                </span>
+              ) : (
+                <span className="letter-icon" style={{ width: 34, height: 34, fontSize: 16, background: p.color }}>
+                  {p.title.charAt(0)}
+                </span>
+              )}
               <span>{p.title}</span>
             </button>
           ))}

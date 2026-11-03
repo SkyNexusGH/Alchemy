@@ -9,7 +9,7 @@ import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
-import { destroyPanel, hidePanel, panelStates, reloadPanel, showPanel, togglePanel } from './panels'
+import { destroyPanel, hidePanel, panelStates, presetIcons, reloadPanel, showPanel, togglePanel } from './panels'
 import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
 import * as bookmarks from './bookmarks'
@@ -376,6 +376,7 @@ export function registerIpc(): void {
     if (bw) showPanel(bw, id)
   })
   handle('panels:remove', (_c, id: string) => removePanel(id))
+  shell('panels:presetIcons', () => presetIcons())
   handle('window:newPrivate', () => void BrowserWin.open({ incognito: true }))
 
   /** An internal page navigating its own tab (e.g. the new tab page's search box). */

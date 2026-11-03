@@ -1,6 +1,6 @@
 import { clipboard, session, WebContentsView, type Session } from 'electron'
 import { showMenu } from './popup'
-import type { PanelItem, PanelState } from '@shared/types'
+import { PANEL_PRESETS, type PanelItem, type PanelState } from '@shared/types'
 import { setupBrowsingSession } from './sessions'
 import { getSettings, onSettingsChanged } from './settings'
 import { JsonStore } from './store'
@@ -224,20 +224,32 @@ async function iconFromPage(pageUrl: string): Promise<string | null> {
   return href ? new URL(href.replace(/&amp;/g, '&'), pageUrl).toString() : null
 }
 
+/** A site's icon, fetched once and kept (by panel id). Null when there isn't one. */
+async function iconFor(id: string, url: string): Promise<string | null> {
+  if (meta.data.favicons[id]) return meta.data.favicons[id]
+  try {
+    // A separate, cookie-less session: fetching an icon shouldn't identify the user to the site.
+    iconSession ??= session.fromPartition('ovyra-icons', { cache: false })
+    const icon = (await fetchIcon(new URL('/favicon.ico', url).toString())) ?? (await fetchIcon(await iconFromPage(url)))
+    if (!icon) return null
+    meta.data.favicons[id] = icon
+    meta.save()
+    return icon
+  } catch {
+    return null // offline or no favicon: a colored letter shows instead
+  }
+}
+
 /** Gets each site's icon up front, so the rail looks right before a panel is ever opened. */
 async function fetchMissingIcons(): Promise<void> {
   for (const p of getSettings().panels) {
     if (meta.data.favicons[p.id]) continue
-    try {
-      // A separate, cookie-less session: fetching an icon shouldn't identify the user to the site.
-      iconSession ??= session.fromPartition('ovyra-icons', { cache: false })
-      const icon = (await fetchIcon(new URL('/favicon.ico', p.url).toString())) ?? (await fetchIcon(await iconFromPage(p.url)))
-      if (!icon) continue
-      meta.data.favicons[p.id] = icon
-      meta.save()
-      notify()
-    } catch {
-      /* offline or no favicon: the rail shows a colored letter */
-    }
+    if (await iconFor(p.id, p.url)) notify()
   }
+}
+
+/** Icons for the suggested sites in "Add to sidebar", fetched together. */
+export async function presetIcons(): Promise<Record<string, string>> {
+  const pairs = await Promise.all(PANEL_PRESETS.map(async (p) => [p.id, await iconFor(p.id, p.url)] as const))
+  return Object.fromEntries(pairs.filter((e): e is readonly [string, string] => !!e[1]))
 }

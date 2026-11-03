@@ -1000,3 +1000,13 @@ kbd {
   height: 10px;
   border-radius: 50%;
 }
+
+/* A suggested site's real icon in "Add to sidebar" */
+.ap-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
