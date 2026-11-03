@@ -1,0 +1,21 @@
+# Fetches and checks the Tor Expert Bundle (scripts/fetch-tor.mjs) and keeps it as a build
+# artifact, for trying Alchemy Tor in development on networks that block torproject.org.
+name: Fetch Tor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: node scripts/fetch-tor.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-tor
+          path: build-tor/
+          retention-days: 7

@@ -22,6 +22,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      # Alchemy Tor: the Tor Expert Bundle, checked against the Tor Project's published sums.
+      - run: node scripts/fetch-tor.mjs
       - run: npm run typecheck
       - run: npx electron-vite build
 

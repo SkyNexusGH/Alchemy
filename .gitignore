@@ -1,6 +1,7 @@
 node_modules/
 out/
 dist/
+build-tor/
 *.log
 
 # Original artwork (optimized copies live in resources/ and src/renderer/public/)
