@@ -29,6 +29,22 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.6',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Code,
+        title: 'Now GPL-3.0',
+        text: 'Alchemy is free software under the GNU GPL v3: free to use, study, change and share, as long as changed versions stay open. Created by SkyNexusHD (SNHD) and FiveNova.'
+      },
+      {
+        icon: Layers,
+        title: 'Sidebar icons fixed',
+        text: 'Sites like Discord now show their real icon in the sidebar instead of a letter.'
+      }
+    ]
+  },
+  {
     version: '0.1.5',
     date: 'November 2026',
     items: [

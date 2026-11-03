@@ -3,7 +3,7 @@
   "productName": "Alchemy",
   "version": "0.1.5",
   "description": "A fast, private, colorful browser.",
-  "author": "SkyNexusGH",
+  "author": "SkyNexusHD (SNHD) and FiveNova",
   "homepage": "https://github.com/SkyNexusGH/Ovyra",
   "repository": {
     "type": "git",
@@ -22,7 +22,7 @@
   "build": {
     "appId": "com.ovyra.browser",
     "productName": "Alchemy",
-    "copyright": "Copyright © 2026 SkyNexusGH",
+    "copyright": "Copyright © 2026 SkyNexusHD (SNHD) and FiveNova",
     "directories": {
       "output": "dist",
       "buildResources": "resources"
@@ -97,5 +97,5 @@
     "electron-updater": "^6.8.11",
     "tldts-experimental": "^7.4.19"
   },
-  "license": "MPL-2.0"
+  "license": "GPL-3.0-or-later"
 }

@@ -1121,6 +1121,7 @@ function AboutSection(): React.JSX.Element {
           <div className="set-hint">
             Chromium {info?.chrome} · Electron {info?.electron}
           </div>
+          <div className="set-hint">Created by SkyNexusHD (SNHD) and FiveNova · GPL-3.0</div>
         </div>
       </div>
       <div className="set-card" style={{ marginTop: 14 }}>

@@ -197,6 +197,33 @@ function createPanel(item: PanelItem): LivePanel {
 
 let iconSession: Electron.Session | null = null
 
+/** An image at this address, as a data URL (null if it isn't one). */
+async function fetchIcon(url: string | null): Promise<string | null> {
+  if (!url || !iconSession) return null
+  const res = await iconSession.fetch(url, { credentials: 'omit' })
+  if (!res.ok) return null
+  const bytes = Buffer.from(await res.arrayBuffer())
+  let type = res.headers.get('content-type')?.split(';')[0] ?? ''
+  // Some sites send icons as a generic download; recognize the common formats by their bytes.
+  if (!type.startsWith('image/')) {
+    if (bytes.subarray(0, 4).equals(Buffer.from([0, 0, 1, 0]))) type = 'image/x-icon'
+    else if (bytes.subarray(1, 4).toString() === 'PNG') type = 'image/png'
+    else return null
+  }
+  return `data:${type};base64,${bytes.toString('base64')}`
+}
+
+/** The icon a page declares (<link rel="icon">), for sites without /favicon.ico. */
+async function iconFromPage(pageUrl: string): Promise<string | null> {
+  const res = await iconSession!.fetch(pageUrl, { credentials: 'omit' })
+  if (!res.ok) return null
+  const html = (await res.text()).slice(0, 200_000)
+  const links = [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => m[0])
+  const icon = links.find((l) => /rel=["'][^"']*\bicon\b/i.test(l) && /href=/i.test(l))
+  const href = icon?.match(/href=["']([^"']+)["']/i)?.[1]
+  return href ? new URL(href.replace(/&amp;/g, '&'), pageUrl).toString() : null
+}
+
 /** Gets each site's icon up front, so the rail looks right before a panel is ever opened. */
 async function fetchMissingIcons(): Promise<void> {
   for (const p of getSettings().panels) {
@@ -204,11 +231,9 @@ async function fetchMissingIcons(): Promise<void> {
     try {
       // A separate, cookie-less session: fetching an icon shouldn't identify the user to the site.
       iconSession ??= session.fromPartition('ovyra-icons', { cache: false })
-      const res = await iconSession.fetch(new URL('/favicon.ico', p.url).toString(), { credentials: 'omit' })
-      const type = res.headers.get('content-type') ?? ''
-      if (!res.ok || !type.startsWith('image/')) continue
-      const data = Buffer.from(await res.arrayBuffer()).toString('base64')
-      meta.data.favicons[p.id] = `data:${type};base64,${data}`
+      const icon = (await fetchIcon(new URL('/favicon.ico', p.url).toString())) ?? (await fetchIcon(await iconFromPage(p.url)))
+      if (!icon) continue
+      meta.data.favicons[p.id] = icon
       meta.save()
       notify()
     } catch {

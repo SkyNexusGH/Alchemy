@@ -55,7 +55,9 @@ it as a GitHub Release. Every installed copy picks it up automatically.
 
 ## Privacy and license
 
-Alchemy is free and open source under the [Mozilla Public License 2.0](LICENSE) (the same license as Firefox).
+Alchemy is created by SkyNexusHD (SNHD) and [FiveNova](https://fivenova.org). It is free and open source under the
+[GNU General Public License v3.0](LICENSE): you can use, study, change and share it, as long as changed versions stay
+open under the same license and keep the credits.
 It has no accounts, analytics or telemetry; [PRIVACY.md](PRIVACY.md) lists every connection it makes, and
 [SECURITY.md](SECURITY.md) explains how to report a vulnerability.
 
