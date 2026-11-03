@@ -4,7 +4,7 @@ import { totalmem } from 'node:os'
 import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
-import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, Workspace } from '@shared/types'
+import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, TabAudio, Workspace } from '@shared/types'
 import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
@@ -69,7 +69,7 @@ export function registerIpc(): void {
     const tab = bw?.tab(id)
     if (tab) bw!.closeTab(tab)
   })
-  shell('tab:boost', ({ bw }, id: number, value: number) => bw?.tab(id)?.setBoost(Number(value) || 1))
+  shell('tab:audio', ({ bw }, id: number, patch: Partial<TabAudio>) => bw?.tab(id)?.setAudio(patch))
   shell('tabcard:show', ({ bw }, rect: Rect, id: number) => bw?.showTabCard(rect, id))
   shell('tabcard:hide', ({ bw }) => bw?.hideTabCard())
   // The pointer moved onto (or off) the card, so the tab strip keeps it open (or closes it).

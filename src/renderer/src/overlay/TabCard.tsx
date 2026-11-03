@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { TabState } from '@shared/types'
+import type { TabAudio, TabState } from '@shared/types'
 import { prettyUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { Moon, Volume2, VolumeX } from '../lib/icons'
@@ -27,11 +27,12 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
 
   if (!info) return null
   const url = prettyUrl(info.displayUrl)
-  const showBoost = !info.sleeping && (info.audible || info.boost > 1)
-  const setBoost = (v: number): void => {
-    setInfo({ ...info, boost: v })
-    void api.invoke('tab:boost', tabId, v)
+  const showBoost = !info.sleeping && (info.audible || info.boost > 1 || info.bass || info.mono || info.spatial)
+  const setAudio = (patch: Partial<TabAudio>): void => {
+    setInfo({ ...info, ...patch, ...(patch.mono ? { spatial: false } : {}), ...(patch.spatial ? { mono: false } : {}) })
+    void api.invoke('tab:audio', tabId, patch)
   }
+  const setBoost = (v: number): void => setAudio({ boost: v })
 
   return (
     <div
@@ -75,6 +76,19 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
             title="Volume boost"
           />
           <span className={`tc-boost-value${info.boost > 1 ? ' on' : ''}`}>{Math.round(info.boost * 100)}%</span>
+        </div>
+      )}
+      {showBoost && (
+        <div className="tc-fx" role="group" aria-label="Sound effects">
+          <button className={info.bass ? 'on' : ''} title="More low end" onClick={() => setAudio({ bass: !info.bass })}>
+            Bass
+          </button>
+          <button className={info.spatial ? 'on' : ''} title="A wider stereo sound" onClick={() => setAudio({ spatial: !info.spatial })}>
+            Spatial
+          </button>
+          <button className={info.mono ? 'on' : ''} title="The same sound in both ears, for one earbud" onClick={() => setAudio({ mono: !info.mono })}>
+            Mono
+          </button>
         </div>
       )}
     </div>

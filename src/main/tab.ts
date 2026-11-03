@@ -1,7 +1,7 @@
 import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
 import { join } from 'node:path'
-import { NEW_TAB_URL, type Security, type TabState } from '@shared/types'
+import { NEW_TAB_URL, type Security, type TabState, type TabAudio } from '@shared/types'
 import { isBookmarked } from './bookmarks'
 import * as history from './history'
 import { trackTab } from './extensions'
@@ -56,6 +56,10 @@ export class Tab {
   muted = false
   /** Volume boost for the tab's videos (1 = normal, up to 4). */
   boost = 1
+  /** Sound effects for the tab's videos. */
+  bass = false
+  mono = false
+  spatial = false
   loading = false
   audible = false
   /** When the tab was last in the foreground; drives sleeping tabs. */
@@ -193,18 +197,32 @@ export class Tab {
     this.host.tabChanged(this)
   }
 
-  setBoost(value: number): void {
-    this.boost = Math.min(Math.max(value, 1), 4)
-    this.sendBoost()
+  setAudio(patch: Partial<TabAudio>): void {
+    if (patch.boost !== undefined) this.boost = Math.min(Math.max(Number(patch.boost) || 1, 1), 4)
+    if (patch.bass !== undefined) this.bass = !!patch.bass
+    if (patch.mono !== undefined) {
+      this.mono = !!patch.mono
+      if (this.mono) this.spatial = false
+    }
+    if (patch.spatial !== undefined) {
+      this.spatial = !!patch.spatial
+      if (this.spatial) this.mono = false
+    }
+    this.sendAudio()
     this.host.tabChanged(this)
   }
 
-  private sendBoost(): void {
+  private get audioChanged(): boolean {
+    return this.boost !== 1 || this.bass || this.mono || this.spatial
+  }
+
+  private sendAudio(): void {
     const wc = this.wc
     if (!wc || wc.isDestroyed()) return
+    const audio: TabAudio = { boost: this.boost, bass: this.bass, mono: this.mono, spatial: this.spatial }
     for (const frame of wc.mainFrame.framesInSubtree) {
       try {
-        frame.send('ovyra:boost', this.boost)
+        frame.send('ovyra:audio', audio)
       } catch {
         /* frame went away */
       }
@@ -257,6 +275,9 @@ export class Tab {
       sleeping: this.sleeping,
       floating: isFloating(this),
       boost: this.boost,
+      bass: this.bass,
+      mono: this.mono,
+      spatial: this.spatial,
       zoom: wc && !wc.isDestroyed() ? wc.getZoomFactor() : 1,
       security: this.security(),
       bookmarked: isBookmarked(this.pageUrl()),
@@ -323,8 +344,8 @@ export class Tab {
     tabsByContents.set(wc.id, this)
     trackTab(wc, this.host.win, this.host.incognito)
     wc.on('focus', () => this.host.tabFocused(this))
-    // A boosted tab keeps its boost on new pages and in new frames.
-    wc.on('did-frame-finish-load', () => this.boost !== 1 && this.sendBoost())
+    // A tab keeps its boost and sound effects on new pages and in new frames.
+    wc.on('did-frame-finish-load', () => this.audioChanged && this.sendAudio())
 
     wc.on('did-start-navigation', (details) => {
       // A new page starts with a fresh blocked count.

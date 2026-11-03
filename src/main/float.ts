@@ -1,4 +1,5 @@
 import { BaseWindow, screen, WebContentsView, type Rectangle } from 'electron'
+import { JsonStore } from './store'
 import type { Tab } from './tab'
 
 /**
@@ -20,9 +21,9 @@ const VIDEO_CSS = `
   body [data-ovyra-float] { visibility: visible !important; }
 `
 
-// The strip along the top: drag to move, back to the tab, close. Its links never load;
-// the main process reads them in will-navigate.
-const BAR_HTML = `<!doctype html><meta charset="utf-8"><style>
+// The strip along the top: drag to move, see-through level, click-through, back to the tab,
+// close. Its links never load; the main process reads them in will-navigate.
+const barHtml = (opacity: number, clickThrough: boolean): string => `<!doctype html><meta charset="utf-8"><style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
   body { font: 600 12px/1 'Segoe UI', system-ui, sans-serif; color: #fff; -webkit-app-region: drag; user-select: none;
     display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 6px; box-sizing: border-box;
@@ -31,8 +32,33 @@ const BAR_HTML = `<!doctype html><meta charset="utf-8"><style>
   a { -webkit-app-region: no-drag; color: inherit; text-decoration: none; height: 24px; padding: 0 10px; border-radius: 999px;
     display: flex; align-items: center; background: rgba(255,255,255,.14); }
   a:hover { background: rgba(255,255,255,.28); }
+  a.on { background: #ec4856; }
   span { margin-right: auto; padding-left: 4px; opacity: .8; }
-</style><span>Alchemy</span><a href="https://float.ovyra/back">Back to tab</a><a href="https://float.ovyra/close">✕</a>`
+</style><span>Alchemy</span>
+<a href="https://float.ovyra/opacity" title="How see-through the player is">${Math.round(opacity * 100)}%</a>
+<a href="https://float.ovyra/through" class="${clickThrough ? 'on' : ''}" title="Clicks go through the video to what's behind it (this strip stays clickable)">Click-through</a>
+<a href="https://float.ovyra/back">Back to tab</a><a href="https://float.ovyra/close">✕</a>`
+
+const OPACITIES = [1, 0.85, 0.65, 0.45]
+
+/** Remembered between pop-outs and restarts: where the player was, and how it looked. */
+const prefs = new JsonStore<{ bounds: Rectangle | null; opacity: number; clickThrough: boolean }>('float', {
+  bounds: null,
+  opacity: 1,
+  clickThrough: false
+})
+
+/** The saved place, if it's still on a connected screen; otherwise the main screen's corner. */
+function startBounds(): Rectangle {
+  const saved = prefs.data.bounds
+  if (saved) {
+    const area = screen.getDisplayMatching(saved).workArea
+    const fits = saved.x >= area.x - 8 && saved.y >= area.y - 8 && saved.x + saved.width <= area.x + area.width + 8 && saved.y + saved.height <= area.y + area.height + 8
+    if (fits) return saved
+  }
+  const area = screen.getPrimaryDisplay().workArea
+  return { x: area.x + area.width - 480 - 24, y: area.y + area.height - 270 - 24, width: 480, height: 270 }
+}
 
 const BAR_HEIGHT = 34
 
@@ -42,10 +68,11 @@ interface Floating {
   bar: WebContentsView
   css: string | null
   timer: NodeJS.Timeout
+  /** Watches the pointer while click-through is on, so the top strip stays clickable. */
+  pointer: NodeJS.Timeout | null
 }
 
 const floating = new Map<number, Floating>()
-let lastBounds: Rectangle | null = null
 
 export function isFloating(tab: Tab | null | undefined): boolean {
   return !!tab && floating.has(tab.id)
@@ -76,10 +103,7 @@ export async function markPlayingVideo(tab: Tab): Promise<boolean> {
 export function floatTab(tab: Tab, onBack: () => void): void {
   const view = tab.view
   if (!view || floating.has(tab.id)) return
-  const area = screen.getPrimaryDisplay().workArea
-  const width = 480
-  const height = 270
-  const bounds = lastBounds ?? { x: area.x + area.width - width - 24, y: area.y + area.height - height - 24, width, height }
+  const bounds = startBounds()
 
   const win = new BaseWindow({
     ...bounds,
@@ -100,11 +124,24 @@ export function floatTab(tab: Tab, onBack: () => void): void {
 
   const bar = new WebContentsView({ webPreferences: { sandbox: true, contextIsolation: true, javascript: false } })
   bar.setBackgroundColor('#00000000')
-  void bar.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(BAR_HTML)}`)
+  const drawBar = (): void =>
+    void bar.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(barHtml(prefs.data.opacity, prefs.data.clickThrough))}`)
+  drawBar()
   bar.webContents.on('will-navigate', (e, url) => {
     e.preventDefault()
     if (url.includes('/back')) onBack()
-    else unfloatTab(tab, { pause: true })
+    else if (url.includes('/opacity')) {
+      const i = OPACITIES.indexOf(prefs.data.opacity)
+      prefs.data.opacity = OPACITIES[(i + 1) % OPACITIES.length]
+      prefs.save()
+      win.setOpacity(prefs.data.opacity)
+      drawBar()
+    } else if (url.includes('/through')) {
+      prefs.data.clickThrough = !prefs.data.clickThrough
+      prefs.save()
+      applyClickThrough(entry)
+      drawBar()
+    } else unfloatTab(tab, { pause: true })
   })
 
   view.setBorderRadius(0)
@@ -117,6 +154,15 @@ export function floatTab(tab: Tab, onBack: () => void): void {
   }
   fit()
   win.on('resize', fit)
+  // Remember where it was put, screen included, for next time.
+  const remember = (): void => {
+    if (win.isDestroyed()) return
+    prefs.data.bounds = win.getBounds()
+    prefs.save()
+  }
+  win.on('moved', remember)
+  win.on('resized', remember)
+  win.setOpacity(prefs.data.opacity)
   win.on('close', () => {
     if (floating.has(tab.id)) unfloatTab(tab, { pause: true, closing: true })
   })
@@ -130,9 +176,11 @@ export function floatTab(tab: Tab, onBack: () => void): void {
     // (without taking keyboard focus).
     timer: setInterval(() => {
       if (!win.isDestroyed()) win.setAlwaysOnTop(true, 'screen-saver')
-    }, 1500)
+    }, 1500),
+    pointer: null
   }
   floating.set(tab.id, entry)
+  applyClickThrough(entry)
   tab.wc?.once('destroyed', () => {
     if (floating.get(tab.id) === entry) unfloatTab(tab)
   })
@@ -142,15 +190,45 @@ export function floatTab(tab: Tab, onBack: () => void): void {
   win.showInactive()
 }
 
+/**
+ * Click-through: the video lets clicks pass to whatever is behind it (a game), while the strip
+ * along the top stays clickable so the setting can be turned off again.
+ */
+function applyClickThrough(entry: Floating): void {
+  const { win } = entry
+  if (entry.pointer) clearInterval(entry.pointer)
+  entry.pointer = null
+  if (win.isDestroyed()) return
+  if (!prefs.data.clickThrough) {
+    win.setIgnoreMouseEvents(false)
+    return
+  }
+  let ignoring: boolean | null = null
+  const check = (): void => {
+    if (win.isDestroyed()) return
+    const p = screen.getCursorScreenPoint()
+    const b = win.getContentBounds()
+    const overStrip = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + BAR_HEIGHT
+    if (ignoring === !overStrip) return
+    ignoring = !overStrip
+    // forward: hovering still reaches the page, so the strip fades in under the pointer.
+    win.setIgnoreMouseEvents(ignoring, { forward: true })
+  }
+  check()
+  entry.pointer = setInterval(check, 80)
+}
+
 /** Takes the page out of its floating window. It's the caller's job to show it again. */
 export function unfloatTab(tab: Tab, opts: { pause?: boolean; closing?: boolean } = {}): void {
   const entry = floating.get(tab.id)
   if (!entry) return
   floating.delete(tab.id)
   clearInterval(entry.timer)
+  if (entry.pointer) clearInterval(entry.pointer)
   const { win, bar } = entry
   if (!win.isDestroyed()) {
-    lastBounds = win.getBounds()
+    prefs.data.bounds = win.getBounds()
+    prefs.save()
     if (tab.view) win.contentView.removeChildView(tab.view)
     win.contentView.removeChildView(bar)
     if (!opts.closing) win.destroy()

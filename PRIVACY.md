@@ -26,7 +26,7 @@ Apart from the websites you visit, Alchemy only ever connects to:
 
 | Where | Why | What it sends |
 | --- | --- | --- |
-| The filter list hosts (EasyList, uBlock Origin's lists on GitHub, Peter Lowe's list, URLhaus) | Download ad and tracker blocking lists, about once a day | Nothing but a normal download request; no cookies |
+| The filter list hosts (EasyList, uBlock Origin's lists on GitHub, Peter Lowe's list, URLhaus, the NoCoin miner list) | Download ad and tracker blocking lists, about once a day | Nothing but a normal download request; no cookies |
 | `github.com` (Alchemy's releases) | Check for and download updates, every few hours | Nothing but a normal download request; no cookies |
 | Your search engine's suggestion service | Search suggestions while you type in the address bar | What you type, **only** with suggestions on (Settings → New Tab & Search), from a separate session without your cookies |
 | The sites in your sidebar | Fetch their icons once, so the sidebar looks right | A request for `/favicon.ico`, without cookies |

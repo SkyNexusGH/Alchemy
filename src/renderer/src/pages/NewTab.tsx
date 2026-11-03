@@ -44,7 +44,7 @@ export default function NewTab(): React.JSX.Element {
       <div className="ntp-center">
         {a.showClock && (
           <>
-            <div className="clock">{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+            <Clock now={now} style={a.clockStyle ?? 'classic'} />
             <div className="date">{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</div>
           </>
         )}
@@ -310,6 +310,45 @@ function AddSite({ onClose }: { onClose: (item: SpeedDialItem | null) => void })
       </form>
     </div>
   )
+}
+
+const HOUR_WORDS = ['twelve', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven']
+const MINUTE_WORDS: Record<number, string> = { 5: 'five', 10: 'ten', 15: 'quarter', 20: 'twenty', 25: 'twenty-five', 30: 'half' }
+
+/** "It's ten past five", rounded to the nearest five minutes. */
+function timeInWords(d: Date): string {
+  const m = Math.round(d.getMinutes() / 5) * 5
+  const h = d.getHours() + (m > 30 ? 1 : 0)
+  const hour = HOUR_WORDS[h % 12]
+  if (m === 0 || m === 60) return `It’s ${hour} o’clock`
+  return m <= 30 ? `It’s ${MINUTE_WORDS[m]} past ${hour}` : `It’s ${MINUTE_WORDS[60 - m]} to ${hour}`
+}
+
+/** The new tab clock, in the style picked in Settings → New Tab & Search. */
+function Clock({ now, style }: { now: Date; style: string }): React.JSX.Element {
+  if (style === 'analog') {
+    const s = now.getSeconds()
+    const m = now.getMinutes() + s / 60
+    const h = (now.getHours() % 12) + m / 60
+    const hand = (deg: number, length: number, width: number, cls: string): React.JSX.Element => (
+      <line className={cls} x1="50" y1="50" x2="50" y2={50 - length} strokeWidth={width} strokeLinecap="round" transform={`rotate(${deg} 50 50)`} />
+    )
+    return (
+      <svg className="clock-analog" viewBox="0 0 100 100" role="img" aria-label={now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}>
+        <circle cx="50" cy="50" r="48" className="face" />
+        {Array.from({ length: 12 }, (_, i) => (
+          <line key={i} x1="50" y1="6" x2="50" y2={i % 3 === 0 ? 13 : 10} className="tick" transform={`rotate(${i * 30} 50 50)`} />
+        ))}
+        {hand(h * 30, 24, 3.4, 'hour')}
+        {hand(m * 6, 35, 2.2, 'minute')}
+        {hand(s * 6, 38, 1, 'second')}
+        <circle cx="50" cy="50" r="2.4" className="pin" />
+      </svg>
+    )
+  }
+  if (style === 'words') return <div className="clock clock-words">{timeInWords(now)}</div>
+  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: style === 'seconds' ? '2-digit' : undefined })
+  return <div className={`clock${style === 'bold' ? ' clock-bold' : ''}`}>{time}</div>
 }
 
 function useClock(): Date {

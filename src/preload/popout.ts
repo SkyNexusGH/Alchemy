@@ -72,9 +72,19 @@ export function setupPopout(toolbar: boolean): void {
   const enhanced = new WeakSet<HTMLVideoElement>()
   // Volume boost (set from the tab's hover card) runs every video's sound through Web Audio;
   // once routed, a video stays routed.
-  const gains = new WeakMap<HTMLVideoElement, GainNode>()
+  // Each routed video: stereo matrix (mono / normal / wide) → bass shelf → volume.
+  interface Chain {
+    ll: GainNode
+    lr: GainNode
+    rl: GainNode
+    rr: GainNode
+    bass: BiquadFilterNode
+    gain: GainNode
+  }
+  const chains = new WeakMap<HTMLVideoElement, Chain>()
   let audio: AudioContext | null = null
-  let boost = 1
+  let fx = { boost: 1, bass: false, mono: false, spatial: false }
+  const changed = (): boolean => fx.boost !== 1 || fx.bass || fx.mono || fx.spatial
   const isTop = window.top === window
 
   // Web Audio silences media from other sites unless they allow it (CORS).
@@ -88,24 +98,54 @@ export function setupPopout(toolbar: boolean): void {
     }
   }
 
-  const applyBoost = (v: HTMLVideoElement): void => {
-    let gain = gains.get(v)
-    if (!gain) {
-      if (boost === 1 || !canBoost(v)) return
-      audio ??= new AudioContext()
-      gain = audio.createGain()
-      audio.createMediaElementSource(v).connect(gain).connect(audio.destination)
-      gains.set(v, gain)
+  const buildChain = (v: HTMLVideoElement): Chain => {
+    const ctx = (audio ??= new AudioContext())
+    const split = ctx.createChannelSplitter(2)
+    const merge = ctx.createChannelMerger(2)
+    const g = (): GainNode => ctx.createGain()
+    const chain: Chain = { ll: g(), lr: g(), rl: g(), rr: g(), bass: ctx.createBiquadFilter(), gain: g() }
+    ctx.createMediaElementSource(v).connect(split)
+    // left out = ll·L + rl·R, right out = lr·L + rr·R
+    split.connect(chain.ll, 0).connect(merge, 0, 0)
+    split.connect(chain.rl, 1).connect(merge, 0, 0)
+    split.connect(chain.lr, 0).connect(merge, 0, 1)
+    split.connect(chain.rr, 1).connect(merge, 0, 1)
+    chain.bass.type = 'lowshelf'
+    chain.bass.frequency.value = 110
+    merge.connect(chain.bass).connect(chain.gain).connect(ctx.destination)
+    chains.set(v, chain)
+    return chain
+  }
+
+  const applyAudio = (v: HTMLVideoElement): void => {
+    let chain = chains.get(v)
+    if (!chain) {
+      if (!changed() || !canBoost(v)) return
+      chain = buildChain(v)
     }
     void audio?.resume()
-    gain.gain.value = boost
+    // Stereo width: 0 = mono (both ears the same), 1 = as recorded, 1.7 = wider than the speakers.
+    const width = fx.mono ? 0 : fx.spatial ? 1.7 : 1
+    const same = (1 + width) / 2
+    const cross = (1 - width) / 2
+    chain.ll.gain.value = same
+    chain.rr.gain.value = same
+    chain.lr.gain.value = cross
+    chain.rl.gain.value = cross
+    chain.bass.gain.value = fx.bass ? 9 : 0
+    chain.gain.gain.value = fx.boost
   }
-  ipcRenderer.on('ovyra:boost', (_e, value: number) => {
-    boost = Math.min(Math.max(Number(value) || 1, 1), 4)
-    for (const v of document.querySelectorAll('video')) applyBoost(v)
+  ipcRenderer.on('ovyra:audio', (_e, next: typeof fx) => {
+    fx = {
+      boost: Math.min(Math.max(Number(next?.boost) || 1, 1), 4),
+      bass: !!next?.bass,
+      mono: !!next?.mono,
+      spatial: !!next?.spatial
+    }
+    for (const v of document.querySelectorAll('video')) applyAudio(v)
   })
-  // Videos that start later (next episode, a new page section) get the same boost.
-  document.addEventListener('play', (e) => e.target instanceof HTMLVideoElement && boost !== 1 && applyBoost(e.target), true)
+  // Videos that start later (next episode, a new page section) get the same sound.
+  document.addEventListener('play', (e) => e.target instanceof HTMLVideoElement && changed() && applyAudio(e.target), true)
 
   const screenshot = async (v: HTMLVideoElement): Promise<boolean> => {
     let data: string | null = null

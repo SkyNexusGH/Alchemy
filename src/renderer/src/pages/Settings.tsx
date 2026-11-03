@@ -394,6 +394,13 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'appearance',
+      label: 'High contrast',
+      hint: 'Stronger text, borders and focus outlines, for bright rooms and easier reading.',
+      keywords: 'accessibility contrast readable vision',
+      control: <Switch on={!!a.highContrast} onChange={(highContrast) => saveAppearance({ highContrast })} />
+    },
+    {
+      category: 'appearance',
       label: 'Interface font',
       hint: 'The font used for tabs, menus and Alchemy’s own pages.',
       keywords: 'typeface text letters',
@@ -430,6 +437,29 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       label: 'Show the clock',
       control: <Switch on={a.showClock} onChange={(showClock) => saveAppearance({ showClock })} />
     },
+    ...(a.showClock
+      ? [
+          {
+            category: 'newtab' as const,
+            label: 'Clock style',
+            keywords: 'time analog digital words seconds',
+            control: (
+              <Select
+                value={a.clockStyle ?? 'classic'}
+                width={200}
+                onChange={(clockStyle) => saveAppearance({ clockStyle })}
+                options={[
+                  { value: 'classic' as const, label: 'Classic' },
+                  { value: 'seconds' as const, label: 'With seconds' },
+                  { value: 'bold' as const, label: 'Big and bold' },
+                  { value: 'analog' as const, label: 'Analog' },
+                  { value: 'words' as const, label: 'In words' }
+                ]}
+              />
+            )
+          }
+        ]
+      : []),
     {
       category: 'newtab',
       label: 'Show the search box',
@@ -467,7 +497,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'adblock',
       label: 'Block ads and trackers',
       hint: listsLine,
-      keywords: 'adblock ublock shield filter',
+      keywords: 'adblock ublock shield filter crypto miner mining',
       control: (
         <div className="row-actions">
           {/* Lists update by themselves every day; the button only shows when that fell behind. */}

@@ -29,6 +29,32 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.8',
+    date: 'November 2026',
+    items: [
+      {
+        icon: AppWindow,
+        title: 'A better floating player',
+        text: 'Make it see-through so it doesn’t hide your HUD, let clicks pass through it to your game, and it now remembers its size, place and monitor.'
+      },
+      {
+        icon: Volume2,
+        title: 'Bass, Spatial and Mono',
+        text: 'Hover a playing tab for bass boost, a wider spatial sound, or mono for one earbud, next to the volume boost.'
+      },
+      {
+        icon: Palette,
+        title: 'Clock styles and high contrast',
+        text: 'Pick a classic, bold, analog or in-words clock for the new tab page, and turn on High contrast in Appearance.'
+      },
+      {
+        icon: Gauge,
+        title: 'Crypto miners blocked',
+        text: 'Pages that secretly mine cryptocurrency with your CPU are now stopped too.'
+      }
+    ]
+  },
+  {
     version: '0.1.6',
     date: 'November 2026',
     items: [

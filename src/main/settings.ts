@@ -12,7 +12,9 @@ const DEFAULT_APPEARANCE: Appearance = {
   backgroundDim: 25,
   roundness: 'normal',
   compactTabs: false,
-  font: 'inter'
+  font: 'inter',
+  clockStyle: 'classic',
+  highContrast: false
 }
 
 export const DEFAULT_PERFORMANCE: Performance = {

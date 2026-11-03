@@ -365,3 +365,43 @@ img {
   --metal: linear-gradient(135deg, #f4f5f7 0%, #a7adb6 38%, #e3e6ea 55%, #7d838c 100%);
   color-scheme: dark;
 }
+
+/* High contrast (Settings → Appearance): stronger text, borders and focus, in every mode. */
+:root[data-contrast='true'] {
+  --bg: #000000;
+  --page: #000000;
+  --bg-raised: #0d0d0f;
+  --panel: #0d0d0f;
+  --panel-2: #18181b;
+  --field: #000000;
+  --surface: rgba(255, 255, 255, 0.1);
+  --surface-2: rgba(255, 255, 255, 0.16);
+  --hover: rgba(255, 255, 255, 0.18);
+  --press: rgba(255, 255, 255, 0.26);
+  --border: rgba(255, 255, 255, 0.4);
+  --border-2: rgba(255, 255, 255, 0.6);
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.92);
+  --text-3: rgba(255, 255, 255, 0.78);
+}
+:root[data-contrast='true'][data-shade='light'] {
+  --bg: #ffffff;
+  --page: #ffffff;
+  --bg-raised: #f4f4f5;
+  --panel: #ffffff;
+  --panel-2: #f0f0f2;
+  --field: #ffffff;
+  --surface: rgba(0, 0, 0, 0.07);
+  --surface-2: rgba(0, 0, 0, 0.12);
+  --hover: rgba(0, 0, 0, 0.12);
+  --press: rgba(0, 0, 0, 0.2);
+  --border: rgba(0, 0, 0, 0.45);
+  --border-2: rgba(0, 0, 0, 0.65);
+  --text: #000000;
+  --text-2: rgba(0, 0, 0, 0.9);
+  --text-3: rgba(0, 0, 0, 0.75);
+}
+:root[data-contrast='true'] :focus-visible {
+  outline: 2px solid var(--accent-fg) !important;
+  outline-offset: 2px;
+}

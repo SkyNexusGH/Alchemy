@@ -20,6 +20,10 @@ export interface TabState {
   floating: boolean
   /** Volume boost, 1 = normal. */
   boost: number
+  /** Sound effects on the tab's videos. */
+  bass: boolean
+  mono: boolean
+  spatial: boolean
   zoom: number
   security: Security
   bookmarked: boolean
@@ -29,6 +33,14 @@ export interface TabState {
   shields: boolean
   workspaceId: string
   islandId: number | null
+}
+
+/** A tab's sound: volume boost and effects, applied to its videos. */
+export interface TabAudio {
+  boost: number
+  bass: boolean
+  mono: boolean
+  spatial: boolean
 }
 
 export interface Workspace {
@@ -395,7 +407,12 @@ export interface Appearance {
   roundness: 'sharp' | 'normal' | 'round'
   compactTabs: boolean
   font: UiFont
+  clockStyle: ClockStyle
+  /** Stronger text and borders, for bright rooms and easier reading. */
+  highContrast: boolean
 }
+
+export type ClockStyle = 'classic' | 'seconds' | 'bold' | 'analog' | 'words'
 
 export type UiFont = 'inter' | 'segoe' | 'nunito' | 'grotesk' | 'outfit' | 'mono'
 

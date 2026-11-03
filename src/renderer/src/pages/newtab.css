@@ -44,6 +44,55 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.clock-bold {
+  font-size: 112px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+.clock-words {
+  max-width: 14ch;
+  font-size: 54px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-align: center;
+  text-wrap: balance;
+}
+.clock-analog {
+  width: 168px;
+  height: 168px;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.35));
+}
+.clock-analog .face {
+  fill: color-mix(in srgb, var(--panel) 55%, transparent);
+  stroke: color-mix(in srgb, var(--text) 25%, transparent);
+  stroke-width: 1;
+}
+.clock-analog .tick {
+  stroke: var(--text-2);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.clock-analog .hour,
+.clock-analog .minute {
+  stroke: var(--text);
+}
+.clock-analog .second,
+.clock-analog .pin {
+  stroke: var(--accent);
+  fill: var(--accent);
+}
+.ntp.has-bg .clock-analog .face {
+  fill: rgba(0, 0, 0, 0.25);
+  stroke: rgba(255, 255, 255, 0.35);
+}
+.ntp.has-bg .clock-analog .tick {
+  stroke: rgba(255, 255, 255, 0.8);
+}
+.ntp.has-bg .clock-analog .hour,
+.ntp.has-bg .clock-analog .minute {
+  stroke: #fff;
+}
 .date {
   margin-top: 10px;
   color: var(--text-2);

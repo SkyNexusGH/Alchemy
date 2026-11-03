@@ -11,6 +11,10 @@ import { getSettings, onSettingsChanged } from '../settings'
 // uBO filters/badware/privacy/unbreak), mirrored by the Ghostery adblocker project.
 // Cookie-banner lists are added when "Hide cookie banners" is on.
 const REFRESH_MS = 24 * 3600_000
+// Crypto miners that run in pages and use your CPU (the NoCoin list), on top of uBlock's own.
+const MINER_LIST = 'https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/nocoin.txt'
+// Bumped when the set of lists changes, so caches built from the old set are refreshed.
+const LISTS_VERSION = 2
 const CONFIG = {
   loadCosmeticFilters: true,
   loadNetworkFilters: true,
@@ -23,7 +27,7 @@ let blocker: ElectronBlocker | null = null
 const status: FilterStatus = { ready: false, lists: 0, updated: null, updating: false, error: null }
 
 function lists(): string[] {
-  return getSettings().blockCookieBanners ? fullLists : adsAndTrackingLists
+  return [...(getSettings().blockCookieBanners ? fullLists : adsAndTrackingLists), MINER_LIST]
 }
 
 function cachePath(): string {
@@ -67,7 +71,9 @@ async function loadCache(): Promise<boolean> {
     const engine = ElectronBlocker.deserialize(new Uint8Array(await readFile(cachePath())))
     const meta = existsSync(metaPath()) ? JSON.parse(readFileSync(metaPath(), 'utf8')) : {}
     blocker = engine
-    Object.assign(status, { ready: true, lists: lists().length, updated: meta.updated ?? null, error: null })
+    // A cache built from an older set of lists is used for now and refreshed right away.
+    const current = meta.version === LISTS_VERSION
+    Object.assign(status, { ready: true, lists: lists().length, updated: current ? (meta.updated ?? null) : null, error: null })
     changed()
     return true
   } catch (err) {
@@ -87,7 +93,7 @@ export async function updateFilters(): Promise<void> {
     blocker = engine
     writeFileSync(cachePath(), engine.serialize())
     const updated = Date.now()
-    writeFileSync(metaPath(), JSON.stringify({ updated, lists: urls.length }))
+    writeFileSync(metaPath(), JSON.stringify({ updated, lists: urls.length, version: LISTS_VERSION }))
     Object.assign(status, { ready: true, lists: urls.length, updated, error: null })
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err)

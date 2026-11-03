@@ -1010,3 +1010,24 @@ kbd {
   border-radius: 10px;
   background: var(--surface-2);
 }
+.tc-fx {
+  display: flex;
+  gap: 6px;
+}
+.tc-fx button {
+  flex: 1;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tc-fx button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.tc-fx button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
