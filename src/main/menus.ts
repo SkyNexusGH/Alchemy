@@ -30,8 +30,9 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
   if (p.linkURL) {
     items.push(
       { label: 'Open link in new tab', click: () => bw.newTab(p.linkURL, { foreground: false, opener: tab }) },
-      { label: 'Open link in new window', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: bw.incognito }) },
-      ...(bw.incognito
+      { label: 'Open link in new window', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: bw.incognito, tor: bw.tor }) },
+      // With "Hide my IP in Masked Mode" on, Masked Mode is Alchemy Tor, so offer only that.
+      ...(bw.incognito || getSettings().maskedUsesTor
         ? []
         : [{ label: 'Open link in Masked Mode', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: true }) }]),
       ...(bw.tor

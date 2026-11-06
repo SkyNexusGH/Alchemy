@@ -590,6 +590,13 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      label: 'Hide my IP in Masked Mode',
+      hint: 'New Masked Mode windows go through Tor, so sites can’t see your real IP address. Slower, and some sites block Tor.',
+      keywords: 'tor vpn ip hide proxy incognito private masked anonymous',
+      control: <Switch on={s.maskedUsesTor} onChange={(v) => set({ maskedUsesTor: v })} />
+    },
+    {
+      category: 'privacy',
       label: 'Always use Tor bridges',
       hint: 'Connect through Snowflake bridges, for networks that block Tor. Alchemy switches to them by itself when Tor can’t connect.',
       keywords: 'tor bridges snowflake censorship blocked',

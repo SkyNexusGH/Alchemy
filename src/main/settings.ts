@@ -65,6 +65,7 @@ const DEFAULTS: Settings = {
   customEngines: DEFAULT_ENGINES,
   askDefaultBrowser: true,
   torBridges: false,
+  maskedUsesTor: false,
   performance: DEFAULT_PERFORMANCE
 }
 

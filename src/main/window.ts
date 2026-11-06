@@ -86,6 +86,8 @@ export class BrowserWin implements TabHost {
   private pushQueued = false
 
   static open(init?: Partial<WindowSnapshot> & { incognito?: boolean; tor?: boolean }): BrowserWin {
+    // With "Hide my IP in Masked Mode" on, every Masked Mode window is an Alchemy Tor window.
+    if (init?.incognito && !init.tor && getSettings().maskedUsesTor) init = { ...init, tor: true }
     return new BrowserWin(init)
   }
 

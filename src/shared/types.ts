@@ -207,6 +207,8 @@ export interface Settings {
   askDefaultBrowser: boolean
   /** Alchemy Tor always connects through Snowflake bridges. */
   torBridges: boolean
+  /** New Masked Mode windows go through Tor (they open as Alchemy Tor windows), hiding your IP. */
+  maskedUsesTor: boolean
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
