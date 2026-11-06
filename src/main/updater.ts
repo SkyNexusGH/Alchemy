@@ -9,7 +9,10 @@ import { broadcast } from './broadcast'
  * applied on the next restart — or right away from the "Update" button.
  */
 
-const CHECK_EVERY = 4 * 3600_000
+const CHECK_EVERY = 3600_000
+/** Coming back to Alchemy checks again if the last check is older than this. */
+const RECHECK_ON_FOCUS = 15 * 60_000
+let lastCheck = 0
 let state: UpdateState = { status: app.isPackaged ? 'idle' : 'disabled' }
 
 function set(next: UpdateState): void {
@@ -44,10 +47,16 @@ export function initUpdater(onReady: () => void): void {
   // Give startup a head start before touching the network.
   setTimeout(() => void checkForUpdates(), 15_000)
   setInterval(() => void checkForUpdates(), CHECK_EVERY)
+  // A release published while Alchemy is open is found the next time you come back to it,
+  // instead of hours later.
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastCheck > RECHECK_ON_FOCUS) void checkForUpdates()
+  })
 }
 
 export async function checkForUpdates(): Promise<void> {
   if (!app.isPackaged || state.status === 'downloading' || state.status === 'ready') return
+  lastCheck = Date.now()
   try {
     await autoUpdater.checkForUpdates()
   } catch {

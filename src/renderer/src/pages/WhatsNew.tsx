@@ -30,6 +30,17 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.11',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Sparkle,
+        title: 'Updates arrive sooner',
+        text: 'Alchemy checks for updates every hour, and again when you come back to it, so new versions show up within minutes instead of hours.'
+      }
+    ]
+  },
+  {
     version: '0.1.10',
     date: 'November 2026',
     items: [
