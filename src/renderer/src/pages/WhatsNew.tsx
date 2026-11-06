@@ -12,6 +12,7 @@ import {
   Pipette,
   Search,
   Sparkle,
+  VenetianMask,
   Volume2,
   type Icon
 } from '../lib/icons'
@@ -28,6 +29,17 @@ interface Release {
 
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
+  {
+    version: '0.1.10',
+    date: 'November 2026',
+    items: [
+      {
+        icon: VenetianMask,
+        title: 'Hide my IP in Masked Mode',
+        text: 'Turn it on in Settings → Privacy and every Masked Mode window goes through Tor, so sites can’t see your real IP address.'
+      }
+    ]
+  },
   {
     version: '0.1.9',
     date: 'November 2026',
