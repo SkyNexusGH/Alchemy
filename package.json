@@ -86,6 +86,7 @@
     "@fontsource-variable/nunito": "^5.3.0",
     "@fontsource-variable/outfit": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@huggingface/transformers": "4.3.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

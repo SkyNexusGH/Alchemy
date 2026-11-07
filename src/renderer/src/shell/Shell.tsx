@@ -2,7 +2,7 @@ import './shell.css'
 import { Onion, VenetianMask } from '../lib/icons'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import { useSettings } from '../lib/settings'
+import { backgroundUrl, useSettings } from '../lib/settings'
 import { BrandLogo, Logo } from '../lib/ui'
 import { BookmarksBar } from './BookmarksBar'
 import { FindBar } from './FindBar'
@@ -11,6 +11,8 @@ import { DevtoolsPane, SidePanel } from './SidePanel'
 import { SideRail } from './SideRail'
 import { useShell } from './store'
 import { TabStrip } from './TabStrip'
+import { Toasts } from './Toasts'
+import { BookmarksPanel, useBookmarksPanel } from './BookmarksPanel'
 import { Toolbar } from './Toolbar'
 
 export default function Shell(): React.JSX.Element {
@@ -31,6 +33,15 @@ export default function Shell(): React.JSX.Element {
   const content = useRef<HTMLDivElement>(null)
   useReportRect(content, 'layout:content')
   const sidebar = useSettings((s) => s.settings?.sidebar ?? 'shown')
+  const bookmarksPanel = useBookmarksPanel((s) => s.open)
+  const side = useSettings((s) => s.settings?.sidebarSide ?? 'left')
+  const vertical = useSettings((s) => s.settings?.tabLayout === 'vertical')
+  const settingsAll = useSettings((s) => s.settings)
+  const glass = !isPrivate && settingsAll?.appearance.material === 'glass'
+  const wall = glass && settingsAll ? backgroundUrl(settingsAll) : null
+  // Site-tinted toolbar: the active page's own colour, mixed into the toolbar.
+  const siteColor = useShell((s) => s.win.tabs.find((t) => t.id === s.win.activeId)?.themeColor ?? null)
+  const tint = !isPrivate && settingsAll?.appearance.siteTint ? siteColor : null
   // Hidden Sidebar: out while the mouse is on it, tucked away again shortly after it leaves.
   const [peek, setPeek] = useState(false)
   const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -48,7 +59,8 @@ export default function Shell(): React.JSX.Element {
 
   return (
     <div
-      className={`shell${maximized ? ' maximized' : ''}${isPrivate ? ' private' : ''} sidebar-${sidebar}${peek ? ' peek' : ''}`}
+      className={`shell${maximized ? ' maximized' : ''}${isPrivate ? ' private' : ''} sidebar-${sidebar}${peek ? ' peek' : ''}${side === 'right' ? ' sidebar-right' : ''}${vertical ? ' tabs-vertical' : ''}${tint ? ' site-tint' : ''}`}
+      style={{ ...(tint ? { '--site': tint } : {}), ...(wall ? { '--wall': `url("${wall}")` } : {}) } as React.CSSProperties}
     >
       <header className="titlebar">
         <button
@@ -74,15 +86,22 @@ export default function Shell(): React.JSX.Element {
             {isTor ? 'Alchemy Tor' : 'Masked Mode'}
           </span>
         )}
-        <TabStrip />
+        {!vertical && <TabStrip />}
         <div className="titlebar-drag" />
+        <Toasts />
       </header>
       {sidebar !== 'off' && <SideRail {...(sidebar === 'hidden' ? railHover : {})} />}
+      {vertical && (
+        <aside className="vtabs">
+          <TabStrip vertical />
+        </aside>
+      )}
       <main className="main">
         <Toolbar />
         {showBar && <BookmarksBar />}
         {findOpen && <FindBar />}
         <div className="body">
+          {bookmarksPanel && <BookmarksPanel />}
           {panelOpen && <SidePanel />}
           <div className={`content${split ? ' split' : ''}`} ref={content}>
             {split ? (

@@ -7,6 +7,7 @@ import './styles/base.css'
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from 'react'
 import { createRoot } from 'react-dom/client'
 import './lib/settings'
+import './lib/ripple'
 
 // One bundle serves every alchemy:// host; each loads only the code for its own page.
 const pages: Record<string, LazyExoticComponent<ComponentType>> = {

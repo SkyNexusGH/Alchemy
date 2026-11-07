@@ -14,7 +14,13 @@ const DEFAULT_APPEARANCE: Appearance = {
   compactTabs: false,
   font: 'inter',
   clockStyle: 'classic',
-  highContrast: false
+  highContrast: false,
+  reduceMotion: false,
+  bookmarkStyle: 'classic',
+  countStyle: 'pill',
+  material: 'solid',
+  siteTint: false,
+  iconSet: 'standard'
 }
 
 export const DEFAULT_PERFORMANCE: Performance = {
@@ -49,6 +55,13 @@ const DEFAULTS: Settings = {
   downloadDir: null,
   askWhereToSave: false,
   speedDial: DEFAULT_SPEED_DIAL,
+  widgets: { weather: true, quote: true, todo: false, news: false, focus: false, stats: true, music: true, countdown: false, recent: true },
+  weatherPlace: null,
+  tempUnit: 'C',
+  todos: [],
+  countdown: null,
+  translateTo: '',
+  newsFeeds: ['https://feeds.bbci.co.uk/news/rss.xml', 'https://www.theverge.com/rss/index.xml', 'https://feeds.arstechnica.com/arstechnica/index'],
   adblock: true,
   blockCookieBanners: true,
   blockThirdPartyCookies: true,
@@ -61,6 +74,8 @@ const DEFAULTS: Settings = {
   panelSleepMinutes: 30,
   tabIslands: true,
   sidebar: 'shown',
+  sidebarSide: 'left',
+  tabLayout: 'horizontal',
   videoPopout: true,
   autoPopout: true,
   customEngines: DEFAULT_ENGINES,
@@ -68,6 +83,7 @@ const DEFAULTS: Settings = {
   torBridges: false,
   maskedUsesTor: false,
   splitBlockCounts: false,
+  aegisLevel: 'comfort',
   performance: DEFAULT_PERFORMANCE
 }
 
@@ -89,6 +105,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
     electric: '#322eef'
   }
   s.appearance = { ...DEFAULT_APPEARANCE, ...(s.appearance ?? {}) }
+  s.widgets = { ...DEFAULTS.widgets, ...(s.widgets ?? {}) }
   s.performance = { ...DEFAULT_PERFORMANCE, ...(s.performance ?? {}) }
   s.customEngines ??= DEFAULT_ENGINES
   delete s.theme

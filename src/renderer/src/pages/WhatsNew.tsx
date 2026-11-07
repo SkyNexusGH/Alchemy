@@ -30,6 +30,42 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.14',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Layers,
+        title: 'Vertical tabs, Ctrl+Tab pictures',
+        text: 'Tabs can run down the side, Ctrl+Tab shows your tabs as pictures, and tabs pop in, fold away and show sound bars while playing.'
+      },
+      {
+        icon: Sparkle,
+        title: 'New tab widgets',
+        text: 'Weather, a daily quote, to-dos, a focus timer, now playing, news, a countdown and more. Turn them on in Settings → New Tab & Search.'
+      },
+      {
+        icon: Search,
+        title: 'A smarter address bar',
+        text: 'Search by voice (Whisper, on your computer), translate pages, and get answers for sums, unit conversions and the weather.'
+      },
+      {
+        icon: Palette,
+        title: 'Mica, Acrylic, Frosted glass and runes',
+        text: 'New window materials, a Monochrome theme, a site-tinted toolbar, bookmark bar styles and an optional rune icon set.'
+      },
+      {
+        icon: Gauge,
+        title: 'Aegis levels and stats',
+        text: 'Chill, Comfort or Extreme protection, plus charts of what Aegis blocked, who tried to track you and what it saved.'
+      },
+      {
+        icon: AppWindow,
+        title: 'And lots more',
+        text: 'A bookmarks sidebar, sidebar on the right, hover peeks, Undo toasts, a New Tor identity button, illustrated error pages and an offline game.'
+      }
+    ]
+  },
+  {
     version: '0.1.13',
     date: 'November 2026',
     items: [
@@ -300,8 +336,11 @@ export default function WhatsNew(): React.JSX.Element {
       </header>
       {RELEASES.map((r, i) => (
         <section key={r.version} className={`wn-release${i === 0 ? ' latest' : ''}`}>
+          {/* A timeline down the left: a version chip on each release. */}
           <h2>
-            {r.version} <small>{r.date}</small>
+            <span className="wn-chip">{r.version}</span>
+            <small>{r.date}</small>
+            {i === 0 && <span className="wn-new">Latest</span>}
           </h2>
           <div className="wn-grid">
             {r.items.map((item) => (

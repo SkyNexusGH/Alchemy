@@ -60,6 +60,39 @@
   color: var(--text-2);
   line-height: 1.4;
 }
+/* Onion rings that fill in as Tor connects. */
+.tor-rings {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  color: #cdb4f5;
+}
+.tor-rings .ring {
+  position: absolute;
+  border-radius: 50%;
+  background: conic-gradient(#a57cf0 var(--fill), rgba(165, 124, 240, 0.14) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  transition: background 0.6s var(--ease);
+}
+.tor-rings .r0 {
+  inset: 0;
+  animation: ring-turn 9s linear infinite;
+}
+.tor-rings .r1 {
+  inset: 14px;
+  animation: ring-turn 7s linear infinite reverse;
+}
+.tor-rings .r2 {
+  inset: 28px;
+}
+@keyframes ring-turn {
+  to {
+    rotate: 360deg;
+  }
+}
 .tor-progress {
   width: 100%;
   height: 6px;

@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Bookmark } from '@shared/types'
 import { toUrl } from '@shared/url'
 import { api } from '../lib/api'
+import { WorkspaceIconPicker } from '../lib/pickers'
 import { Favicon, setPageIcon } from '../lib/ui'
 
 document.title = 'Bookmarks'
 setPageIcon('<path d="M6 3h12v18l-6-4-6 4z"/>')
 
-type Editing = { id?: string; type: 'url' | 'folder'; title: string; url: string; parentId: string }
+type Editing = { id?: string; type: 'url' | 'folder'; title: string; url: string; parentId: string; icon?: string }
 
 export default function Bookmarks(): React.JSX.Element {
   const [all, setAll] = useState<Bookmark[]>([])
@@ -118,7 +119,7 @@ export default function Bookmarks(): React.JSX.Element {
                   <button
                     className="icon-btn"
                     title="Edit"
-                    onClick={() => setEditing({ id: b.id, type: b.type, title: b.title, url: b.url ?? '', parentId: b.parentId! })}
+                    onClick={() => setEditing({ id: b.id, type: b.type, title: b.title, url: b.url ?? '', parentId: b.parentId!, icon: b.icon ?? '' })}
                   >
                     <Pencil size={14} />
                   </button>
@@ -155,7 +156,7 @@ function EditDialog({
     if (e.id) {
       await api.invoke('bookmarks:update', e.id, {
         title: e.title.trim(),
-        ...(e.type === 'url' ? { url } : {}),
+        ...(e.type === 'url' ? { url } : { icon: e.icon ?? '' }),
         ...(e.parentId !== editing.parentId ? { parentId: e.parentId } : {})
       })
     } else {
@@ -184,6 +185,9 @@ function EditDialog({
           <input className="field" autoFocus placeholder="Name" value={e.title} onChange={(ev) => setE({ ...e, title: ev.target.value })} />
           {e.type === 'url' && (
             <input className="field" placeholder="Address" value={e.url} onChange={(ev) => setE({ ...e, url: ev.target.value })} />
+          )}
+          {e.type === 'folder' && e.id && (
+            <WorkspaceIconPicker value={e.icon ?? ''} name={e.title || 'F'} onChange={(icon) => setE({ ...e, icon })} />
           )}
           <select className="field" value={e.parentId} onChange={(ev) => setE({ ...e, parentId: ev.target.value })}>
             {folders

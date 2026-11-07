@@ -317,10 +317,19 @@ img {
   left: 3px;
   width: 16px;
   height: 16px;
-  border-radius: 50%;
+  border-radius: 16px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  transition: transform 220ms var(--spring);
+  transition:
+    transform 260ms var(--spring),
+    width 180ms var(--ease);
+}
+/* Liquid: while pressed, the knob stretches toward where it's going. */
+.switch:active::after {
+  width: 22px;
+}
+.switch[aria-checked='true']:active::after {
+  transform: translateX(10px);
 }
 .switch[aria-checked='true'] {
   background: var(--accent);
@@ -328,6 +337,65 @@ img {
 .switch[aria-checked='true']::after {
   background: var(--accent-ink);
   transform: translateX(16px);
+}
+
+/* Click ripples (lib/ripple.ts). */
+.ripple-host {
+  position: relative;
+  overflow: hidden;
+}
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  pointer-events: none;
+  animation: ripple-out 520ms var(--ease) forwards;
+}
+@keyframes ripple-out {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* Loading placeholders for Alchemy's own pages. */
+.shimmer {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 0, var(--surface-2) 80px, var(--surface) 160px);
+  background-size: 480px 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: -240px 0;
+  }
+  to {
+    background-position: 240px 0;
+  }
+}
+
+/* Switching theme: colors fade across for a moment. */
+:root.theme-fade,
+:root.theme-fade *,
+:root.theme-fade *::before,
+:root.theme-fade *::after {
+  transition:
+    background-color 380ms var(--ease),
+    color 380ms var(--ease),
+    border-color 380ms var(--ease),
+    fill 380ms var(--ease),
+    box-shadow 380ms var(--ease) !important;
+}
+
+/* Settings → Appearance → Reduce motion. */
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -30,9 +30,20 @@ export default function Tor(): React.JSX.Element {
   return (
     <div className="tor-page">
       <div className="tor-card">
-        <span className={`tor-mark${failed ? '' : ' pulsing'}`}>
-          <Onion size={30} />
-        </span>
+        {failed ? (
+          <span className="tor-mark">
+            <Onion size={30} />
+          </span>
+        ) : (
+          // Onion rings: the outer ring fills first, then the middle, then the core, as Tor connects.
+          <span className="tor-rings" aria-hidden>
+            {[0, 1, 2].map((i) => {
+              const fill = Math.max(0, Math.min(1, (progress - i * 33.4) / 33.3))
+              return <i key={i} className={`ring r${i}`} style={{ '--fill': `${fill * 100}%` } as React.CSSProperties} />
+            })}
+            <Onion size={22} />
+          </span>
+        )}
         <h1>{failed ? 'Couldn’t connect to Tor' : status?.state === 'ready' ? 'Connected' : 'Connecting to Tor'}</h1>
         <p className="tor-step">
           {failed

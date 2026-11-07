@@ -5,12 +5,59 @@ html[data-page='shell'] body {
 .shell {
   /* The toolbar and the active tab share one surface, a step up from the title bar. */
   --chrome: color-mix(in srgb, var(--text) 7%, var(--bg));
+  /* Column widths: the sidebar (rail) and, with vertical tabs, the tab column. */
+  --rail-w: 44px;
+  --vtabs-w: 0px;
   height: 100%;
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: var(--rail-w) var(--vtabs-w) minmax(0, 1fr);
   grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-areas:
+    'title title title'
+    'rail vtabs main';
   user-select: none;
   background: var(--bg);
+}
+
+/* Site-tinted toolbar (Settings → Appearance): the page's own colour, lightly mixed in. */
+.shell.site-tint {
+  --chrome: color-mix(in srgb, var(--site) 16%, color-mix(in srgb, var(--text) 7%, var(--bg)));
+  transition: --chrome 300ms var(--ease);
+}
+
+/* Window materials (Settings → Appearance). Mica and Acrylic are drawn by Windows behind
+   a see-through window; Frosted glass is your wallpaper, blurred, behind the tabs. */
+html[data-page='shell'][data-material='mica'] body,
+html[data-page='shell'][data-material='acrylic'] body,
+html[data-page='shell'][data-material='glass'] body {
+  background: transparent;
+}
+html[data-material='mica'] .shell,
+html[data-material='acrylic'] .shell {
+  --chrome: color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--bg) 30%, transparent);
+}
+html[data-material='mica'] .omnibox,
+html[data-material='acrylic'] .omnibox {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+html[data-material='glass'] .shell {
+  --chrome: color-mix(in srgb, var(--bg) 30%, transparent);
+  position: relative;
+  isolation: isolate;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+html[data-material='glass'] .shell::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  z-index: -1;
+  background: var(--wall, var(--bg)) center / cover;
+  filter: blur(46px) saturate(1.35);
+}
+html[data-material='glass'] .omnibox {
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  backdrop-filter: blur(12px);
 }
 
 /* Masked Mode: near-black with a faint silver haze along the top, like smoke in the dark. */
@@ -41,7 +88,7 @@ html[data-private='true'] .shell {
 /* ---- title bar & tabs ------------------------------------------------------------ */
 
 .titlebar {
-  grid-column: 1 / -1;
+  grid-area: title;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -108,8 +155,95 @@ html[data-private='true'] .shell {
 }
 /* Compact: a slimmer title bar, toolbar and rail, so pages get more room. */
 html[data-compact='true'] .shell {
-  grid-template-columns: 40px minmax(0, 1fr);
+  --rail-w: 40px;
   grid-template-rows: 32px minmax(0, 1fr);
+}
+/* Sidebar on the right (Settings → Tabs & sidebar). */
+.shell.sidebar-right {
+  grid-template-columns: var(--vtabs-w) minmax(0, 1fr) var(--rail-w);
+  grid-template-areas:
+    'title title title'
+    'vtabs main rail';
+}
+.shell.sidebar-right .side-panel,
+.shell.sidebar-right .bm-panel {
+  order: 2;
+}
+/* Vertical tabs: a column of tabs between the sidebar and the page. */
+.shell.tabs-vertical {
+  --vtabs-w: 232px;
+}
+.vtabs {
+  grid-area: vtabs;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 2px 6px 8px 2px;
+}
+.shell.sidebar-right .vtabs {
+  padding: 2px 2px 8px 6px;
+}
+.tabstrip.vertical {
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  height: auto;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.tabstrip.vertical .tab {
+  flex: 0 0 34px;
+  width: auto;
+  height: 34px;
+  padding-left: 10px;
+}
+.tabstrip.vertical .tab.active {
+  align-self: stretch;
+  height: 34px;
+  padding-bottom: 0;
+  border-radius: var(--r);
+  box-shadow: inset 3px 0 0 var(--accent-fg);
+}
+.tabstrip.vertical .tab.active::before,
+.tabstrip.vertical .tab.active::after {
+  display: none;
+}
+.tabstrip.vertical .tab.pinned {
+  flex-basis: 34px;
+  width: auto;
+  justify-content: flex-start;
+  padding-left: 10px;
+}
+.tabstrip.vertical .island-handle {
+  justify-content: flex-start;
+  height: 22px;
+  margin: 6px 0 0;
+}
+.tabstrip.vertical .new-tab {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  height: 32px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-left: 10px;
+}
+.tabstrip.vertical .new-tab::after {
+  content: 'New tab';
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+@keyframes tab-in-v {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+.tabstrip.vertical.ready .tab:not(.pinned) {
+  animation-name: tab-in-v;
 }
 html[data-compact='true'] .brand {
   width: 40px;
@@ -346,10 +480,97 @@ html[data-compact='true'] .tab.active {
 }
 .tab-close {
   opacity: 0;
+  pointer-events: none;
 }
 .tab:hover .tab-close,
 .tab.active .tab-close {
   opacity: 0.85;
+  pointer-events: auto;
+}
+
+/* New tabs pop in; closed tabs fold away (TabStrip.tsx). */
+.tabstrip.ready .tab:not(.pinned) {
+  /* backwards, not both: a filled animation would override the inline transform used while dragging. */
+  animation: tab-in 300ms var(--spring) backwards;
+}
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(4px);
+  }
+}
+.tab.closing {
+  pointer-events: none;
+  animation: tab-out 150ms var(--ease) forwards !important;
+}
+@keyframes tab-out {
+  to {
+    opacity: 0;
+    width: 0;
+    min-width: 0;
+    flex-basis: 0;
+    padding: 0;
+    margin: 0;
+    transform: scale(0.85);
+  }
+}
+/* Switching workspace: the new tabs slide in from that workspace's side. */
+.tabstrip.ws-in-right .tab,
+.tabstrip.ws-in-left .tab {
+  animation: ws-slide 340ms var(--ease) backwards;
+}
+.tabstrip.ws-in-left .tab {
+  --from: -36px;
+}
+.tabstrip.ws-in-right .tab {
+  --from: 36px;
+}
+@keyframes ws-slide {
+  from {
+    opacity: 0;
+    transform: translateX(var(--from));
+  }
+}
+/* A dragged tab lifts and tilts a little. */
+.tab.dragging {
+  rotate: -2.5deg;
+  scale: 1.04;
+  box-shadow: 0 12px 26px -6px rgba(0, 0, 0, 0.7);
+}
+
+/* Live sound bars on a playing tab. */
+.sound-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 11px;
+  color: var(--accent-fg);
+}
+.sound-bars i {
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: sound-bar 0.9s ease-in-out infinite;
+}
+.sound-bars i:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.sound-bars i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+.sound-bars i:nth-child(4) {
+  animation-delay: -0.15s;
+}
+@keyframes sound-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 .spinner {
@@ -376,7 +597,7 @@ html[data-compact='true'] .tab.active {
 /* ---- side rail -------------------------------------------------------------------- */
 
 .rail {
-  grid-row: 2;
+  grid-area: rail;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -388,32 +609,33 @@ html[data-compact='true'] .tab.active {
 }
 /* Sidebar off: no column at all. */
 .shell.sidebar-off {
-  grid-template-columns: 0 minmax(0, 1fr);
+  --rail-w: 0px;
 }
-/* Hidden Sidebar: a thin strip along the left edge. Moving onto it slides the sidebar out,
+/* Hidden Sidebar: a thin strip along the edge. Moving onto it slides the sidebar out,
    and the page makes room for it. */
 .shell.sidebar-hidden {
-  grid-template-columns: 7px minmax(0, 1fr);
+  --rail-w: 7px;
   transition: grid-template-columns 220ms var(--ease);
 }
 .shell.sidebar-hidden.peek {
-  grid-template-columns: 44px minmax(0, 1fr);
+  --rail-w: 44px;
 }
 html[data-compact='true'] .shell.sidebar-hidden.peek {
-  grid-template-columns: 40px minmax(0, 1fr);
+  --rail-w: 40px;
 }
 html[data-compact='true'] .shell.sidebar-off {
-  grid-template-columns: 0 minmax(0, 1fr);
+  --rail-w: 0px;
 }
 html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
-  grid-template-columns: 7px minmax(0, 1fr);
+  --rail-w: 7px;
 }
 .shell.sidebar-hidden .rail {
   position: relative;
   z-index: 1;
   width: 44px;
   transform: translateX(-37px);
-  transition: transform 220ms var(--ease);
+  /* Slides out with a little springy overshoot. */
+  transition: transform 380ms var(--spring);
 }
 .shell.sidebar-hidden.peek .rail {
   transform: none;
@@ -432,6 +654,12 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   opacity: 0.45;
   transition: opacity 160ms var(--ease);
   pointer-events: none;
+}
+.shell.sidebar-right.sidebar-hidden .rail {
+  transform: none;
+}
+.shell.sidebar-right.sidebar-hidden .rail::after {
+  left: 2px;
 }
 .shell.sidebar-hidden.peek .rail::after {
   opacity: 0;
@@ -482,6 +710,31 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
 }
 .rail-spacer {
   flex: 1;
+}
+/* Drag to reorder: a line shows where the dragged item will land. */
+.drop-before::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: -4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent-fg);
+}
+.rail-clock {
+  display: grid;
+  justify-items: center;
+  flex-shrink: 0;
+  padding: 6px 0 2px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.rail-clock b {
+  color: var(--text);
+  font-weight: 650;
 }
 .rail-divider {
   width: 22px;
@@ -602,8 +855,7 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
 /* ---- toolbar & omnibox -------------------------------------------------------------- */
 
 .main {
-  grid-row: 2;
-  grid-column: 2;
+  grid-area: main;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -662,6 +914,10 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
 .omni-security.insecure {
   color: var(--warn);
 }
+/* Secure sites get a green lock; anything else stays grey or amber. */
+.omnibox:not(.focused) .omni-security.secure {
+  color: var(--ok);
+}
 .not-secure {
   font-size: 12px;
   font-weight: 600;
@@ -697,19 +953,70 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   inset: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 2px;
   overflow: hidden;
   white-space: nowrap;
   pointer-events: none;
   font-size: 13.5px;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
 }
 .omni-pretty .host {
   color: var(--text);
+  font-weight: 560;
 }
-.omni-pretty .rest {
+.omni-pretty .crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+.omni-pretty .crumb:last-child {
+  color: var(--text);
+}
+.omni-pretty .sep {
+  margin: 0 4px;
   color: var(--text-3);
 }
 
+.omni-mic {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--text-3);
+}
+.omni-mic:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.omni-mic.listening {
+  background: var(--danger);
+  color: #fff;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+.omni-mic.downloading,
+.omni-mic.transcribing {
+  color: var(--accent-fg);
+  animation: mic-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 25%, transparent);
+  }
+}
+.omni-chip.translate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.omni-chip.translate.on {
+  color: var(--accent-fg);
+}
 .omni-engine {
   flex-shrink: 0;
   height: 22px;
@@ -786,7 +1093,7 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   animation: count-pop 260ms var(--spring);
 }
 /* With something blocked, the shield becomes a pill with the count beside it. */
-.omni-shield.has-count {
+.omni-shield.count-pill {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -796,11 +1103,11 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   border-radius: 999px;
   background: var(--accent-soft);
 }
-.omni-shield.has-count:hover {
+.omni-shield.count-pill:hover {
   background: color-mix(in srgb, var(--accent-fg) 24%, transparent);
   color: var(--accent-fg);
 }
-.omni-shield.has-count .shield-count {
+.omni-shield.count-pill .shield-count {
   position: static;
   min-width: 0;
   height: auto;
@@ -813,6 +1120,15 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   line-height: 1;
 }
 /* Ads and trackers counted separately: "12 | 4", trackers in a second color. */
+/* Ring: a progress ring around the shield instead of a number. */
+.shield-ring {
+  position: absolute;
+  inset: 2px 5px;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent-fg) var(--fill), var(--border-2) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+}
 .shield-sep {
   width: 1px;
   height: 11px;
@@ -911,23 +1227,123 @@ browser-action-list::part(badge) {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 35%;
+  width: 30%;
   border-radius: 2px;
-  background: var(--accent-fg);
-  animation: load-slide 1.1s var(--ease) infinite;
+  /* A comet: a bright head with a fading tail. */
+  background: linear-gradient(90deg, transparent, var(--accent-fg) 70%, #fff);
+  box-shadow: 0 0 8px var(--accent-fg);
+  animation: load-slide 1.2s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 @keyframes load-slide {
   from {
-    left: -35%;
+    left: -30%;
   }
   to {
     left: 100%;
   }
 }
 
+
+/* ---- toasts (Toasts.tsx) ------------------------------------------------------------- */
+
+.toasts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  -webkit-app-region: no-drag;
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 6px 0 12px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  box-shadow: 0 0 0 1px var(--border-2);
+  font-size: 12px;
+  font-weight: 560;
+  white-space: nowrap;
+  animation: toast-in 320ms var(--spring);
+}
+.toast:not(:has(.toast-action)) {
+  padding-right: 12px;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.9);
+  }
+}
+.toast-action {
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+.toast-action:hover {
+  background: var(--accent-soft);
+}
+/* Milestones: shimmering gold text and a burst of confetti. */
+.toast.gold {
+  background: color-mix(in srgb, #e8b64c 16%, var(--panel-2));
+  box-shadow: 0 0 0 1px rgba(232, 182, 76, 0.45), 0 0 18px -4px rgba(232, 182, 76, 0.6);
+}
+.toast.gold .toast-text {
+  background: linear-gradient(100deg, #b5812a 20%, #fff3c4 40%, #e8b64c 60%, #b5812a 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-shine 2.2s linear infinite;
+}
+@keyframes gold-shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.confetti {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+.confetti i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: #e8b64c;
+  animation: confetti 900ms var(--ease) forwards;
+}
+.confetti i:nth-child(3n) {
+  background: var(--accent-fg);
+}
+.confetti i:nth-child(3n + 1) {
+  background: #a57cf0;
+}
+@keyframes confetti {
+  from {
+    transform: rotate(var(--a)) translateY(0) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--a)) translateY(calc(var(--d) * -1)) scale(0.4);
+    opacity: 0;
+  }
+}
+
 /* ---- bookmarks bar & find ---------------------------------------------------------- */
 
 .bookmarks-bar {
+  background: var(--chrome);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -956,6 +1372,70 @@ browser-action-list::part(badge) {
 .bm:hover {
   background: var(--hover);
   color: var(--text);
+}
+
+/* Folders: a little stack of cards, with a count. */
+.bm-folder {
+  position: relative;
+  margin-right: 4px;
+  background: var(--surface);
+  box-shadow:
+    2px -2px 0 -1px var(--surface-2),
+    4px -4px 0 -2px var(--border-2);
+}
+.bm-count {
+  min-width: 15px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+/* Settings → Appearance → Bookmarks bar style. */
+.bm-style-pills {
+  gap: 5px;
+}
+.bm-style-pills .bm {
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0 11px 0 8px;
+}
+.bm-style-pills .bm:hover {
+  background: var(--hover);
+}
+.bm-style-icons .bm,
+.bm-style-dock .bm {
+  justify-content: center;
+  min-width: 30px;
+  padding: 0 7px;
+}
+.bm-style-icons .bm-folder,
+.bm-style-dock .bm-folder {
+  gap: 4px;
+}
+/* Dock: icons grow as the pointer passes over them, and their neighbours a little. */
+.bm-style-dock {
+  overflow: visible;
+  gap: 4px;
+  z-index: 2;
+}
+.bm-style-dock .bm {
+  transition:
+    transform 180ms var(--spring),
+    background 120ms var(--ease);
+  transform-origin: bottom center;
+}
+.bm-style-dock .bm:hover {
+  transform: scale(1.38) translateY(-2px);
+  background: none;
+}
+.bm-style-dock .bm:has(+ .bm:hover),
+.bm-style-dock .bm:hover + .bm {
+  transform: scale(1.16);
 }
 
 .findbar {
@@ -1101,6 +1581,66 @@ browser-action-list::part(badge) {
   cursor: ew-resize;
   border-radius: 3px;
   transition: background 120ms;
+}
+/* Bookmarks beside the page (BookmarksPanel.tsx). */
+.bm-panel {
+  width: 260px;
+  overflow: hidden;
+}
+.bm-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+.bm-panel-head b {
+  color: var(--text);
+  font-size: 13px;
+}
+.bm-panel-head .spacer {
+  flex: 1;
+}
+.bm-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+}
+.bm-node {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  height: 30px;
+  padding-right: 8px;
+  border-radius: calc(var(--r) - 3px);
+  color: var(--text-2);
+  font-size: 12.5px;
+  text-align: left;
+}
+.bm-node:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.bm-node span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.bm-node em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.bm-empty {
+  padding: 18px 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 .side-panel .panel-resize {
   right: -7px;

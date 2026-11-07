@@ -145,7 +145,11 @@ export function AppMenu(): React.JSX.Element {
 
       {info && (
         <div className="am-stats">
-          <span>{info.memoryMB.toLocaleString()} MB</span>
+          {/* Mana: how much of the computer's memory Alchemy is using. */}
+          <span className="am-mana" title={`Alchemy is using ${info.memoryMB.toLocaleString()} MB of ${Math.round(info.totalMB / 1024)} GB`}>
+            <i style={{ width: `${Math.min(100, (info.memoryMB / Math.max(1, info.totalMB)) * 100 * 4)}%` }} />
+            <b>{info.memoryMB >= 1024 ? `${(info.memoryMB / 1024).toFixed(1)} GB` : `${info.memoryMB} MB`}</b>
+          </span>
           <span>
             {info.tabs} tab{info.tabs === 1 ? '' : 's'}
             {info.sleeping > 0 && ` · ${info.sleeping} asleep`}

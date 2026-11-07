@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 
 /**
  * Alchemy's own icon set. Drawn on a 24px grid with a 1.8 stroke, rounded joins and
@@ -17,8 +17,38 @@ export interface IconProps {
 
 export type Icon = (props: IconProps) => React.JSX.Element
 
+// ---- rune icon set (Settings → Appearance → Icons) --------------------------------------
+// Some icons can be drawn as an Elder Futhark rune instead, picked for meaning: othala
+// (home), dagaz (day → history), algiz (protection → shield), jera (the turning year →
+// reload)… Icons without a rune keep their normal drawing.
+
+let runesOn = false
+const runeListeners = new Set<() => void>()
+/** Turns the rune icon set on or off everywhere on this page. */
+export function setRuneIcons(on: boolean): void {
+  if (on === runesOn) return
+  runesOn = on
+  for (const fn of runeListeners) fn()
+}
+const subscribeRunes = (fn: () => void): (() => void) => {
+  runeListeners.add(fn)
+  return () => runeListeners.delete(fn)
+}
+const RUNES = new Map<Icon, string>()
+
 function icon(body: ReactNode): Icon {
-  return function AlchemyIcon({ size = 18, strokeWidth = 1.8, fill = 'none', className, style, title }: IconProps) {
+  const Comp = function AlchemyIcon({ size = 18, strokeWidth = 1.8, fill = 'none', className, style, title }: IconProps) {
+    const runes = useSyncExternalStore(subscribeRunes, () => runesOn)
+    const rune = runes ? RUNES.get(Comp) : undefined
+    if (rune)
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" className={className} style={{ flexShrink: 0, ...style }} aria-hidden={!title} role={title ? 'img' : undefined}>
+          {title && <title>{title}</title>}
+          <text x="12" y="18.5" textAnchor="middle" fontSize="19" fill="currentColor" fontFamily="'Segoe UI Historic', 'Noto Sans Runic', serif">
+            {rune}
+          </text>
+        </svg>
+      )
     return (
       <svg
         width={size}
@@ -39,6 +69,7 @@ function icon(body: ReactNode): Icon {
       </svg>
     )
   }
+  return Comp
 }
 
 /** A decagon like the logo's outer ring, centered at 12,12. */
@@ -315,6 +346,19 @@ export const Onion = icon(
     <path d="M12 6.2c-4.2 1.3-7 4.2-7 7.7 0 3.6 3.1 6.1 7 6.1s7-2.5 7-6.1c0-3.5-2.8-6.4-7-7.7z" />
     <path d="M12 9.6c-2.4 1-3.9 2.6-3.9 4.5 0 2 1.7 3.4 3.9 3.4s3.9-1.4 3.9-3.4c0-1.9-1.5-3.5-3.9-4.5z" />
     <path d="M12 6.2V4.5c0-1 .7-1.7 1.8-2" />
+  </>
+)
+export const Mic = icon(
+  <>
+    <rect x="9" y="3.5" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v3" />
+  </>
+)
+/** Translate: an "A" and a character, side by side. */
+export const Languages = icon(
+  <>
+    <path d="M4 5.5h8M8 3.5v2M10.5 5.5c-.6 3.6-3 6.3-6.5 7.5M6 8.5c1 2 2.6 3.5 4.8 4.3" />
+    <path d="M12.5 20.5l4-9 4 9M14 17.5h5" />
   </>
 )
 export const Power = icon(<path d="M12 3.5V11M7 6.5a7.5 7.5 0 1 0 10 0" />)
@@ -833,3 +877,32 @@ export function EngineIcon({ id, size = 16 }: { id: string; size?: number }): Re
     </svg>
   )
 }
+
+// Runes for the icon set, chosen for meaning (see setRuneIcons above).
+for (const [i, rune] of [
+  [ArrowLeft, 'ᚲ'],
+  [ArrowRight, 'ᚦ'],
+  [RotateCw, 'ᛃ'],
+  [Plus, '᛭'],
+  [X, 'ᚷ'],
+  [Search, 'ᛈ'],
+  [Star, 'ᛊ'],
+  [Bookmark, 'ᛒ'],
+  [Clock, 'ᛞ'],
+  [Download, 'ᛦ'],
+  [Shield, 'ᛉ'],
+  [ShieldCheck, 'ᛉ'],
+  [Lock, 'ᚾ'],
+  [Pin, 'ᛁ'],
+  [Settings, 'ᛗ'],
+  [Puzzle, 'ᛝ'],
+  [Volume2, 'ᚹ'],
+  [Columns2, 'ᛤ'],
+  [AppWindow, 'ᛟ'],
+  [Layers, 'ᛇ'],
+  [Folder, 'ᚠ'],
+  [Moon, 'ᛜ'],
+  [Printer, 'ᚱ'],
+  [Code, 'ᛣ']
+] as [Icon, string][])
+  RUNES.set(i, rune)

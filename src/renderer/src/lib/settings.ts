@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { setRuneIcons } from './icons'
 import { baseColor, THEME_PRESETS, type Settings, type ThemePreset, type Workspace } from '@shared/types'
 import { api } from './api'
 import { inkOn, readableOn } from './color'
@@ -36,7 +37,20 @@ function applyTheme(): void {
   root.dataset.compact = String(settings.appearance.compactTabs)
   root.dataset.font = settings.appearance.font ?? 'inter'
   root.dataset.contrast = String(!!settings.appearance.highContrast)
+  root.dataset.motion = settings.appearance.reduceMotion ? 'reduced' : 'full'
+  setRuneIcons(settings.appearance.iconSet === 'runes')
+  root.dataset.material = context.private ? 'solid' : (settings.appearance.material ?? 'solid')
+  // Switching light/dark or the accent fades the colors over instead of snapping.
+  const key = `${mode}|${accent}|${dark}`
+  if (lastThemeKey && key !== lastThemeKey && !settings.appearance.reduceMotion) {
+    root.classList.add('theme-fade')
+    clearTimeout(fadeTimer)
+    fadeTimer = setTimeout(() => root.classList.remove('theme-fade'), 450)
+  }
+  lastThemeKey = key
 }
+let lastThemeKey = ''
+let fadeTimer: ReturnType<typeof setTimeout> | undefined
 
 export function currentWorkspace(): Workspace | undefined {
   const { settings, context } = useSettings.getState()

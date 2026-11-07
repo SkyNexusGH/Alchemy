@@ -5,6 +5,7 @@ import { hostOf, toUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { Check, ChevronDown, EngineIcon, Globe, Onion, Plus, Search, VenetianMask, X } from '../lib/icons'
 import { backgroundUrl, saveSettings, useSettings } from '../lib/settings'
+import { WidgetBoard } from './Widgets'
 import { Favicon, setPageIcon } from '../lib/ui'
 
 document.title = 'New Tab'
@@ -61,6 +62,9 @@ export default function NewTab(): React.JSX.Element {
             <div>
               {isTor ? (
                 <>
+                  <button className="hide-ip-open tor-identity" onClick={() => void api.invoke('tor:newIdentity')}>
+                    New identity
+                  </button>
                   <b>You’re using Alchemy Tor</b>
                   <p>
                     This window goes through the Tor network, so sites and your internet provider can’t see your real IP
@@ -117,6 +121,7 @@ export default function NewTab(): React.JSX.Element {
             </button>
           </div>
         )}
+        {!isPrivate && <WidgetBoard />}
       </div>
 
       {adding && (
@@ -394,7 +399,10 @@ function Clock({ now, style }: { now: Date; style: string }): React.JSX.Element 
         ))}
         {hand(h * 30, 24, 3.4, 'hour')}
         {hand(m * 6, 35, 2.2, 'minute')}
-        {hand(s * 6, 38, 1, 'second')}
+        {/* The second hand sweeps smoothly: one turn a minute, started at the current second. */}
+        <g className="second-sweep" style={{ animationDelay: `-${s + now.getMilliseconds() / 1000}s` }}>
+          <line className="second" x1="50" y1="58" x2="50" y2="12" strokeWidth={1} strokeLinecap="round" />
+        </g>
         <circle cx="50" cy="50" r="2.4" className="pin" />
       </svg>
     )

@@ -10,8 +10,10 @@ import {
   type UiFont,
   type Settings as S,
   type UpdateState,
-  type Workspace
+  type Workspace,
+  type AegisStats
 } from '@shared/types'
+import { CompanyBubbles, SavedTiles, TopSites, WeekChart } from './AegisStats'
 import { api } from '../lib/api'
 import { inkOn } from '../lib/color'
 import {
@@ -43,7 +45,7 @@ import {
 import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { Select } from '../lib/Select'
 import { presetThumb, saveAppearance, saveSettings, useSettings } from '../lib/settings'
-import { BrandLogo, setPageIcon } from '../lib/ui'
+import { BrandLogo, Favicon, setPageIcon } from '../lib/ui'
 import { hostOf } from '@shared/url'
 import { ClearDataDialog } from './ClearDataDialog'
 
@@ -95,7 +97,20 @@ export default function Settings(): React.JSX.Element {
     [rows, q]
   )
 
-  if (!s) return <div className="settings" />
+  if (!s)
+    return (
+      <div className="settings">
+        <nav className="set-nav">
+          {Array.from({ length: 9 }, (_, i) => (
+            <span key={i} className="shimmer" style={{ height: 30, marginBottom: 6 }} />
+          ))}
+        </nav>
+        <main className="set-main">
+          <span className="shimmer" style={{ display: 'block', width: 180, height: 26, marginBottom: 22 }} />
+          <span className="shimmer" style={{ display: 'block', height: 320, borderRadius: 14 }} />
+        </main>
+      </div>
+    )
   const current = CATEGORIES.find((c) => c.id === category) ?? CATEGORIES[0]
 
   return (
@@ -194,6 +209,25 @@ function GroupedRows({ rows }: { rows: Row[] }): React.JSX.Element {
         </section>
       ))}
     </>
+  )
+}
+
+function FeedsEditor({ feeds, onSave }: { feeds: string[]; onSave: (feeds: string[]) => void }): React.JSX.Element {
+  const [text, setText] = useState(feeds.join('\n'))
+  const clean = text
+    .split(/\s+/)
+    .map((l) => l.trim())
+    .filter((l) => /^https?:\/\//.test(l))
+  const changed = clean.join('|') !== feeds.join('|')
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <textarea className="field" rows={4} value={text} spellCheck={false} onChange={(e) => setText(e.target.value)} style={{ fontFamily: 'var(--mono, monospace)', fontSize: 12 }} />
+      {changed && (
+        <button className="btn small primary" style={{ justifySelf: 'start' }} onClick={() => onSave(clean)}>
+          Save feeds
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -298,7 +332,7 @@ const FONTS: { value: UiFont; label: string; family: string }[] = [
 function useSettingRows(s: S | null, onClear: () => void): Row[] {
   const [filters, setFilters] = useState<FilterStatus | null>(null)
   const [exceptions, setExceptions] = useState<string[]>([])
-  const [stats, setStats] = useState<{ blocked: number; since: number; ads: number; trackers: number } | null>(null)
+  const [stats, setStats] = useState<AegisStats | null>(null)
   const [downloadsDir, setDownloadsDir] = useState('')
   const [usage, setUsage] = useState<{ memoryMB: number; tabs: number; sleeping: number; totalGB: number } | null>(null)
   // Whether the graphics card is in use right now (the setting applies after a restart).
@@ -323,7 +357,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
   useEffect(() => {
     api.invoke<FilterStatus>('filters:status').then(setFilters)
     api.invoke<string[]>('shields:exceptions').then(setExceptions)
-    api.invoke<{ blocked: number; since: number; ads: number; trackers: number }>('shields:stats').then(setStats)
+    api.invoke<AegisStats>('shields:stats').then(setStats)
     api.invoke<{ downloads: string; gpu: boolean }>('app:info').then((i) => {
       setDownloadsDir(i.downloads)
       setGpuNow(i.gpu)
@@ -429,6 +463,61 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'appearance',
+      label: 'Window material',
+      hint:
+        a.material === 'mica'
+          ? 'Mica: the tabs and toolbar softly take on your desktop’s colours (Windows 11).'
+          : a.material === 'acrylic'
+            ? 'Acrylic: the tabs and toolbar are see-through and blurred, showing what’s behind the window (Windows 11).'
+            : a.material === 'glass'
+              ? 'Frosted glass: your new tab wallpaper, blurred, behind the tabs and toolbar.'
+              : 'Solid colours.',
+      keywords: 'mica acrylic frosted glass blur transparent material windows 11',
+      control: (
+        <Segmented
+          value={a.material ?? 'solid'}
+          options={[
+            { value: 'solid', label: 'Solid' },
+            { value: 'mica', label: 'Mica' },
+            { value: 'acrylic', label: 'Acrylic' },
+            { value: 'glass', label: 'Frosted glass' }
+          ]}
+          onChange={(material) => saveAppearance({ material })}
+        />
+      )
+    },
+    {
+      category: 'appearance',
+      label: 'Site-tinted toolbar',
+      hint: 'The toolbar takes on a hint of the colour of the site you’re on, when the site has one.',
+      keywords: 'tint site colour color toolbar theme-color',
+      control: <Switch on={!!a.siteTint} onChange={(siteTint) => saveAppearance({ siteTint })} />
+    },
+    {
+      category: 'appearance',
+      label: 'Icons',
+      hint: 'Runes swaps many icons for Elder Futhark runes picked for their meaning: othala for home, algiz for the shield, jera for reload.',
+      keywords: 'icons runes rune futhark magic icon set',
+      control: (
+        <Segmented
+          value={a.iconSet ?? 'standard'}
+          options={[
+            { value: 'standard', label: 'Standard' },
+            { value: 'runes', label: 'Runes ᛟ' }
+          ]}
+          onChange={(iconSet) => saveAppearance({ iconSet })}
+        />
+      )
+    },
+    {
+      category: 'appearance',
+      label: 'Reduce motion',
+      hint: 'Turns off popping tabs, springy menus, ripples, confetti and other movement. Things just appear.',
+      keywords: 'animation motion accessibility calm reduce',
+      control: <Switch on={!!a.reduceMotion} onChange={(reduceMotion) => saveAppearance({ reduceMotion })} />
+    },
+    {
+      category: 'appearance',
       label: 'Interface font',
       hint: 'The font used for tabs, menus and Alchemy’s own pages.',
       keywords: 'typeface text letters',
@@ -458,8 +547,92 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       hint: 'Ctrl+Shift+B. Appears once you have bookmarks on it.',
       control: <Switch on={s.showBookmarksBar} onChange={(v) => set({ showBookmarksBar: v })} />
     },
+    {
+      category: 'appearance',
+      label: 'Bookmarks bar style',
+      hint: 'Pills are rounded; Icons only fits more; Dock grows icons as you move across them.',
+      keywords: 'bookmarks bar pills icons dock magnify style',
+      control: (
+        <Segmented
+          value={a.bookmarkStyle ?? 'classic'}
+          options={[
+            { value: 'classic', label: 'Classic' },
+            { value: 'pills', label: 'Pills' },
+            { value: 'icons', label: 'Icons only' },
+            { value: 'dock', label: 'Dock' }
+          ]}
+          onChange={(bookmarkStyle) => saveAppearance({ bookmarkStyle })}
+        />
+      )
+    },
 
     // ---- new tab ----
+    {
+      category: 'newtab',
+      label: 'Widgets',
+      hint: 'Shown under your shortcuts on the new tab page. Click to turn each one on or off.',
+      keywords: 'widgets weather quote todo to-do news focus timer pomodoro music now playing countdown stats recent',
+      wide: true,
+      control: (
+        <div className="chips">
+          {(
+            [
+              ['weather', 'Weather'],
+              ['quote', 'Quote of the day'],
+              ['todo', 'To do'],
+              ['focus', 'Focus timer'],
+              ['music', 'Now playing'],
+              ['stats', 'Aegis stats'],
+              ['countdown', 'Countdown'],
+              ['recent', 'Pick up where you left off'],
+              ['news', 'News']
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`chip toggle${s.widgets?.[id] ? ' on' : ''}`}
+              aria-pressed={!!s.widgets?.[id]}
+              onClick={() => set({ widgets: { ...s.widgets, [id]: !s.widgets?.[id] } })}
+            >
+              {s.widgets?.[id] && <Check size={12} strokeWidth={3} />}
+              {label}
+            </button>
+          ))}
+        </div>
+      )
+    },
+    ...(s.widgets?.weather
+      ? [
+          {
+            category: 'newtab' as const,
+            label: 'Temperature',
+            hint: s.weatherPlace ? `Weather for ${s.weatherPlace.name}. Change the city by clicking its name on the widget.` : 'Type your city on the weather widget.',
+            control: (
+              <Segmented
+                value={s.tempUnit ?? 'C'}
+                options={[
+                  { value: 'C', label: '°C' },
+                  { value: 'F', label: '°F' }
+                ]}
+                onChange={(tempUnit) => set({ tempUnit })}
+              />
+            )
+          }
+        ]
+      : []),
+    ...(s.widgets?.news
+      ? [
+          {
+            category: 'newtab' as const,
+            label: 'News feeds',
+            hint: 'RSS or Atom feed addresses, one per line. Headlines are fetched straight from these sites.',
+            keywords: 'rss atom feeds headlines',
+            wide: true,
+            control: <FeedsEditor feeds={s.newsFeeds ?? []} onSave={(newsFeeds) => set({ newsFeeds })} />
+          }
+        ]
+      : []),
     {
       category: 'newtab',
       label: 'Show the clock',
@@ -523,6 +696,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     // ---- Aegis blocker (ad blocking) ----
     {
       category: 'adblock',
+      group: 'Blocker',
       label: 'Aegis blocker',
       hint: `Blocks ads and trackers. ${listsLine}`,
       keywords: 'aegis ad blocking adblock ads trackers ublock shield filter crypto miner mining',
@@ -542,12 +716,33 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'adblock',
+      group: 'Blocker',
       label: 'Hide cookie banners',
       hint: 'Removes “accept cookies” popups using uBlock’s annoyance lists.',
       control: <Switch on={s.blockCookieBanners} onChange={(v) => set({ blockCookieBanners: v })} />
     },
     {
       category: 'adblock',
+      group: 'Blocker',
+      label: 'Shield count style',
+      hint: 'How the shield in the address bar shows what was blocked on a page.',
+      keywords: 'shield badge count ring pill number',
+      control: (
+        <Segmented
+          value={a.countStyle ?? 'pill'}
+          options={[
+            { value: 'pill', label: 'Pill' },
+            { value: 'badge', label: 'Badge' },
+            { value: 'ring', label: 'Ring' },
+            { value: 'none', label: 'Hidden' }
+          ]}
+          onChange={(countStyle) => saveAppearance({ countStyle })}
+        />
+      )
+    },
+    {
+      category: 'adblock',
+      group: 'Blocker',
       label: 'Count ads and trackers separately',
       hint: 'The shield, its panel and the Alchemy menu show ads and trackers as two numbers. Anything on EasyList counts as an ad; everything else blocked counts as a tracker.',
       keywords: 'split ads trackers count separate shield',
@@ -555,34 +750,87 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'adblock',
-      label: 'Blocked so far',
-      hint: stats ? `Since ${new Date(stats.since).toLocaleDateString([], { month: 'long', day: 'numeric' })}` : '',
-      keywords: 'stats count',
+      group: 'Blocker',
+      label: 'Protection level',
+      hint:
+        s.aegisLevel === 'chill'
+          ? 'Chill: blocks ads only. Sites behave most like they would without a blocker.'
+          : s.aegisLevel === 'extreme'
+            ? 'Extreme: blocks ads, trackers, cookie banners and other annoyances. A few sites may need Aegis turned off.'
+            : 'Comfort: blocks ads and trackers. The best balance for most people.',
+      keywords: 'level chill comfort extreme strict relaxed',
       control: (
-        <span className="stat-number">
-          {(stats?.blocked ?? 0).toLocaleString()}
-          {s.splitBlockCounts && stats && (
-            <small>
-              {stats.ads.toLocaleString()} ads · {stats.trackers.toLocaleString()} trackers since you turned on separate counts
-            </small>
-          )}
-          <small>~{Math.max(0, Math.round(((stats?.blocked ?? 0) * 0.05) / 60))} min saved</small>
-        </span>
+        <Segmented
+          value={s.aegisLevel ?? 'comfort'}
+          options={[
+            { value: 'chill', label: 'Chill' },
+            { value: 'comfort', label: 'Comfort' },
+            { value: 'extreme', label: 'Extreme' }
+          ]}
+          onChange={(aegisLevel) => set({ aegisLevel })}
+        />
       )
     },
+    ...(stats
+      ? [
+          {
+            category: 'adblock' as const,
+            group: 'Your stats',
+            label: `${stats.blocked.toLocaleString()} blocked since ${new Date(stats.since).toLocaleDateString([], { month: 'long', day: 'numeric' })}`,
+            hint:
+              s.splitBlockCounts && stats.ads + stats.trackers > 0
+                ? `${stats.ads.toLocaleString()} ads and ${stats.trackers.toLocaleString()} trackers since you turned on separate counts. Savings are estimates.`
+                : 'Savings are estimates.',
+            keywords: 'stats blocked saved time data battery',
+            wide: true,
+            control: <SavedTiles stats={stats} />
+          },
+          {
+            category: 'adblock' as const,
+            group: 'Your stats',
+            label: 'The last 7 days',
+            keywords: 'chart week day blocked',
+            wide: true,
+            control: <WeekChart stats={stats} />
+          },
+          {
+            category: 'adblock' as const,
+            group: 'Your stats',
+            label: 'Who tried to track you',
+            hint: 'Companies whose ads and trackers Aegis blocked the most.',
+            keywords: 'companies trackers google meta amazon bubbles',
+            wide: true,
+            control: <CompanyBubbles stats={stats} />
+          },
+          {
+            category: 'adblock' as const,
+            group: 'Your stats',
+            label: 'Most-blocked sites',
+            hint: 'Your sites with the most ads and trackers.',
+            keywords: 'sites most blocked',
+            wide: true,
+            control: <TopSites stats={stats} />
+          }
+        ]
+      : []),
     ...(exceptions.length
       ? [
           {
             category: 'adblock' as const,
-            label: 'Sites with protections off',
-            hint: 'Turned off from the shield in the address bar.',
+            group: 'Sites with Aegis off',
+            label: 'Turned off from the shield in the address bar',
+            hint: 'Click ✕ to turn Aegis back on for a site.',
             wide: true,
             control: (
-              <div className="chips">
+              <div className="allow-cards">
                 {exceptions.map((site) => (
-                  <button key={site} className="chip" title="Turn protections back on" onClick={() => api.invoke('shields:set', site, true)}>
-                    {site} <X size={12} />
-                  </button>
+                  <div key={site} className="allow-card">
+                    <Favicon url={`https://${site}`} size={18} />
+                    <span>{site}</span>
+                    <button className="icon-btn" title="Turn Aegis back on here" onClick={() => api.invoke('shields:set', site, true)}>
+                      <X size={13} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )
@@ -781,10 +1029,42 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     // ---- tabs & sidebar ----
     {
       category: 'tabs',
+      label: 'Tab layout',
+      hint: 'Vertical tabs run down the side with their full titles, handy with lots of tabs.',
+      keywords: 'vertical tabs side layout horizontal',
+      control: (
+        <Segmented
+          value={s.tabLayout ?? 'horizontal'}
+          options={[
+            { value: 'horizontal', label: 'Across the top' },
+            { value: 'vertical', label: 'Vertical' }
+          ]}
+          onChange={(tabLayout) => set({ tabLayout })}
+        />
+      )
+    },
+    {
+      category: 'tabs',
+      label: 'Sidebar side',
+      hint: 'Which side of the window the sidebar and sidebar sites go on.',
+      keywords: 'sidebar right left side position',
+      control: (
+        <Segmented
+          value={s.sidebarSide ?? 'left'}
+          options={[
+            { value: 'left', label: 'Left' },
+            { value: 'right', label: 'Right' }
+          ]}
+          onChange={(sidebarSide) => set({ sidebarSide })}
+        />
+      )
+    },
+    {
+      category: 'tabs',
       label: 'Sidebar',
       hint:
         s.sidebar === 'hidden'
-          ? 'Hidden Sidebar: tucked away until you move the mouse to the left edge of the window, then it slides out.'
+          ? 'Hidden Sidebar: tucked away until you move the mouse to the edge of the window, then it slides out.'
           : s.sidebar === 'off'
             ? 'The sidebar with your workspaces and sidebar sites is turned off.'
             : 'Your workspaces and sidebar sites, down the left side.',

@@ -35,12 +35,20 @@ html[data-page='overlay'] body {
   border-radius: calc(var(--r) + 4px);
   box-shadow: var(--shadow);
   overflow: hidden;
-  animation: pop 130ms var(--ease);
+  transform-origin: top center;
+  animation: pop 260ms var(--ease);
 }
 @keyframes pop {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: scale(0.92) translateY(-6px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+  100% {
+    transform: none;
   }
 }
 
@@ -79,6 +87,7 @@ html[data-page='overlay'] body {
   place-items: center;
   width: 16px;
   flex-shrink: 0;
+  color: var(--text-2);
 }
 .menu-label {
   flex: 1;
@@ -107,6 +116,17 @@ html[data-page='overlay'] body {
 
 /* ---- omnibox suggestions ---- */
 
+.sugg-answer {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  font-weight: 800;
+  font-size: 13px;
+}
 .suggestions {
   padding: 6px;
 }
@@ -289,6 +309,27 @@ kbd {
   text-overflow: ellipsis;
   color: var(--text-3);
   font-size: 12px;
+}
+.pal-actions {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+.pal-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.pal-actions button:hover {
+  background: var(--press);
+  color: var(--text);
+}
+.pal-actions + .pal-detail {
+  display: none;
 }
 .pal-keys {
   display: flex;
@@ -609,11 +650,34 @@ kbd {
   background: var(--surface-2);
   overflow: hidden;
 }
+.dl-progress {
+  height: 6px;
+}
 .dl-progress > div {
+  position: relative;
   height: 100%;
   border-radius: 4px;
   background: var(--accent);
+  box-shadow: 0 0 8px -1px var(--accent);
   transition: width 250ms var(--ease);
+  overflow: hidden;
+}
+/* A shine that runs along the filled part while downloading. */
+.dl-row.progressing .dl-progress > div::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: dl-shine 1.4s linear infinite;
+}
+@keyframes dl-shine {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
 }
 .dl-progress > div.indeterminate {
   animation: indet 1.2s var(--ease) infinite;
@@ -886,6 +950,25 @@ kbd {
   background: var(--surface);
   color: var(--text-2);
 }
+/* The mana bar: memory in use, glowing blue. Full at a quarter of the computer's RAM. */
+.am-stats .am-mana {
+  position: relative;
+  min-width: 96px;
+  overflow: hidden;
+  background: #0c1830;
+  color: #cfe6ff;
+}
+.am-mana i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #1d4ed8, #60a5fa);
+  box-shadow: 0 0 10px #60a5fa;
+  transition: width 400ms var(--ease);
+}
+.am-mana b {
+  position: relative;
+  font-weight: 650;
+}
 .am-stats span.blocked {
   background: var(--accent-softer);
   color: var(--accent-fg);
@@ -974,6 +1057,69 @@ kbd {
   from {
     opacity: 0;
   }
+}
+/* Ctrl+Tab switcher */
+.overlay-root.dim:has(.switcher) {
+  align-items: center;
+}
+.switcher {
+  display: flex;
+  gap: 14px;
+  max-width: 100%;
+  padding: 18px;
+  overflow-x: auto;
+  border-radius: calc(var(--r) + 8px);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--border-2);
+  animation: pop 220ms var(--ease);
+}
+.switcher::-webkit-scrollbar {
+  display: none;
+}
+.sw-card {
+  flex: 0 0 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+  border-radius: calc(var(--r) + 4px);
+  text-align: left;
+}
+.sw-card:hover {
+  background: var(--hover);
+}
+.sw-card.on {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-fg);
+}
+.sw-pic {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--page);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.sw-pic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.sw-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12.5px;
+  font-weight: 560;
+}
+.sw-title span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .tc-head {
   display: flex;

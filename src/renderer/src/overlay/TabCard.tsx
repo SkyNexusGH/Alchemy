@@ -102,3 +102,63 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
     </div>
   )
 }
+
+/** The card shown when hovering a bookmark: a picture of the page (when it's open in a tab), its name and address. */
+export function BookmarkCard({ url, title, favicon, panelId }: { url: string; title: string; favicon: string | null; panelId?: string }): React.JSX.Element {
+  const [preview, setPreview] = useState<string | null>(null)
+  const card = useRef<HTMLDivElement>(null)
+  const fit = (): void => {
+    if (card.current) void api.invoke('overlay:resize', card.current.offsetHeight + 28)
+  }
+  useEffect(() => {
+    // Sidebar sites have their own pictures (taken when last closed).
+    void api.invoke<string | null>(panelId ? 'panel:preview' : 'bookmark:preview', panelId ?? url).then(setPreview)
+  }, [url, panelId])
+  useLayoutEffect(fit)
+  return (
+    <div className="panel tab-card" ref={card}>
+      {preview && <img className="tc-preview" src={preview} alt="" onLoad={fit} />}
+      <div className="tc-head">
+        <Favicon src={favicon} url={url} size={18} />
+        <div className="tc-title">{title || prettyUrl(url)}</div>
+      </div>
+      <div className="tc-url">{prettyUrl(url)}</div>
+    </div>
+  )
+}
+
+/** Ctrl+Tab: your tabs, most recently used first, as pictures. Let go of Ctrl to switch. */
+export function Switcher({
+  items,
+  index
+}: {
+  items: { id: number; title: string; favicon: string | null; url: string }[]
+  index: number
+}): React.JSX.Element {
+  const [pics, setPics] = useState<Record<number, string | null>>({})
+  const list = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    for (const it of items) {
+      if (it.id in pics) continue
+      void api.invoke<string | null>('tab:preview', it.id).then((p) => setPics((cur) => ({ ...cur, [it.id]: p })))
+    }
+  }, [items])
+  useEffect(() => {
+    list.current?.children[index]?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [index])
+  return (
+    <div className="switcher" ref={list}>
+      {items.map((it, i) => (
+        <button key={it.id} className={`sw-card${i === index ? ' on' : ''}`} onClick={() => void api.invoke('switcher:pick', it.id)}>
+          <span className="sw-pic">
+            {pics[it.id] ? <img src={pics[it.id]!} alt="" /> : <Favicon src={it.favicon} url={it.url} size={34} />}
+          </span>
+          <span className="sw-title">
+            <Favicon src={it.favicon} url={it.url} size={14} />
+            <span>{it.title || prettyUrl(it.url)}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}

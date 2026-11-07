@@ -60,7 +60,7 @@ export function addBookmark(input: {
   return b
 }
 
-export function updateBookmark(id: string, patch: Partial<Pick<Bookmark, 'title' | 'url' | 'parentId'>>): void {
+export function updateBookmark(id: string, patch: Partial<Pick<Bookmark, 'title' | 'url' | 'parentId' | 'icon'>>): void {
   const b = store.data.items.find((x) => x.id === id)
   if (!b || b.parentId === null) return
   if (patch.parentId && (patch.parentId === id || isDescendant(patch.parentId, id))) delete patch.parentId

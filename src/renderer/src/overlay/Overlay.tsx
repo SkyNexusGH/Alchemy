@@ -1,4 +1,5 @@
 import './overlay.css'
+import * as Icons from '../lib/icons'
 import {
   Bookmark,
   Check,
@@ -31,9 +32,9 @@ import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { useSettings } from '../lib/settings'
 import { AppMenu } from './AppMenu'
 import { Eyedropper } from './Eyedropper'
-import { TabCard } from './TabCard'
+import { BookmarkCard, Switcher, TabCard } from './TabCard'
 import { Palette } from './Palette'
-import { Favicon, formatBytes } from '../lib/ui'
+import { Favicon, formatBytes, timeLeft } from '../lib/ui'
 
 /**
  * Popups that must float above web pages (the omnibox dropdown, the downloads panel)
@@ -45,7 +46,7 @@ export default function Overlay(): React.JSX.Element {
 
   return (
     <div
-      className={`overlay-root${payload?.kind === 'menu' ? ' full' : ''}${payload?.kind === 'palette' ? ' full dim' : ''}`}
+      className={`overlay-root${payload?.kind === 'menu' ? ' full' : ''}${payload?.kind === 'palette' || payload?.kind === 'switcher' ? ' full dim' : ''}`}
       onMouseDown={(e) => e.target === e.currentTarget && api.invoke('overlay:hide')}
     >
       {payload?.kind === 'omnibox' && <Suggestions items={payload.items} selected={payload.selected} />}
@@ -56,6 +57,9 @@ export default function Overlay(): React.JSX.Element {
       {payload?.kind === 'palette' && <PaletteHost />}
       {payload?.kind === 'app' && <AppMenu />}
       {payload?.kind === 'tabcard' && <TabCard key={payload.tabId} tabId={payload.tabId} />}
+      {payload?.kind === 'bmcard' && <BookmarkCard key={payload.url} {...payload} />}
+      {payload?.kind === 'panelcard' && <BookmarkCard key={payload.id} url={payload.url} title={payload.title} favicon={null} panelId={payload.id} />}
+      {payload?.kind === 'switcher' && <Switcher items={payload.items} index={payload.index} />}
       {payload?.kind === 'eyedropper' && <Eyedropper key={payload.image.length} image={payload.image} />}
       {payload?.kind === 'menu' && <MenuHost key={`${payload.x},${payload.y}`} items={payload.items} x={payload.x} y={payload.y} />}
     </div>
@@ -71,6 +75,39 @@ function PaletteHost(): React.JSX.Element {
 // ---- menus -------------------------------------------------------------------------
 
 /** Alchemy's own menus: right-click, app menu, tab menu. Keyboard: arrows, Enter, Esc. */
+/** Icons beside right-click menu items, matched by the item's label. */
+const MENU_ICONS: [RegExp, Icons.Icon][] = [
+  [/^Back$/, Icons.ArrowLeft],
+  [/^Forward$/, Icons.ArrowRight],
+  [/^Reload$/, Icons.RotateCw],
+  [/Masked Mode/, Icons.VenetianMask],
+  [/Alchemy Tor/, Icons.Onion],
+  [/new window/i, Icons.AppWindow],
+  [/^Open .*new tab|^New tab/, Icons.ExternalLink],
+  [/^Copy link|^Copy image address/, Icons.Globe],
+  [/^Copy image$|^Copy$/, Icons.Copy],
+  [/^Cut$/, Icons.Copy],
+  [/^Paste/, Icons.FileDown],
+  [/^Save image/, Icons.Download],
+  [/^Print/, Icons.Printer],
+  [/^Inspect|^View page source/, Icons.Code],
+  [/^Duplicate/, Icons.Layers],
+  [/^Pin|^Unpin/, Icons.Pin],
+  [/^Close/, Icons.X],
+  [/^Reopen closed tab/, Icons.RotateCcw],
+  [/sleep/i, Icons.Moon],
+  [/[Ss]plit view/, Icons.Columns2],
+  [/group/i, Icons.Layers],
+  [/workspace/i, Icons.LayoutGrid],
+  [/^Mute|^Unmute/, Icons.Volume2],
+  [/^Undo|^Redo/, Icons.RotateCcw],
+  [/^Select all/, Icons.TextSearch],
+  [/dictionary/i, Icons.Bookmark],
+  [/^Search /, Icons.Search],
+  [/[Bb]ookmark/, Icons.Star]
+]
+const menuIcon = (label: string): Icons.Icon | undefined => MENU_ICONS.find(([re]) => re.test(label))?.[1]
+
 function MenuHost({ items, x, y }: { items: MenuModel[]; x: number; y: number }): React.JSX.Element {
   useDismiss()
   const choose = (item: MenuModel): void => {
@@ -159,7 +196,14 @@ function MenuList({
               {item.color ? (
                 <i className="menu-dot" style={{ background: item.color }} />
               ) : (
-                (item.type === 'checkbox' || item.type === 'radio') && item.checked && <Check size={14} strokeWidth={2.4} />
+                (item.type === 'checkbox' || item.type === 'radio') && item.checked ? (
+                  <Check size={14} strokeWidth={2.4} />
+                ) : (
+                  (() => {
+                    const I = menuIcon(item.label ?? '')
+                    return I ? <I size={14} /> : null
+                  })()
+                )
               )}
             </span>
             <span className="menu-label">{item.label}</span>
@@ -444,7 +488,9 @@ function Suggestions({ items, selected }: { items: Suggestion[]; selected: numbe
           }}
         >
           <span className="sugg-icon">
-            {s.kind === 'search' || s.kind === 'suggest' ? (
+            {s.kind === 'answer' ? (
+              <span className="sugg-answer">{s.favicon ?? '='}</span>
+            ) : s.kind === 'search' || s.kind === 'suggest' ? (
               <Search size={15} />
             ) : (
               <Favicon src={s.favicon} url={/^https?:/.test(s.value) ? s.value : `https://${s.value}`} size={16} />
@@ -506,7 +552,7 @@ function DownloadRow({ d }: { d: DownloadState }): React.JSX.Element {
   const running = d.status === 'progressing' || d.status === 'paused'
   const status =
     d.status === 'progressing'
-      ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''} · ${formatBytes(d.speed)}/s`
+      ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''} · ${formatBytes(d.speed)}/s${timeLeft(d.received, d.total, d.speed) ? ` · ${timeLeft(d.received, d.total, d.speed)}` : ''}`
       : d.status === 'paused'
         ? `Paused · ${formatBytes(d.received)} of ${formatBytes(d.total)}`
         : d.status === 'completed'

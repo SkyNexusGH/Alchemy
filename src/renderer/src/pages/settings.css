@@ -235,6 +235,11 @@ html[data-page='settings'] body {
   background: var(--surface-2);
   font-size: 12px;
 }
+.chip.toggle.on {
+  background: var(--accent-soft);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent-fg);
+}
 .chip:hover {
   background: var(--press);
 }
@@ -428,4 +433,148 @@ html[data-page='settings'] body {
   height: 28px;
   width: 260px;
   border-radius: 999px;
+}
+
+/* ---- Aegis blocker stats (AegisStats.tsx) ---- */
+.ag-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.ag-tiles > div {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.ag-tiles b {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ag-tiles span:last-child {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.ag-emoji {
+  font-size: 18px;
+}
+.ag-week {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  height: 150px;
+}
+.ag-day {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  align-items: end;
+  gap: 4px;
+}
+.ag-day i {
+  width: 100%;
+  max-width: 44px;
+  border-radius: 6px 6px 2px 2px;
+  background: color-mix(in srgb, var(--accent-fg) 55%, transparent);
+  transition: height 400ms var(--ease);
+}
+.ag-day.today i {
+  background: var(--accent-fg);
+}
+.ag-n,
+.ag-label {
+  color: var(--text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ag-day.today .ag-label {
+  color: var(--text);
+  font-weight: 650;
+}
+.ag-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ag-bubble {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  border-radius: 50%;
+  background: hsl(var(--h) 70% 55% / 0.16);
+  box-shadow: inset 0 0 0 1.5px hsl(var(--h) 70% 60% / 0.7);
+  text-align: center;
+  line-height: 1.15;
+}
+.ag-bubble b {
+  font-size: 11.5px;
+  padding: 0 4px;
+}
+.ag-bubble span {
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.ag-sites {
+  display: grid;
+  gap: 8px;
+}
+.ag-site {
+  display: grid;
+  grid-template-columns: minmax(0, 160px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.ag-site-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ag-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.ag-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent-fg);
+}
+.ag-site-n {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ag-empty {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.allow-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+.allow-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 6px 8px 12px;
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: 12.5px;
+}
+.allow-card span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

@@ -6,6 +6,7 @@ import { registerIpc } from './ipc'
 import { initPanels } from './panels'
 import { initFilters } from './privacy/engine'
 import { onRequestBlocked, registerPrivacyIpc } from './privacy/network'
+import { onMilestone } from './privacy/shields'
 import { registerSchemePrivileges } from './protocol'
 import { setupBrowsingSession } from './sessions'
 import { loadSession, saveSessionNow, setSessionProvider } from './sessionstore'
@@ -38,13 +39,16 @@ if (!app.requestSingleInstanceLock()) {
     applyColorMode(getSettings().appearance.mode)
     let mode = getSettings().appearance.mode
     let compact = getSettings().appearance.compactTabs
+    let material = getSettings().appearance.material
+    repaintWindowChrome()
     onSettingsChanged((st) => {
       if (st.appearance.mode !== mode) applyColorMode((mode = st.appearance.mode))
       // Heavy Mode: background tabs run at full speed.
       for (const w of BrowserWin.all) for (const t of w.tabs) t.wc?.setBackgroundThrottling(!st.performance.heavy)
       // The native window buttons follow the tab strip's height.
-      if (st.appearance.compactTabs !== compact) {
+      if (st.appearance.compactTabs !== compact || st.appearance.material !== material) {
         compact = st.appearance.compactTabs
+        material = st.appearance.material
         repaintWindowChrome()
       }
     })
@@ -63,6 +67,8 @@ if (!app.requestSingleInstanceLock()) {
     // Extensions load before the first window so their content scripts see every tab.
     await initExtensions().catch((err) => console.error('[extensions] failed to start', err))
     onRequestBlocked((id, url, tracker) => tabsByContents.get(id)?.recordBlocked(url, tracker))
+    // Gold toast and confetti in the window you're using when Aegis passes 1,000, 10,000, …
+    onMilestone((n) => BrowserWin.focused()?.send('aegis:milestone', n))
     registerIpc()
     initPanels({
       onChange: () => {

@@ -82,3 +82,12 @@ export function formatBytes(n: number): string {
   const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), units.length - 1)
   return `${(n / 1024 ** i).toFixed(i ? 1 : 0)} ${units[i]}`
 }
+
+/** "1 min left", "40 s left" for a running download, or '' when it can't be told. */
+export function timeLeft(received: number, total: number, speed: number): string {
+  if (!total || !speed || received >= total) return ''
+  const secs = (total - received) / speed
+  if (secs < 60) return `${Math.max(1, Math.round(secs))} s left`
+  if (secs < 3600) return `${Math.round(secs / 60)} min left`
+  return `${Math.floor(secs / 3600)} h ${Math.round((secs % 3600) / 60)} min left`
+}

@@ -1,3 +1,4 @@
+import { pageLanguage } from './translate'
 import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
 import { join } from 'node:path'
@@ -69,6 +70,11 @@ export class Tab {
   devtools: WebContentsView | null = null
   workspaceId: string
   islandId: number | null
+  /** The page's declared language, and whether it's been translated. */
+  pageLang: string | null = null
+  translated = false
+  /** The page's theme-color, if it has one. */
+  themeColor: string | null = null
   blocked = 0
   /** Of the blocked requests, how many were trackers. */
   trackers = 0
@@ -284,6 +290,9 @@ export class Tab {
       zoom: wc && !wc.isDestroyed() ? wc.getZoomFactor() : 1,
       security: this.security(),
       bookmarked: isBookmarked(this.pageUrl()),
+      themeColor: this.themeColor,
+      pageLang: this.pageLang,
+      translated: this.translated,
       blocked: this.blocked,
       trackers: this.trackers,
       shields: shieldsEnabled(this.pageUrl()),
@@ -357,6 +366,8 @@ export class Tab {
         this.blocked = 0
         this.trackers = 0
         this.blockedHosts.clear()
+        this.pageLang = null
+        this.translated = false
       }
     })
     wc.on('did-start-loading', () => {
@@ -366,6 +377,13 @@ export class Tab {
     wc.on('did-stop-loading', () => {
       this.loading = false
       changed()
+      // The page's language, for the Translate button in the address bar.
+      if (/^https?:/.test(wc.getURL()))
+        void pageLanguage(wc).then((lang) => {
+          if (lang === this.pageLang) return
+          this.pageLang = lang
+          changed()
+        })
     })
     wc.on('did-navigate', (_e, url) => {
       const wasError = url.startsWith(ERROR_PAGE)
@@ -383,6 +401,10 @@ export class Tab {
       this.url = url
       record?.addVisit(url, wc.getTitle(), this.favicon)
       changed()
+    })
+    wc.on('did-change-theme-color', (_e, color) => {
+      this.themeColor = color
+      this.host.tabChanged(this)
     })
     wc.on('page-title-updated', (_e, title) => {
       this.title = title

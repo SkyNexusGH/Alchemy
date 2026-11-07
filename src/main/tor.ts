@@ -1,7 +1,7 @@
 import { app, session, type Session } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { createServer } from 'node:net'
+import { connect, createServer } from 'node:net'
 import { join } from 'node:path'
 import type { TorStatus } from '@shared/types'
 import { broadcast } from './broadcast'
@@ -28,6 +28,8 @@ export function torAvailable(): boolean {
 const status: TorStatus = { state: 'off', progress: 0, message: '', bridges: false }
 let proc: ChildProcess | null = null
 let port = 0
+/** Tor's control port, for "New identity" (fresh circuits). Only this app can use it: cookie auth. */
+let controlPort = 0
 let torSession: Session | null = null
 let fallbackTimer: NodeJS.Timeout | null = null
 
@@ -75,6 +77,8 @@ function writeTorrc(dataDir: string, bridges: boolean): string {
   const q = (path: string): string => JSON.stringify(path)
   const lines = [
     `SocksPort 127.0.0.1:${port}`,
+    `ControlPort 127.0.0.1:${controlPort}`,
+    'CookieAuthentication 1',
     `DataDirectory ${q(dataDir)}`,
     `GeoIPFile ${q(join(data, 'geoip'))}`,
     `GeoIPv6File ${q(join(data, 'geoip6'))}`,
@@ -145,6 +149,7 @@ export async function startTor(): Promise<void> {
     return
   }
   if (!port) port = await freePort()
+  if (!controlPort) controlPort = await freePort()
   // The session may have been made (pointing nowhere) before the port was known.
   await getTorSession().setProxy(proxyConfig())
   launch(getSettings().torBridges)
@@ -178,6 +183,38 @@ export function getTorSession(): Session {
   void ses.setProxy(proxyConfig())
   torSession = ses
   return ses
+}
+
+/**
+ * New identity: asks Tor for fresh circuits (a new exit, so sites see a different IP) and
+ * forgets the Tor windows' cookies and site data, like Tor Browser's New Identity.
+ */
+export async function newTorIdentity(): Promise<boolean> {
+  if (!proc || !controlPort) return false
+  const cookie = readFileSync(join(app.getPath('userData'), 'tor-data', 'control_auth_cookie')).toString('hex')
+  const ok = await new Promise<boolean>((resolve) => {
+    const sock = connect(controlPort, '127.0.0.1')
+    let reply = ''
+    const done = (v: boolean): void => {
+      sock.destroy()
+      resolve(v)
+    }
+    sock.setTimeout(4000, () => done(false))
+    sock.on('error', () => done(false))
+    sock.on('data', (d) => {
+      reply += d.toString()
+      // Two "250 OK"s: one for AUTHENTICATE, one for SIGNAL NEWNYM.
+      if ((reply.match(/^250 OK/gm) ?? []).length >= 2) done(true)
+      else if (/^5\d\d /m.test(reply)) done(false)
+    })
+    sock.write(`AUTHENTICATE ${cookie}\r\nSIGNAL NEWNYM\r\n`)
+  })
+  if (ok && torSession) {
+    await torSession.clearStorageData()
+    await torSession.clearCache()
+    await torSession.closeAllConnections()
+  }
+  return ok
 }
 
 /** Forgets everything from Alchemy Tor windows once the last one closes. */

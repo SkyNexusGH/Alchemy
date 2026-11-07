@@ -1,7 +1,10 @@
-import { Info, Lock, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from '../lib/icons'
+import { Info, Languages, Lock, Mic, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from '../lib/icons'
+import { listen, stopListening, type VoiceState } from '../lib/voice'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { allEngines, engineOf, type EngineInfo, type LocalSuggestions, type Settings, type Suggestion, type TabState } from '@shared/types'
 import { prettyUrl, toUrl } from '@shared/url'
+import { calculate, formatAnswer } from '@shared/calc'
+import { convertUnits } from '@shared/units'
 import { api } from '../lib/api'
 import { Logo } from '../lib/ui'
 import { useSettings } from '../lib/settings'
@@ -14,6 +17,8 @@ const short = (n: number): string => (n > 99 ? '99+' : String(n))
 
 function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
   const split = useSettings((s) => !!s.settings?.splitBlockCounts)
+  const style = useSettings((s) => s.settings?.appearance.countStyle ?? 'pill')
+  const showCount = tab.shields && tab.blocked > 0 && style !== 'none'
   const ads = tab.blocked - tab.trackers
   const count = split ? (
     <>
@@ -26,7 +31,7 @@ function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
   )
   return (
     <button
-      className={`omni-shield${tab.shields ? ' on' : ''}${tab.shields && tab.blocked > 0 ? ' has-count' : ''}`}
+      className={`omni-shield${tab.shields ? ' on' : ''}${showCount ? ` has-count count-${style}` : ''}`}
       title={
         !tab.shields
           ? 'Aegis blocker is off for this site'
@@ -41,7 +46,11 @@ function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
       }}
     >
       {tab.shields ? <ShieldCheck size={16} /> : <ShieldOff size={16} />}
-      {tab.shields && tab.blocked > 0 && <span className="shield-count">{count}</span>}
+      {showCount && style !== 'ring' && <span className="shield-count">{count}</span>}
+      {showCount && style === 'ring' && (
+        // Ring: fills up as more is blocked (full at 50), around the shield.
+        <span className="shield-ring" style={{ '--fill': `${Math.min(100, tab.blocked * 2)}%` } as React.CSSProperties} />
+      )}
     </button>
   )
 }
@@ -52,6 +61,22 @@ function engineFor(settings: Settings | null, text: string): EngineInfo | null {
   if (!settings || !q || /s/.test(q)) return null
   const list = allEngines(settings)
   return list.find((e) => e.keyword.toLowerCase() === q) ?? (q.length >= 2 ? list.find((e) => e.name.toLowerCase().startsWith(q)) : null) ?? null
+}
+
+/** "/SkyNexusGH/Alchemy?tab=repos" → ["SkyNexusGH", "Alchemy"]; long paths keep the last parts. */
+function breadcrumbs(path: string): string[] {
+  const parts = path
+    .replace(/[?#].*$/, '')
+    .split('/')
+    .filter(Boolean)
+    .map((p) => {
+      try {
+        return decodeURIComponent(p)
+      } catch {
+        return p
+      }
+    })
+  return parts.length > 3 ? ['…', ...parts.slice(-2)] : parts
 }
 
 export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
@@ -79,6 +104,25 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const tabRef = useRef(tab)
   tabRef.current = tab
   const blurTimer = useRef<number>(0)
+  /** "weather london": its answer, once fetched. */
+  const weatherAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
+  const [voice, setVoice] = useState<VoiceState>({ kind: 'idle' })
+
+  async function voiceSearch(): Promise<void> {
+    if (voice.kind === 'listening') return stopListening()
+    if (voice.kind !== 'idle' && voice.kind !== 'error') return
+    try {
+      const said = await listen(setVoice)
+      setVoice({ kind: 'idle' })
+      if (!said) return
+      const words = said.replace(/[.。!?]+$/, '').trim()
+      setText(words)
+      go({ kind: toUrl(words) ? 'url' : 'search', title: words, value: words })
+    } catch (err) {
+      setVoice({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
+      setTimeout(() => setVoice({ kind: 'idle' }), 4000)
+    }
+  }
   const overlayOpen = useRef(false)
   itemsRef.current = items
 
@@ -161,7 +205,18 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           ? { kind: 'url', title: q, value: q, detail: 'Go to site' }
           : { kind: 'search', title: q, value: q, detail: `${engineName} search` }
     if (tabTo) first.detail = `Press Tab to search ${tabTo.name}`
-    const out: Suggestion[] = [first]
+    // A sum ("128*4.5") gets its answer first; Enter copies it.
+    const sum = picked ? null : calculate(q)
+    const converted = picked || sum !== null ? null : convertUnits(q)
+    const answer: Suggestion | null =
+      sum !== null
+        ? { kind: 'answer', title: `= ${formatAnswer(sum)}`, value: formatAnswer(sum), detail: 'Press Enter to copy' }
+        : converted
+          ? { kind: 'answer', title: converted, value: converted.split(' = ')[1], detail: 'Press Enter to copy', favicon: '⇄' }
+          : weatherAnswer.current && weatherAnswer.current.query === q.toLowerCase()
+            ? weatherAnswer.current.item
+            : null
+    const out: Suggestion[] = answer ? [answer, first] : [first]
     const seen = new Set([first.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')])
     for (const s of picked ? [] : local.current) {
       const key = s.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
@@ -200,6 +255,24 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       }
       rebuild()
     })
+    // Rich answer: the weather for "weather <city>" or "<city> weather".
+    const wq = value
+      .trim()
+      .toLowerCase()
+      .match(/^weather(?:\s+in)?\s+(.{2,})$|^(.{2,}?)\s+weather$/)
+    if (!picked && wq) {
+      const place = (wq[1] ?? wq[2]).trim()
+      api.invoke<{ temp: number; high: number; low: number; code: number; unit: string; place: string } | null>('omnibox:weather', place).then((w) => {
+        if (id !== seq.current || !w) return
+        const icon =
+          w.code === 0 ? '☀️' : w.code <= 2 ? '🌤️' : w.code === 3 ? '☁️' : w.code <= 48 ? '🌫️' : w.code <= 67 || (w.code >= 80 && w.code <= 82) ? '🌧️' : w.code <= 86 ? '🌨️' : '⛈️'
+        weatherAnswer.current = {
+          query: value.trim().toLowerCase(),
+          item: { kind: 'answer', title: `${w.temp}°${w.unit} in ${w.place}`, value: value.trim(), detail: `High ${w.high}° · low ${w.low}°`, favicon: icon }
+        }
+        rebuild()
+      })
+    }
     api.invoke<string[]>('omnibox:remote', value, picked?.id).then((list) => {
       if (id !== seq.current) return
       remote.current = list
@@ -208,6 +281,13 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   }
 
   function go(item: Suggestion, newTab = false): void {
+    // Sums and conversions copy their answer; a weather answer searches for the forecast.
+    if (item.kind === 'answer' && item.detail === 'Press Enter to copy') {
+      void navigator.clipboard.writeText(item.value).catch(() => {})
+      revert()
+      input.current?.blur()
+      return
+    }
     editing.current = false
     seq.current++
     setItems([])
@@ -267,7 +347,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       // Ctrl+Enter: "example" → www.example.com
       if (e.ctrlKey && !/[.\s/:]/.test(raw)) return go({ kind: 'url', title: raw, value: `www.${raw}.com` }, e.altKey)
       const item = items[selected]
-      const usesItem = item && (selected > 0 || item.value === raw || inline.current)
+      const usesItem = item && (selected > 0 || item.value === raw || inline.current || item.kind === 'answer')
       go(usesItem ? item : { kind: engine ? 'search' : 'url', title: raw, value: raw }, e.altKey)
       return
     }
@@ -283,10 +363,23 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const showPretty = !focused && !!display
   const pretty = prettyUrl(display)
   const slash = pretty.indexOf('/')
-  const [host, rest] = slash === -1 ? [pretty, ''] : [pretty.slice(0, slash), pretty.slice(slash)]
-  const placeholder = engine
-    ? `Search ${engine.name}`
-    : `Search ${settings ? engineOf(settings).name : 'Google'} or type a URL`
+  const host = slash === -1 ? pretty : pretty.slice(0, slash)
+  const crumbs = breadcrumbs(slash === -1 ? '' : pretty.slice(slash))
+  const placeholder =
+    voice.kind === 'listening'
+      ? 'Listening…'
+      : voice.kind === 'downloading'
+        ? `Getting the voice model ready (one time) · ${voice.percent}%`
+        : voice.kind === 'transcribing'
+          ? 'Working out what you said…'
+          : voice.kind === 'error'
+            ? 'Couldn’t use the microphone'
+            : engine
+              ? `Search ${engine.name}`
+              : `Search ${settings ? engineOf(settings).name : 'Google'} or type a URL`
+  // Translate: when the page says it's in another language than yours.
+  const myLang = (settings?.translateTo || navigator.language || 'en').toLowerCase().split('-')[0]
+  const foreign = !!tab?.pageLang && tab.pageLang.toLowerCase().split(/[-_]/)[0] !== myLang
 
   return (
     <div ref={box} className={`omnibox${focused ? ' focused' : ''}`}>
@@ -343,15 +436,41 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           onKeyDown={onKeyDown}
         />
         {showPretty && (
+          // Centred, with the address as parts: github.com › SkyNexusGH › Alchemy
           <div className="omni-pretty" aria-hidden>
             <span className="host">{host}</span>
-            <span className="rest">{rest}</span>
+            {crumbs.map((c, i) => (
+              <span key={i} className="crumb">
+                <span className="sep">›</span>
+                {c}
+              </span>
+            ))}
           </div>
         )}
       </div>
       {tab && tab.zoom !== 1 && !focused && (
         <button className="omni-chip" title="Reset zoom" onClick={() => api.invoke('zoom:reset')}>
           {Math.round(tab.zoom * 100)}%
+        </button>
+      )}
+      {tab && !focused && (foreign || tab.translated) && (
+        <button
+          className={`omni-chip translate${tab.translated ? ' on' : ''}`}
+          title={tab.translated ? 'Show the original page' : `Translate this page (Google Translate)`}
+          onClick={() => api.invoke('tab:translate', tab.id)}
+        >
+          <Languages size={14} />
+          {tab.translated ? 'Original' : 'Translate'}
+        </button>
+      )}
+      {(focused || isNewTab || voice.kind !== 'idle') && (
+        <button
+          className={`omni-mic ${voice.kind}`}
+          title={voice.kind === 'listening' ? 'Stop listening' : 'Search by voice (on this computer, with Whisper)'}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => void voiceSearch()}
+        >
+          <Mic size={15} />
         </button>
       )}
       {tab && /^https?:/.test(tab.displayUrl) && !focused && <ShieldButton tab={tab} />}

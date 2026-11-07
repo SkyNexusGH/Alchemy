@@ -24,6 +24,8 @@ import {
   Store,
   TextSearch,
   Onion,
+  Volume2,
+  VolumeX,
   VenetianMask,
   X,
   ZoomIn,
@@ -57,6 +59,7 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'New window', cmd: 'new-window', shortcut: 'Ctrl+N', icon: <AppWindow size={16} /> },
   { title: 'New Masked Mode window', cmd: 'new-private', shortcut: 'Ctrl+Shift+N', keywords: 'incognito private', icon: <VenetianMask size={16} /> },
   { title: 'New Alchemy Tor window', cmd: 'new-tor', keywords: 'tor onion anonymous vpn ip hide', icon: <Onion size={16} />, tag: 'Hides IP' },
+  { title: 'New Tor identity', cmd: 'tor-identity', keywords: 'tor onion new identity circuit ip refresh', icon: <Onion size={16} /> },
   { title: 'Reopen closed tab', cmd: 'reopen-tab', shortcut: 'Ctrl+Shift+T', keywords: 'undo restore', icon: <RotateCcw size={16} /> },
   { title: 'Close tab', cmd: 'close-tab', shortcut: 'Ctrl+W', icon: <X size={16} /> },
   { title: 'Split view', cmd: 'split-view', keywords: 'side by side tile two tabs', icon: <Columns2 size={16} /> },
@@ -222,6 +225,34 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
   }
 
   let lastGroup = ''
+  // Quick actions on the highlighted tab: pin, mute or close it without leaving the palette.
+  function TabActions({
+    tab,
+    onChanged
+  }: {
+    tab: (TabState & { workspaceId: string }) | undefined
+    onChanged: (patch: Partial<TabState>, removed?: boolean) => void
+  }): React.JSX.Element | null {
+    if (!tab) return null
+    const act = (e: React.MouseEvent, fn: () => void): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      fn()
+    }
+    return (
+      <span className="pal-actions">
+        <button title={tab.pinned ? 'Unpin' : 'Pin'} onMouseDown={(e) => act(e, () => (void api.invoke('tab:pin', tab.id), onChanged({ pinned: !tab.pinned })))}>
+          <Pin size={13} />
+        </button>
+        <button title={tab.muted ? 'Unmute' : 'Mute'} onMouseDown={(e) => act(e, () => (void api.invoke('tab:mute', tab.id), onChanged({ muted: !tab.muted })))}>
+          {tab.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+        </button>
+        <button title="Close tab" onMouseDown={(e) => act(e, () => (void api.invoke('tab:close', tab.id), onChanged({}, true)))}>
+          <X size={13} />
+        </button>
+      </span>
+    )
+  }
   return (
     <div className="panel palette" ref={panel}>
       <div className="pal-input">
@@ -262,6 +293,14 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
                 <span className="pal-icon">{item.icon}</span>
                 <span className="pal-title">{item.title}</span>
                 {item.tag && <span className="pal-tag">{item.tag}</span>}
+                {item.cmd === 'tab' && i === selected && (
+                  <TabActions
+                    tab={tabs.find((t) => String(t.id) === item.arg)}
+                    onChanged={(patch, removed) =>
+                      setTabs((cur) => (removed ? cur.filter((t) => String(t.id) !== item.arg) : cur.map((t) => (String(t.id) === item.arg ? { ...t, ...patch } : t))))
+                    }
+                  />
+                )}
                 {item.detail && <span className="pal-detail">{item.detail}</span>}
                 {item.shortcut && (
                   <span className="pal-keys">

@@ -4,12 +4,12 @@ import { totalmem } from 'node:os'
 import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
-import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, TabAudio, Workspace } from '@shared/types'
+import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, TabAudio, Workspace, ToastData } from '@shared/types'
 import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
-import { destroyPanel, hidePanel, panelStates, presetIcons, reloadPanel, showPanel, togglePanel } from './panels'
+import { destroyPanel, hidePanel, panelStates, panelPreview, presetIcons, reloadPanel, showPanel, togglePanel } from './panels'
 import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
 import * as bookmarks from './bookmarks'
@@ -23,7 +23,20 @@ import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
 import { isInternalUrl, userAssetsDir } from './protocol'
 import { getSettings, onSettingsChanged, updateSettings } from './settings'
-import { retryTor, torStatus } from './tor'
+import { newTorIdentity, retryTor, torStatus } from './tor'
+import { baseLang, restorePage, translatePage } from './translate'
+import { findPlaces, focusState, news, startFocus, stopFocus, weather } from './widgets'
+
+/** Fresh Tor circuits and cookies, then the Tor window's tabs reload through them. */
+async function newIdentity(bw: BrowserWin): Promise<boolean> {
+  const ok = await newTorIdentity()
+  if (ok) for (const w of BrowserWin.all) if (w.tor) for (const t of w.tabs) t.reload()
+  bw.send('toast', { text: ok ? 'New identity: fresh Tor circuits, cookies cleared' : 'Couldn’t get a new identity' } satisfies ToastData)
+  return ok
+}
+
+/** The tab the Now playing widget paused, so its play button can resume it. */
+let pausedByWidget: number | null = null
 import { BrowserWin } from './window'
 
 interface Ctx {
@@ -85,6 +98,34 @@ export function registerIpc(): void {
   })
   // A small picture of the tab's page for its hover card.
   shell('tab:preview', ({ bw }, id: number) => bw?.tabPreview(id) ?? null)
+  shell('bmcard:show', ({ bw }, rect: Rect, payload: Extract<OverlayPayload, { kind: 'bmcard' }>) =>
+    bw?.showBookmarkCard(rect, payload)
+  )
+  shell('bmcard:hide', ({ bw }) => bw?.hideBookmarkCard())
+  shell('panelcard:show', ({ bw }, rect: Rect, payload: Extract<OverlayPayload, { kind: 'panelcard' }>) => bw?.showPanelCard(rect, payload))
+  shell('panel:preview', (_c, id: string) => panelPreview(id))
+  shell('switcher:pick', ({ bw }, id: number) => bw?.finishSwitcher(id))
+  shell('bookmark:preview', ({ bw }, url: string) => bw?.bookmarkPreview(url) ?? null)
+  // Translate (Google Translate) or put the original back.
+  shell('tab:translate', async ({ bw }, id: number) => {
+    const tab = bw?.tab(id)
+    const wc = tab?.wc
+    if (!tab || !wc) return
+    if (tab.translated) {
+      await restorePage(wc)
+      tab.translated = false
+    } else {
+      const target = getSettings().translateTo || baseLang(app.getLocale())
+      const res = await translatePage(wc, target)
+      tab.translated = res.ok
+      if (!res.ok) bw!.send('toast', { text: 'Couldn’t translate this page' } satisfies ToastData)
+    }
+    bw!.tabChanged()
+  })
+  shell('tab:pin', ({ bw }, id: number) => {
+    const tab = bw?.tab(id)
+    if (tab) bw!.setPinned(tab, !tab.pinned)
+  })
   shell('tab:move', ({ bw }, id: number, to: number) => bw?.moveTab(id, to))
   shell('tab:mute', ({ bw }, id: number) => {
     const tab = bw?.tab(id)
@@ -278,6 +319,50 @@ export function registerIpc(): void {
     gpu: app.isHardwareAccelerationEnabled()
   }))
 
+  // ---- new tab widgets ----
+  handle('widgets:places', (_c, q: string) => findPlaces(q).catch(() => []))
+  // "weather paris" in the address bar: the first matching place's weather.
+  handle('omnibox:weather', async (_c, q: string) => {
+    const place = (await findPlaces(q).catch(() => []))[0]
+    if (!place) return null
+    const w = await weather(place.lat, place.lon, getSettings().tempUnit ?? 'C')
+    return w ? { ...w, place: place.name } : null
+  })
+  handle('widgets:weather', (_c, lat: number, lon: number, unit: 'C' | 'F') => weather(lat, lon, unit))
+  handle('widgets:news', () => news(getSettings().newsFeeds ?? []))
+  handle('widgets:recent', ({ bw }) => bw?.recentlyClosed(4) ?? [])
+  handle('widgets:reopen', ({ bw }, fromEnd: number) => bw?.reopenClosedAt(fromEnd))
+  handle('widgets:focus', () => focusState())
+  handle('widgets:focusStart', (_c, minutes: number) => startFocus(Math.max(1, Math.min(180, minutes))))
+  handle('widgets:focusStop', () => stopFocus())
+  // Now playing: the tab making sound (or the one the widget last paused), in any window.
+  handle('widgets:nowPlaying', () => {
+    for (const w of BrowserWin.all) {
+      if (w.incognito) continue
+      const t = w.tabs.find((t) => t.audible) ?? (pausedByWidget !== null ? w.tab(pausedByWidget) : undefined)
+      if (t) return { tabId: t.id, title: t.title, url: t.pageUrl(), favicon: t.favicon, playing: t.audible }
+    }
+    return null
+  })
+  handle('widgets:media', async (_c, tabId: number, action: 'play' | 'pause' | 'show') => {
+    for (const w of BrowserWin.all) {
+      const t = w.tab(tabId)
+      if (!t) continue
+      if (action === 'show') {
+        w.activate(t)
+        w.win.focus()
+        return
+      }
+      const js =
+        action === 'pause'
+          ? `document.querySelectorAll('video,audio').forEach(m => { if (!m.paused) { m.dataset.alchemyPaused = '1'; m.pause() } })`
+          : `(() => { const m = document.querySelector('[data-alchemy-paused]') || document.querySelector('video,audio'); if (m) { delete m.dataset.alchemyPaused; m.play() } })()`
+      await t.wc?.executeJavaScript(js).catch(() => {})
+      pausedByWidget = action === 'pause' ? tabId : null
+      return
+    }
+  })
+
   // ---- privacy ----
   handle('shields:info', ({ bw }, tabId: number): ShieldsInfo | null => {
     const tab = bw?.tab(tabId)
@@ -315,6 +400,8 @@ export function registerIpc(): void {
   // ---- Alchemy Tor ----
   handle('tor:status', () => torStatus())
   handle('tor:retry', (_c, bridges?: boolean) => retryTor(bridges))
+  // New identity, then reload the Tor window's tabs so they come back through new circuits.
+  handle('tor:newIdentity', ({ bw }) => (bw ? newIdentity(bw) : false))
   handle('window:newTor', () => void BrowserWin.open({ tor: true }))
 
   // ---- workspaces ----
@@ -418,6 +505,10 @@ export function registerIpc(): void {
       'new-private': () => BrowserWin.open({ incognito: true }),
       'new-tor': () => BrowserWin.open({ tor: true }),
       'reopen-tab': () => bw.reopenClosed(),
+      'tor-identity': () => void newIdentity(bw),
+      'reopen-tabs': () => {
+        for (let i = 0; i < Math.min(50, Number(arg) || 1); i++) bw.reopenClosed()
+      },
       'close-tab': () => bw.active && bw.closeTab(bw.active),
       'pin-tab': () => bw.active && bw.setPinned(bw.active, !bw.active.pinned),
       'duplicate-tab': () => bw.active && bw.duplicate(bw.active),

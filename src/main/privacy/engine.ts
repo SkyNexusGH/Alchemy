@@ -26,12 +26,23 @@ const CONFIG = {
 let blocker: ElectronBlocker | null = null
 const status: FilterStatus = { ready: false, lists: 0, updated: null, updating: false, error: null }
 
+/** Which lists each protection level uses. */
+function levelKey(): 'chill' | 'standard' | 'full' {
+  const s = getSettings()
+  if (s.aegisLevel === 'extreme') return 'full'
+  if (s.aegisLevel === 'chill') return 'chill'
+  return s.blockCookieBanners ? 'full' : 'standard'
+}
+
 function lists(): string[] {
-  return [...(getSettings().blockCookieBanners ? fullLists : adsAndTrackingLists), MINER_LIST]
+  const key = levelKey()
+  // Chill: ads only (EasyList and uBlock's own filters), so sites behave most normally.
+  if (key === 'chill') return adsAndTrackingLists.filter((u) => !/easyprivacy|ublock-origin\/privacy|peter-lowe/.test(u))
+  return [...(key === 'full' ? fullLists : adsAndTrackingLists), MINER_LIST]
 }
 
 function cachePath(): string {
-  return join(app.getPath('userData'), `filters-${getSettings().blockCookieBanners ? 'full' : 'standard'}.bin`)
+  return join(app.getPath('userData'), `filters-${levelKey()}.bin`)
 }
 
 const metaPath = (): string => `${cachePath()}.json`
@@ -100,10 +111,11 @@ export async function initFilters(): Promise<void> {
   if (!loaded || Date.now() - updated > REFRESH_MS) void updateFilters()
   setInterval(() => void updateFilters(), REFRESH_MS)
 
-  let cookieBanners = getSettings().blockCookieBanners
-  onSettingsChanged((s) => {
-    if (s.blockCookieBanners === cookieBanners) return
-    cookieBanners = s.blockCookieBanners
+  // A new level (or the cookie banner switch) means a different set of lists.
+  let key = levelKey()
+  onSettingsChanged(() => {
+    if (levelKey() === key) return
+    key = levelKey()
     void loadCache().then((ok) => {
       if (!ok) void updateFilters()
     })

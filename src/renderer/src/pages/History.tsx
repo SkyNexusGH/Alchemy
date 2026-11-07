@@ -15,11 +15,13 @@ export default function History(): React.JSX.Element {
   const [visits, setVisits] = useState<HistoryVisit[]>([])
   const [more, setMore] = useState(true)
   const [clearing, setClearing] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   const load = (q: string, before?: number): void => {
     api.invoke<HistoryVisit[]>('history:query', q, before).then((list) => {
       setVisits((cur) => (before ? [...cur, ...list] : list))
       setMore(list.length >= 300)
+      setLoaded(true)
     })
   }
 
@@ -48,7 +50,18 @@ export default function History(): React.JSX.Element {
         </button>
       </div>
 
-      {visits.length === 0 && (
+      {!loaded && (
+        <div className="loading-rows" aria-label="Loading history">
+          {[70, 52, 64, 45, 58].map((w, i) => (
+            <div key={i} className="loading-row">
+              <span className="shimmer" style={{ width: 16, height: 16 }} />
+              <span className="shimmer" style={{ width: `${w}%`, height: 10 }} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loaded && visits.length === 0 && (
         <div className="empty">
           <Clock size={40} />
           <div>{query ? 'No history matches your search.' : 'Pages you visit will show up here.'}</div>

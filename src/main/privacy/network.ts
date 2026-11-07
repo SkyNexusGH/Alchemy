@@ -106,7 +106,7 @@ function onBeforeRequest(
 }
 
 function reportBlocked(webContentsId: number | undefined, url: string, tracker: boolean | null): void {
-  countBlocked(tracker)
+  countBlocked(tracker, url, topUrl(webContentsId))
   if (webContentsId) for (const fn of blockedListeners) fn(webContentsId, url, tracker === true)
 }
 

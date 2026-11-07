@@ -27,6 +27,11 @@ export interface TabState {
   zoom: number
   security: Security
   bookmarked: boolean
+  /** The page's own colour (its theme-color), for the site-tinted toolbar. */
+  themeColor: string | null
+  /** The language the page says it's in, and whether Alchemy translated it. */
+  pageLang: string | null
+  translated: boolean
   /** Ads and trackers blocked on the current page. */
   blocked: number
   /** Of those, how many were trackers (only counted while splitBlockCounts is on). */
@@ -76,6 +81,13 @@ export interface PanelState extends PanelItem {
   unread: number
 }
 
+/** A short message in the title bar, with an optional action (a palette command). */
+export interface ToastData {
+  text: string
+  kind?: 'normal' | 'gold'
+  action?: { label: string; cmd: string; arg?: string }
+}
+
 export interface ShieldsInfo {
   site: string
   enabled: boolean
@@ -93,6 +105,20 @@ export interface ShieldsInfo {
   totalAds: number
   totalTrackers: number
   since: number
+}
+
+/** The Aegis blocker's history, for the charts in Settings. */
+export interface AegisStats {
+  blocked: number
+  since: number
+  ads: number
+  trackers: number
+  /** Blocked per day (YYYY-MM-DD), last 30 days. */
+  days: Record<string, number>
+  /** Blocked per site you were on. */
+  sites: Record<string, number>
+  /** Blocked per company behind the request ("Google", "Meta", …). */
+  companies: Record<string, number>
 }
 
 /** Alchemy Tor's connection, shown on its connecting page and in Settings. */
@@ -194,6 +220,17 @@ export interface Settings {
   downloadDir: string | null
   askWhereToSave: boolean
   speedDial: SpeedDialItem[]
+  /** New tab page widgets that are turned on. */
+  widgets: Record<WidgetId, boolean>
+  /** The weather widget's place, typed by the user (no location lookup). */
+  weatherPlace: { name: string; lat: number; lon: number } | null
+  tempUnit: 'C' | 'F'
+  todos: { id: string; text: string; done: boolean }[]
+  countdown: { label: string; date: string } | null
+  /** RSS/Atom feeds for the news widget. */
+  newsFeeds: string[]
+  /** Language pages are translated into ("en"); empty means Alchemy's own language. */
+  translateTo: string
   // Privacy
   adblock: boolean
   blockCookieBanners: boolean
@@ -211,6 +248,10 @@ export interface Settings {
   /** The left sidebar (workspaces and sidebar sites): always shown, hidden until you
    *  move to the left edge ("Hidden Sidebar"), or off. */
   sidebar: 'shown' | 'hidden' | 'off'
+  /** Which side of the window the sidebar is on. */
+  sidebarSide: 'left' | 'right'
+  /** Tabs across the title bar, or down the side. */
+  tabLayout: 'horizontal' | 'vertical'
   videoPopout: boolean
   /** Switching away from a tab with a playing video floats the video. */
   autoPopout: boolean
@@ -223,6 +264,9 @@ export interface Settings {
   maskedUsesTor: boolean
   /** Count ads and trackers separately (the shield, its panel and the Alchemy menu). */
   splitBlockCounts: boolean
+  /** How hard the Aegis blocker blocks: Chill (ads only), Comfort (ads and trackers),
+   *  Extreme (everything, including cookie banners and annoyances). */
+  aegisLevel: 'chill' | 'comfort' | 'extreme'
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
@@ -276,6 +320,8 @@ export interface Bookmark {
   title: string
   url?: string
   favicon?: string | null
+  /** Folders only: an icon from WORKSPACE_ICONS instead of the plain folder. */
+  icon?: string
   created: number
 }
 
@@ -296,7 +342,7 @@ export interface DownloadState {
 }
 
 export interface Suggestion {
-  kind: 'search' | 'url' | 'history' | 'bookmark' | 'suggest'
+  kind: 'search' | 'url' | 'history' | 'bookmark' | 'suggest' | 'answer'
   title: string
   /** The text navigated to when chosen. */
   value: string
@@ -322,6 +368,9 @@ export type OverlayPayload =
   | { kind: 'app' }
   | { kind: 'eyedropper'; image: string }
   | { kind: 'tabcard'; tabId: number }
+  | { kind: 'bmcard'; url: string; title: string; favicon: string | null }
+  | { kind: 'panelcard'; id: string; title: string; url: string }
+  | { kind: 'switcher'; items: { id: number; title: string; favicon: string | null; url: string }[]; index: number }
 
 /** What the Alchemy menu (the logo button) shows. */
 export interface AppMenuInfo {
@@ -335,6 +384,8 @@ export interface AppMenuInfo {
   memoryMB: number
   tabs: number
   sleeping: number
+  /** The computer's memory, in MB, for the mana bar. */
+  totalMB: number
   blocked: number
   /** Set when ads and trackers are counted separately. */
   split: { ads: number; trackers: number } | null
@@ -383,7 +434,8 @@ export const THEME_PRESETS: ThemePreset[] = [
   { id: 'soul-hills', name: 'Soul Hills', image: 'soul-hills', accent: '#77793e', mode: 'light' },
   { id: 'plain-ovyra', name: 'Plain Alchemy', image: null, accent: '#ec4856', mode: 'ovyra' },
   { id: 'plain-dark', name: 'Plain black', image: null, accent: '#ec4856', mode: 'dark' },
-  { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' }
+  { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' },
+  { id: 'monochrome', name: 'Monochrome', image: null, accent: '#a1a1aa', mode: 'dark' }
 ]
 
 /**
@@ -440,11 +492,26 @@ export interface Appearance {
   clockStyle: ClockStyle
   /** Stronger text and borders, for bright rooms and easier reading. */
   highContrast: boolean
+  /** Swap movement (popping, sliding, bouncing) for plain, quick changes. */
+  reduceMotion: boolean
+  /** How the bookmarks bar draws its bookmarks. */
+  bookmarkStyle: 'classic' | 'pills' | 'icons' | 'dock'
+  /** How the shield shows how much the Aegis blocker stopped on a page. */
+  countStyle: 'pill' | 'badge' | 'ring' | 'none'
+  /** What the window's own surfaces are made of: solid colour, Windows 11 Mica or Acrylic,
+   *  or Frosted glass (your wallpaper, blurred, behind the tabs and toolbar). */
+  material: 'solid' | 'mica' | 'acrylic' | 'glass'
+  /** The toolbar picks up a tint of the site's own colour. */
+  siteTint: boolean
+  /** Icons drawn normally, or as runes where there's a fitting one. */
+  iconSet: 'standard' | 'runes'
 }
 
 export type ClockStyle = 'classic' | 'seconds' | 'bold' | 'analog' | 'words'
 
 export type UiFont = 'inter' | 'segoe' | 'nunito' | 'grotesk' | 'outfit' | 'mono'
+
+export type WidgetId = 'weather' | 'quote' | 'todo' | 'news' | 'focus' | 'stats' | 'music' | 'countdown' | 'recent'
 
 export interface EngineInfo {
   id: string

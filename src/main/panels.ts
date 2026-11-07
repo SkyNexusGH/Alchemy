@@ -85,11 +85,25 @@ export function showPanel(bw: BrowserWin, id: string): void {
   notify()
 }
 
+/** Pictures of sidebar sites as they looked when last closed, for the hover peek. */
+const snapshots = new Map<string, string>()
+
+export function panelPreview(id: string): string | null {
+  return snapshots.get(id) ?? null
+}
+
+async function snapshot(id: string, wc: Electron.WebContents): Promise<void> {
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 1500))
+  const image = await Promise.race([wc.capturePage().catch(() => null), timeout])
+  if (image && !image.isEmpty()) snapshots.set(id, `data:image/jpeg;base64,${image.resize({ width: 420 }).toJPEG(80).toString('base64')}`)
+}
+
 export function hidePanel(bw: BrowserWin): void {
   const id = bw.panelId
   if (!id) return
   const panel = live.get(id)
   if (panel?.owner === bw) {
+    if (!panel.view.webContents.isDestroyed()) void snapshot(id, panel.view.webContents)
     bw.win.contentView.removeChildView(panel.view)
     panel.owner = null
     panel.hiddenSince = Date.now()

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { DownloadState } from '@shared/types'
 import { hostOf } from '@shared/url'
 import { api } from '../lib/api'
-import { formatBytes, setPageIcon } from '../lib/ui'
+import { formatBytes, setPageIcon, timeLeft } from '../lib/ui'
 
 document.title = 'Downloads'
 setPageIcon('<path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/>')
@@ -68,7 +68,7 @@ export default function Downloads(): React.JSX.Element {
                 <div style={{ color: 'var(--text-3)', fontSize: 12, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
                   {hostOf(d.url)} ·{' '}
                   {d.status === 'progressing'
-                    ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''} · ${formatBytes(d.speed)}/s`
+                    ? `${formatBytes(d.received)}${d.total ? ` of ${formatBytes(d.total)}` : ''} · ${formatBytes(d.speed)}/s${timeLeft(d.received, d.total, d.speed) ? ` · ${timeLeft(d.received, d.total, d.speed)}` : ''}`
                     : d.status === 'paused'
                       ? 'Paused'
                       : d.status === 'completed'

@@ -1,4 +1,5 @@
 import { app, clipboard, type MenuItemConstructorOptions } from 'electron'
+import { totalmem } from 'node:os'
 import { engineOf, ISLAND_COLOR_NAMES, ISLAND_COLORS, NEW_TAB_URL, type AppMenuInfo } from '@shared/types'
 import { hostOf } from '@shared/url'
 import { isAwakeSite, setAwakeSite } from './awake'
@@ -261,6 +262,7 @@ export function appMenuInfo(bw: BrowserWin): AppMenuInfo {
     memoryMB: Math.round(memoryKB / 1024),
     tabs: tabs.length,
     sleeping: tabs.filter((t) => t.sleeping).length,
+    totalMB: Math.round(totalmem() / 1024 / 1024),
     blocked: blockStats().blocked,
     split: getSettings().splitBlockCounts ? { ads: blockStats().ads, trackers: blockStats().trackers } : null,
     extensions: bw.incognito ? [] : listExtensions().map(({ id, name, icon }) => ({ id, name, icon }))

@@ -12,6 +12,7 @@ import {
   type OverlayPayload,
   type Rect,
   type ShellCommand,
+  type ToastData,
   type WindowState
 } from '@shared/types'
 import { toggleBookmark } from './bookmarks'
@@ -144,6 +145,8 @@ export class BrowserWin implements TabHost {
       webPreferences: { preload: PRELOAD, sandbox: true, contextIsolation: true, spellcheck: true }
     })
     if (init?.maximized) this.win.maximize()
+    // Mica / Acrylic from Settings → Appearance.
+    repaintWindowChrome()
     this.win.loadURL('alchemy://shell/')
     // With a transparent Mica window `ready-to-show` doesn't always fire; show on whichever comes first.
     const show = (): void => {
@@ -364,7 +367,17 @@ export class BrowserWin implements TabHost {
   }
 
   closeIsland(id: number): void {
-    for (const t of this.tabs.filter((t) => t.islandId === id)) this.closeTab(t)
+    this.closeMany(this.tabs.filter((t) => t.islandId === id))
+  }
+
+  /** Closes several tabs at once, with an Undo that brings them all back. */
+  private closeMany(list: Tab[]): void {
+    for (const t of list) this.closeTab(t)
+    if (list.length > 1 && !this.incognito)
+      this.send('toast', {
+        text: `${list.length} tabs closed`,
+        action: { label: 'Undo', cmd: 'reopen-tabs', arg: String(list.length) }
+      } satisfies ToastData)
   }
 
   /** Islands must be one unbroken run of 2+ tabs (1+ for groups the user made); anything else falls apart. */
@@ -581,12 +594,29 @@ export class BrowserWin implements TabHost {
   }
 
   closeOthers(keep: Tab): void {
-    for (const t of this.visible()) if (t !== keep && !t.pinned) this.closeTab(t)
+    this.closeMany(this.visible().filter((t) => t !== keep && !t.pinned))
   }
 
   closeToRight(of: Tab): void {
     const vis = this.visible()
-    for (const t of vis.slice(vis.indexOf(of) + 1)) if (!t.pinned) this.closeTab(t)
+    this.closeMany(vis.slice(vis.indexOf(of) + 1).filter((t) => !t.pinned))
+  }
+
+  /** The last few closed tabs, newest first (for the new tab page). */
+  recentlyClosed(n: number): { title: string; url: string; favicon: string | null }[] {
+    return this.closed
+      .slice(-n)
+      .reverse()
+      .map((c) => ({ title: c.title, url: c.url, favicon: c.favicon ?? null }))
+  }
+
+  /** Brings back the closed tab at `fromEnd` (0 = the last one closed). */
+  reopenClosedAt(fromEnd: number): void {
+    const i = this.closed.length - 1 - fromEnd
+    if (i < 0) return
+    const [snap] = this.closed.splice(i, 1)
+    this.closed.push(snap)
+    this.reopenClosed()
   }
 
   reopenClosed(): void {
@@ -701,7 +731,17 @@ export class BrowserWin implements TabHost {
   toggleBookmarkActive(): void {
     const tab = this.active
     if (!tab || tab.security() === 'internal') return
-    toggleBookmark(tab.pageUrl(), tab.title, tab.favicon)
+    const added = toggleBookmark(tab.pageUrl(), tab.title, tab.favicon)
+    this.send('toast', {
+      text: added ? 'Bookmark added' : 'Bookmark removed',
+      action: { label: 'Undo', cmd: 'bookmark' }
+    } satisfies ToastData)
+  }
+
+  /** The hover card for a bookmark: a picture if that page is open in a tab here. */
+  bookmarkPreview(url: string): string | null {
+    const tab = this.tabs.find((t) => t.pageUrl() === url)
+    return tab ? (this.previews.get(tab.id) ?? null) : null
   }
 
   // ---- find in page --------------------------------------------------------------
@@ -950,6 +990,22 @@ export class BrowserWin implements TabHost {
     if (this.overlayKind === 'tabcard') this.hideOverlay()
   }
 
+  /** A bookmark's hover card, under the same rules as the tab card. */
+  showBookmarkCard(rect: Rect, payload: Extract<OverlayPayload, { kind: 'bmcard' }>): void {
+    if (this.overlayShown && this.overlayKind !== 'bmcard' && this.overlayKind !== 'tabcard') return
+    this.showOverlay(rect, payload)
+  }
+
+  hideBookmarkCard(): void {
+    if (this.overlayKind === 'bmcard' || this.overlayKind === 'panelcard') this.hideOverlay()
+  }
+
+  /** A sidebar site's peek card. */
+  showPanelCard(rect: Rect, payload: Extract<OverlayPayload, { kind: 'panelcard' }>): void {
+    if (this.overlayShown && !['bmcard', 'tabcard', 'panelcard'].includes(this.overlayKind ?? '')) return
+    this.showOverlay(rect, payload)
+  }
+
   updateOverlay(payload: OverlayPayload): void {
     if (this.overlayShown) this.overlay.webContents.send('overlay:data', payload)
   }
@@ -962,6 +1018,7 @@ export class BrowserWin implements TabHost {
 
   hideOverlay(): void {
     if (!this.overlayShown) return
+    if (this.overlayKind === 'switcher') this.switcher = null
     if (this.overlayKind) this.lastClosed = { kind: this.overlayKind, at: Date.now() }
     this.overlayShown = false
     this.overlayKind = null
@@ -1030,7 +1087,51 @@ export class BrowserWin implements TabHost {
 
   // ---- keyboard shortcuts ---------------------------------------------------------
 
+  // ---- Ctrl+Tab switcher -------------------------------------------------------------
+  // Holding Ctrl, each Tab steps through tabs in the order you last used them, with a
+  // picture of each; letting go of Ctrl switches to the one picked.
+  private switcher: { ids: number[]; index: number } | null = null
+
+  private stepSwitcher(step: number): void {
+    if (!this.switcher) {
+      const ids = [...this.visible()].sort((a, b) => b.lastActive - a.lastActive).map((t) => t.id)
+      if (ids.length < 2) return
+      this.switcher = { ids, index: 0 }
+    }
+    const s = this.switcher
+    s.index = (s.index + step + s.ids.length) % s.ids.length
+    const payload: OverlayPayload = {
+      kind: 'switcher',
+      index: s.index,
+      items: s.ids.flatMap((id) => {
+        const t = this.tab(id)
+        return t ? [{ id, title: t.title, favicon: t.favicon, url: t.pageUrl() }] : []
+      })
+    }
+    if (this.overlayKind === 'switcher') this.updateOverlay(payload)
+    else this.showOverlay(this.contentRect, payload, true)
+  }
+
+  /** Switches to the tab picked in the switcher (or the one clicked), and closes it. */
+  finishSwitcher(pick?: number): void {
+    const s = this.switcher
+    this.switcher = null
+    if (this.overlayKind === 'switcher') this.hideOverlay()
+    const id = pick ?? s?.ids[s.index]
+    const tab = id !== undefined ? this.tab(id) : undefined
+    if (tab && tab !== this.active) this.activate(tab)
+  }
+
   handleKey(input: Electron.Input): boolean {
+    if (this.switcher && input.type === 'keyUp' && (input.key === 'Control' || input.key === 'Meta')) {
+      this.finishSwitcher()
+      return true
+    }
+    if (this.switcher && input.type === 'keyDown' && input.key === 'Escape') {
+      this.switcher = null
+      this.hideOverlay()
+      return true
+    }
     if (input.type !== 'keyDown') return false
     const ctrl = input.control || input.meta
     const { shift, alt } = input
@@ -1056,7 +1157,7 @@ export class BrowserWin implements TabHost {
         case 'f4':
           return run(() => tab && this.closeTab(tab))
         case 'tab':
-          return run(() => this.cycle(shift ? -1 : 1))
+          return run(() => this.stepSwitcher(shift ? -1 : 1))
         case 'pagedown':
           return run(() => this.cycle(1))
         case 'pageup':
@@ -1178,8 +1279,12 @@ export function applyColorMode(mode: ColorMode): void {
 }
 
 export function repaintWindowChrome(): void {
+  const material = getSettings().appearance.material ?? 'solid'
   for (const w of BrowserWin.all) {
     w.win.setTitleBarOverlay(titleBarColors(w.incognito))
-    w.win.setBackgroundColor(w.incognito ? MASKED_BASE : windowBase())
+    // Mica and Acrylic are Windows 11 materials drawn behind a see-through window.
+    const native = !w.incognito && (material === 'mica' || material === 'acrylic')
+    if (process.platform === 'win32') w.win.setBackgroundMaterial(native ? material : 'none')
+    w.win.setBackgroundColor(native ? '#00000000' : w.incognito ? MASKED_BASE : windowBase())
   }
 }
