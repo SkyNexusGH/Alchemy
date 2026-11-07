@@ -60,12 +60,14 @@ const DEFAULTS: Settings = {
   panelWidth: 480,
   panelSleepMinutes: 30,
   tabIslands: true,
+  sidebar: 'shown',
   videoPopout: true,
   autoPopout: true,
   customEngines: DEFAULT_ENGINES,
   askDefaultBrowser: true,
   torBridges: false,
   maskedUsesTor: false,
+  splitBlockCounts: false,
   performance: DEFAULT_PERFORMANCE
 }
 

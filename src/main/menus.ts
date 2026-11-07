@@ -262,6 +262,7 @@ export function appMenuInfo(bw: BrowserWin): AppMenuInfo {
     tabs: tabs.length,
     sleeping: tabs.filter((t) => t.sleeping).length,
     blocked: blockStats().blocked,
+    split: getSettings().splitBlockCounts ? { ads: blockStats().ads, trackers: blockStats().trackers } : null,
     extensions: bw.incognito ? [] : listExtensions().map(({ id, name, icon }) => ({ id, name, icon }))
   }
 }

@@ -10,12 +10,30 @@ const ROW_HEIGHT = 40
 const PANEL_PAD = 6
 const SHADOW = 14
 
+const short = (n: number): string => (n > 99 ? '99+' : String(n))
+
 function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
-  const count = tab.blocked > 99 ? '99+' : String(tab.blocked)
+  const split = useSettings((s) => !!s.settings?.splitBlockCounts)
+  const ads = tab.blocked - tab.trackers
+  const count = split ? (
+    <>
+      {short(ads)}
+      <span className="shield-sep" />
+      <span className="shield-trackers">{short(tab.trackers)}</span>
+    </>
+  ) : (
+    short(tab.blocked)
+  )
   return (
     <button
       className={`omni-shield${tab.shields ? ' on' : ''}${tab.shields && tab.blocked > 0 ? ' has-count' : ''}`}
-      title={tab.shields ? `Protections on · ${tab.blocked} blocked on this page` : 'Protections off for this site'}
+      title={
+        !tab.shields
+          ? 'Aegis blocker is off for this site'
+          : split
+            ? `Aegis blocker · ${ads} ads and ${tab.trackers} trackers blocked on this page`
+            : `Aegis blocker · ${tab.blocked} blocked on this page`
+      }
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect()
         const width = 360

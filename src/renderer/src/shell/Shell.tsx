@@ -1,6 +1,6 @@
 import './shell.css'
 import { Onion, VenetianMask } from '../lib/icons'
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
 import { BrandLogo, Logo } from '../lib/ui'
@@ -30,9 +30,26 @@ export default function Shell(): React.JSX.Element {
   const floating = useShell((s) => s.win.tabs.find((t) => t.id === s.win.activeId)?.floating ?? false)
   const content = useRef<HTMLDivElement>(null)
   useReportRect(content, 'layout:content')
+  const sidebar = useSettings((s) => s.settings?.sidebar ?? 'shown')
+  // Hidden Sidebar: out while the mouse is on it, tucked away again shortly after it leaves.
+  const [peek, setPeek] = useState(false)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => setPeek(false), [sidebar])
+  const railHover = {
+    onMouseEnter: () => {
+      clearTimeout(leaveTimer.current)
+      setPeek(true)
+    },
+    onMouseLeave: () => {
+      clearTimeout(leaveTimer.current)
+      leaveTimer.current = setTimeout(() => setPeek(false), 350)
+    }
+  }
 
   return (
-    <div className={`shell${maximized ? ' maximized' : ''}${isPrivate ? ' private' : ''}`}>
+    <div
+      className={`shell${maximized ? ' maximized' : ''}${isPrivate ? ' private' : ''} sidebar-${sidebar}${peek ? ' peek' : ''}`}
+    >
       <header className="titlebar">
         <button
           className="brand"
@@ -60,7 +77,7 @@ export default function Shell(): React.JSX.Element {
         <TabStrip />
         <div className="titlebar-drag" />
       </header>
-      <SideRail />
+      {sidebar !== 'off' && <SideRail {...(sidebar === 'hidden' ? railHover : {})} />}
       <main className="main">
         <Toolbar />
         {showBar && <BookmarksBar />}

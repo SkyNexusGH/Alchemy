@@ -912,7 +912,21 @@ export class BrowserWin implements TabHost {
     this.showOverlay({ x: 0, y: 0, width, height }, { kind: 'menu', items, x, y }, true)
   }
 
+  /** The popup that closed last, and when: clicking its button again should close it, not reopen it. */
+  private lastClosed: { kind: OverlayPayload['kind']; at: number } | null = null
+
   showOverlay(rect: Rect, payload: OverlayPayload, focus = false): void {
+    // Popups opened from a button work like a toggle. Clicking the button first takes focus
+    // away from the popup, which closes it, so a click that lands right after that close
+    // was meant to close it.
+    if (TOGGLE_KINDS.has(payload.kind)) {
+      const justClosed = this.lastClosed?.kind === payload.kind && Date.now() - this.lastClosed.at < 350
+      if (justClosed || (this.overlayShown && this.overlayKind === payload.kind)) {
+        this.lastClosed = null
+        this.hideOverlay()
+        return
+      }
+    }
     this.overlay.setBounds({
       x: Math.round(rect.x),
       y: Math.round(rect.y),
@@ -948,6 +962,7 @@ export class BrowserWin implements TabHost {
 
   hideOverlay(): void {
     if (!this.overlayShown) return
+    if (this.overlayKind) this.lastClosed = { kind: this.overlayKind, at: Date.now() }
     this.overlayShown = false
     this.overlayKind = null
     this.win.contentView.removeChildView(this.overlay)
@@ -1140,6 +1155,9 @@ function roundRect(r: Rect): Rectangle {
 }
 
 /** Window buttons (minimize/maximize/close) drawn in the right color for the mode. */
+/** Popups that a toolbar or sidebar button opens; clicking the button again closes them. */
+const TOGGLE_KINDS = new Set<OverlayPayload['kind']>(['shields', 'downloads', 'app', 'workspace', 'add-panel'])
+
 /** Masked Mode windows are always dark, whatever the mode. */
 const MASKED_BASE = '#07080a'
 

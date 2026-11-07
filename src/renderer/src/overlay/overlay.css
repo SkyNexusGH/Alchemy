@@ -461,6 +461,27 @@ kbd {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+.sh-split {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-top: 16px;
+  color: var(--text-2);
+}
+.sh-split > div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.sh-num.trackers {
+  color: #b893f5;
+}
+.sh-split-note {
+  flex-basis: 100%;
+  color: var(--text-3);
+  font-size: 12px;
+}
 .sh-list {
   max-height: 210px;
   overflow-y: auto;

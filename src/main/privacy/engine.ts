@@ -1,6 +1,6 @@
-import { adsAndTrackingLists, ElectronBlocker, fullLists } from '@ghostery/adblocker-electron'
+import { adsAndTrackingLists, ElectronBlocker, fullLists, type Request } from '@ghostery/adblocker-electron'
 import { app } from 'electron'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { FilterStatus } from '@shared/types'
@@ -48,8 +48,53 @@ function changed(): void {
   broadcast('filters', status)
 }
 
+// ---- telling trackers from ads -------------------------------------------------------
+// Everything is blocked by the one engine above. To count ads and trackers separately,
+// a second, small engine holds only EasyList, the ads list: a blocked request it matches
+// is an ad, and anything else blocked (EasyPrivacy, uBlock's privacy list, …) is a tracker.
+// Ads win ties, because the tracker lists also name many ad servers.
+
+const ADS_LISTS = adsAndTrackingLists.filter((u) => /easylist\/easylist\.txt$/.test(u))
+let trackerEngine: ElectronBlocker | null = null
+let trackerLoading = false
+
+const trackerCache = (): string => join(app.getPath('userData'), 'filters-ads-only.bin')
+
+/** True when a blocked request isn't on the ads list. Counted as an ad until that list is loaded. */
+export function isTracker(request: Request): boolean {
+  if (!trackerEngine) return false
+  const { match, redirect } = trackerEngine.match(request)
+  return !(match || redirect)
+}
+
+async function loadTrackerEngine(refresh = false): Promise<void> {
+  if (trackerLoading || (trackerEngine && !refresh)) return
+  trackerLoading = true
+  try {
+    const fresh = existsSync(trackerCache()) && Date.now() - statSync(trackerCache()).mtimeMs < REFRESH_MS
+    if (!refresh && existsSync(trackerCache())) {
+      trackerEngine = ElectronBlocker.deserialize(new Uint8Array(await readFile(trackerCache())))
+      if (fresh) return
+    }
+    const engine = await ElectronBlocker.fromLists(fetch, ADS_LISTS, { ...CONFIG, loadCosmeticFilters: false })
+    trackerEngine = engine
+    writeFileSync(trackerCache(), engine.serialize())
+  } catch (err) {
+    console.warn('[adblock] tracker lists unavailable', err)
+  } finally {
+    trackerLoading = false
+  }
+}
+
 /** Loads the cached engine immediately (if any), then refreshes stale lists in the background. */
 export async function initFilters(): Promise<void> {
+  if (getSettings().splitBlockCounts) void loadTrackerEngine()
+  onSettingsChanged((s) => {
+    if (s.splitBlockCounts) void loadTrackerEngine()
+    else trackerEngine = null
+  })
+  setInterval(() => getSettings().splitBlockCounts && void loadTrackerEngine(true), REFRESH_MS)
+
   const loaded = await loadCache()
   const updated = status.updated ?? 0
   if (!loaded || Date.now() - updated > REFRESH_MS) void updateFilters()

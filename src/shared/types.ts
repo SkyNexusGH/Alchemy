@@ -29,6 +29,8 @@ export interface TabState {
   bookmarked: boolean
   /** Ads and trackers blocked on the current page. */
   blocked: number
+  /** Of those, how many were trackers (only counted while splitBlockCounts is on). */
+  trackers: number
   /** Whether protections are active for this site. */
   shields: boolean
   workspaceId: string
@@ -80,9 +82,16 @@ export interface ShieldsInfo {
   /** Protections are off globally (settings), not just for this site. */
   globallyOff: boolean
   blocked: number
+  /** Of this page's blocked requests, how many were trackers. */
+  trackers: number
+  /** Ads and trackers are counted separately. */
+  split: boolean
   /** Blocked request counts by host, most first. */
   hosts: [string, number][]
   totalBlocked: number
+  /** Totals since separate counting was turned on. */
+  totalAds: number
+  totalTrackers: number
   since: number
 }
 
@@ -199,6 +208,9 @@ export interface Settings {
   /** Closed panels unload after this long (0 = keep running for notifications). */
   panelSleepMinutes: number
   tabIslands: boolean
+  /** The left sidebar (workspaces and sidebar sites): always shown, hidden until you
+   *  move to the left edge ("Hidden Sidebar"), or off. */
+  sidebar: 'shown' | 'hidden' | 'off'
   videoPopout: boolean
   /** Switching away from a tab with a playing video floats the video. */
   autoPopout: boolean
@@ -209,6 +221,8 @@ export interface Settings {
   torBridges: boolean
   /** New Masked Mode windows go through Tor (they open as Alchemy Tor windows), hiding your IP. */
   maskedUsesTor: boolean
+  /** Count ads and trackers separately (the shield, its panel and the Alchemy menu). */
+  splitBlockCounts: boolean
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
@@ -322,6 +336,8 @@ export interface AppMenuInfo {
   tabs: number
   sleeping: number
   blocked: number
+  /** Set when ads and trackers are counted separately. */
+  split: { ads: number; trackers: number } | null
   extensions: { id: string; name: string; icon: string | null }[]
 }
 

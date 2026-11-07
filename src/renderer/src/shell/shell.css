@@ -386,6 +386,56 @@ html[data-compact='true'] .tab.active {
   overflow-y: auto;
   overflow-x: hidden;
 }
+/* Sidebar off: no column at all. */
+.shell.sidebar-off {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+/* Hidden Sidebar: a thin strip along the left edge. Moving onto it slides the sidebar out,
+   and the page makes room for it. */
+.shell.sidebar-hidden {
+  grid-template-columns: 7px minmax(0, 1fr);
+  transition: grid-template-columns 220ms var(--ease);
+}
+.shell.sidebar-hidden.peek {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+html[data-compact='true'] .shell.sidebar-hidden.peek {
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+html[data-compact='true'] .shell.sidebar-off {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
+  grid-template-columns: 7px minmax(0, 1fr);
+}
+.shell.sidebar-hidden .rail {
+  position: relative;
+  z-index: 1;
+  width: 44px;
+  transform: translateX(-37px);
+  transition: transform 220ms var(--ease);
+}
+.shell.sidebar-hidden.peek .rail {
+  transform: none;
+}
+/* A faint line on the edge, so the hidden sidebar can be found. */
+.shell.sidebar-hidden .rail::after {
+  content: '';
+  /* The sidebar is slid left, so its last few pixels are the strip on screen. */
+  position: absolute;
+  left: 39px;
+  top: calc(50% - 28px);
+  width: 3px;
+  height: 56px;
+  border-radius: 3px;
+  background: var(--text-3);
+  opacity: 0.45;
+  transition: opacity 160ms var(--ease);
+  pointer-events: none;
+}
+.shell.sidebar-hidden.peek .rail::after {
+  opacity: 0;
+}
 .rail::-webkit-scrollbar {
   display: none;
 }
@@ -761,6 +811,17 @@ html[data-compact='true'] .tab.active {
   font-size: 12px;
   font-weight: 650;
   line-height: 1;
+}
+/* Ads and trackers counted separately: "12 | 4", trackers in a second color. */
+.shield-sep {
+  width: 1px;
+  height: 11px;
+  margin: 0 2px;
+  background: currentColor;
+  opacity: 0.35;
+}
+.shield-trackers {
+  color: #b893f5;
 }
 @keyframes count-pop {
   from {

@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { getHostname, parse } from 'tldts-experimental'
 import { getSettings } from '../settings'
-import { getBlocker } from './engine'
+import { getBlocker, isTracker } from './engine'
 import { countBlocked, shieldsEnabled, siteOf, siteProtected } from './shields'
 
 // Ghostery's cosmetic-filter preload hides ad placeholders and runs uBO scriptlets in every frame.
@@ -12,7 +12,7 @@ const COSMETIC_PRELOAD = require.resolve('@ghostery/adblocker-electron-preload')
 // Fingerprinting protection and the video popout button, in every frame.
 const FRAME_PRELOAD = join(__dirname, '../preload/frame.js')
 
-type BlockedListener = (webContentsId: number, url: string) => void
+type BlockedListener = (webContentsId: number, url: string, tracker: boolean) => void
 const blockedListeners = new Set<BlockedListener>()
 
 export function onRequestBlocked(fn: BlockedListener): void {
@@ -91,22 +91,23 @@ function onBeforeRequest(
   })
   const { redirect, match } = blocker.match(request)
   if (!redirect && !match) return callback({})
+  const tracker = getSettings().splitBlockCounts ? isTracker(request) : null
 
   // Some filters swap a script for a harmless stub instead of blocking, so pages don't break.
   if (redirect) {
-    reportBlocked(webContentsId, url)
+    reportBlocked(webContentsId, url, tracker)
     return callback({ redirectURL: redirect.dataUrl })
   }
   // Ad scripts sometimes retry a failed request in a tight loop (thousands per second).
   // Once that happens, answer with an empty success so the loop stops burning CPU.
   if (isRetryStorm(webContentsId, url)) return callback({ redirectURL: noopFor(resourceType) })
-  reportBlocked(webContentsId, url)
+  reportBlocked(webContentsId, url, tracker)
   callback({ cancel: true })
 }
 
-function reportBlocked(webContentsId: number | undefined, url: string): void {
-  countBlocked()
-  if (webContentsId) for (const fn of blockedListeners) fn(webContentsId, url)
+function reportBlocked(webContentsId: number | undefined, url: string, tracker: boolean | null): void {
+  countBlocked(tracker)
+  if (webContentsId) for (const fn of blockedListeners) fn(webContentsId, url, tracker === true)
 }
 
 const recentBlocks = new Map<string, { count: number; last: number }>()

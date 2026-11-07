@@ -354,7 +354,7 @@ function ShieldsPanel({ tabId }: { tabId: number }): React.JSX.Element {
           <div style={{ minWidth: 0 }}>
             <div className="sh-name">{info.site}</div>
             <div className="sh-state">
-              {info.globallyOff ? 'Ad blocking is off in settings' : on ? 'Protections are on' : 'Protections are off for this site'}
+              {info.globallyOff ? 'Aegis blocker is off in Settings' : on ? 'Aegis blocker is on' : 'Aegis blocker is off for this site'}
             </div>
           </div>
           {!info.globallyOff && (
@@ -370,10 +370,23 @@ function ShieldsPanel({ tabId }: { tabId: number }): React.JSX.Element {
             />
           )}
         </div>
-        {on && (
+        {on && !info.split && (
           <div className="sh-count">
             <span className="sh-num">{info.blocked}</span>
             <span>ads & trackers blocked on this page</span>
+          </div>
+        )}
+        {on && info.split && (
+          <div className="sh-split">
+            <div>
+              <span className="sh-num">{info.blocked - info.trackers}</span>
+              <span>ads</span>
+            </div>
+            <div>
+              <span className="sh-num trackers">{info.trackers}</span>
+              <span>trackers</span>
+            </div>
+            <span className="sh-split-note">blocked on this page</span>
           </div>
         )}
       </div>
@@ -394,7 +407,15 @@ function ShieldsPanel({ tabId }: { tabId: number }): React.JSX.Element {
 
       <div className="sh-foot">
         <span>
-          <b>{info.totalBlocked.toLocaleString()}</b> blocked in total{saved > 0 ? ` · ~${saved} min saved` : ''}
+          {info.split ? (
+            <>
+              <b>{info.totalAds.toLocaleString()}</b> ads · <b>{info.totalTrackers.toLocaleString()}</b> trackers in total
+            </>
+          ) : (
+            <>
+              <b>{info.totalBlocked.toLocaleString()}</b> blocked in total{saved > 0 ? ` · ~${saved} min saved` : ''}
+            </>
+          )}
         </span>
         <button
           className="btn small"

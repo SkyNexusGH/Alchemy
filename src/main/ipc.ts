@@ -289,8 +289,12 @@ export function registerIpc(): void {
       enabled: shieldsEnabled(url),
       globallyOff: !getSettings().adblock,
       blocked: tab.blocked,
+      trackers: tab.trackers,
+      split: getSettings().splitBlockCounts,
       hosts: [...tab.blockedHosts].sort((a, b) => b[1] - a[1]).slice(0, 8),
       totalBlocked: stats.blocked,
+      totalAds: stats.ads,
+      totalTrackers: stats.trackers,
       since: stats.since
     }
   })

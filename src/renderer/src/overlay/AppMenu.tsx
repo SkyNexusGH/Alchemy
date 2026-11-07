@@ -6,27 +6,20 @@ import {
   Columns2,
   Download,
   Expand,
-  Logo as LogoMark,
-  Monitor,
-  Moon,
   Pipette,
   Plus,
-  Power,
   Printer,
   Puzzle,
   RefreshCw,
   Search,
   Settings as Gear,
-  Sun,
   TextSearch,
   VenetianMask,
   WorkspaceIcon,
-  ZoomIn,
-  ZoomOut,
   type Icon
 } from '../lib/icons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { AppMenuInfo, ColorMode } from '@shared/types'
+import type { AppMenuInfo } from '@shared/types'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
 import { BrandLogo } from '../lib/ui'
@@ -45,13 +38,6 @@ const TILES: { cmd: string; label: string; icon: Icon; hint?: string }[] = [
   { cmd: 'downloads', label: 'Downloads', icon: Download, hint: 'Ctrl+J' },
   { cmd: 'bookmarks', label: 'Bookmarks', icon: Bookmark, hint: 'Ctrl+Shift+O' },
   { cmd: 'extensions', label: 'Extensions', icon: Puzzle }
-]
-
-const MODES: { value: ColorMode; label: string; icon: Icon }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor }
 ]
 
 /** The Alchemy menu, opened from the logo: quick actions, workspaces, extensions and the look. */
@@ -79,12 +65,6 @@ export function AppMenu(): React.JSX.Element {
   useLayoutEffect(() => {
     if (panel.current) void api.invoke('overlay:resize', panel.current.offsetHeight + 28)
   })
-
-  const mode = settings?.appearance.mode ?? 'ovyra'
-  const zoom = async (cmd: string): Promise<void> => {
-    await api.invoke('palette:run', cmd)
-    setInfo(await api.invoke<AppMenuInfo>('appmenu:info'))
-  }
 
   return (
     <div className="panel app-menu" ref={panel}>
@@ -145,34 +125,6 @@ export function AppMenu(): React.JSX.Element {
         ))}
       </div>
 
-      <div className="am-section">
-        <div className="am-modes">
-          {MODES.map((m) => (
-            <button key={m.value} className={m.value === mode ? 'on' : ''} onClick={() => run('mode', m.value, true)}>
-              <m.icon size={15} />
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <div className="am-row">
-          <span className="am-row-label">Zoom</span>
-          <div className="am-zoom">
-            <button disabled={info?.zoom == null} title="Zoom out (Ctrl+-)" onClick={() => void zoom('zoom-out')}>
-              <ZoomOut size={16} />
-            </button>
-            <button className="am-zoom-value" disabled={info?.zoom == null} title="Reset to 100%" onClick={() => void zoom('zoom-reset')}>
-              {info?.zoom ?? 100}%
-            </button>
-            <button disabled={info?.zoom == null} title="Zoom in (Ctrl+=)" onClick={() => void zoom('zoom-in')}>
-              <ZoomIn size={16} />
-            </button>
-          </div>
-          <button className="am-icon" title="Full screen (F11)" onClick={() => run('fullscreen')}>
-            <Expand size={16} />
-          </button>
-        </div>
-      </div>
-
       <div className="am-foot">
         <button onClick={() => run('find')} title="Find in page (Ctrl+F)" aria-label="Find in page">
           <TextSearch size={16} />
@@ -186,8 +138,8 @@ export function AppMenu(): React.JSX.Element {
         <button onClick={() => run('devtools')} title="Developer tools (F12)" aria-label="Developer tools">
           <Code size={16} />
         </button>
-        <button className="exit" onClick={() => run('exit')} title="Exit Alchemy" aria-label="Exit Alchemy">
-          <Power size={16} />
+        <button onClick={() => run('fullscreen')} title="Full screen (F11)" aria-label="Full screen">
+          <Expand size={16} />
         </button>
       </div>
 
@@ -198,7 +150,13 @@ export function AppMenu(): React.JSX.Element {
             {info.tabs} tab{info.tabs === 1 ? '' : 's'}
             {info.sleeping > 0 && ` · ${info.sleeping} asleep`}
           </span>
-          <span className="blocked">{info.blocked.toLocaleString()} blocked</span>
+          {info.split ? (
+            <span className="blocked">
+              {info.split.ads.toLocaleString()} ads · {info.split.trackers.toLocaleString()} trackers
+            </span>
+          ) : (
+            <span className="blocked">{info.blocked.toLocaleString()} blocked</span>
+          )}
         </div>
       )}
     </div>

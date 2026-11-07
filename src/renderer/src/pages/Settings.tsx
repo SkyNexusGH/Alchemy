@@ -56,7 +56,7 @@ const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'newtab', label: 'New Tab & Search', icon: LayoutGrid },
   { id: 'workspaces', label: 'Workspaces', icon: Layers },
-  { id: 'adblock', label: 'Ad blocking', icon: Shield },
+  { id: 'adblock', label: 'Aegis blocker', icon: Shield },
   { id: 'privacy', label: 'Privacy', icon: Lock },
   { id: 'tabs', label: 'Tabs & sidebar', icon: Sidebar },
   { id: 'performance', label: 'Performance', icon: Gauge },
@@ -298,7 +298,7 @@ const FONTS: { value: UiFont; label: string; family: string }[] = [
 function useSettingRows(s: S | null, onClear: () => void): Row[] {
   const [filters, setFilters] = useState<FilterStatus | null>(null)
   const [exceptions, setExceptions] = useState<string[]>([])
-  const [stats, setStats] = useState<{ blocked: number; since: number } | null>(null)
+  const [stats, setStats] = useState<{ blocked: number; since: number; ads: number; trackers: number } | null>(null)
   const [downloadsDir, setDownloadsDir] = useState('')
   const [usage, setUsage] = useState<{ memoryMB: number; tabs: number; sleeping: number; totalGB: number } | null>(null)
   // Whether the graphics card is in use right now (the setting applies after a restart).
@@ -323,7 +323,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
   useEffect(() => {
     api.invoke<FilterStatus>('filters:status').then(setFilters)
     api.invoke<string[]>('shields:exceptions').then(setExceptions)
-    api.invoke<{ blocked: number; since: number }>('shields:stats').then(setStats)
+    api.invoke<{ blocked: number; since: number; ads: number; trackers: number }>('shields:stats').then(setStats)
     api.invoke<{ downloads: string; gpu: boolean }>('app:info').then((i) => {
       setDownloadsDir(i.downloads)
       setGpuNow(i.gpu)
@@ -520,12 +520,12 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       control: <Switch on={s.searchSuggestions} onChange={(v) => set({ searchSuggestions: v })} />
     },
 
-    // ---- ad blocking ----
+    // ---- Aegis blocker (ad blocking) ----
     {
       category: 'adblock',
-      label: 'Block ads and trackers',
-      hint: listsLine,
-      keywords: 'adblock ublock shield filter crypto miner mining',
+      label: 'Aegis blocker',
+      hint: `Blocks ads and trackers. ${listsLine}`,
+      keywords: 'aegis ad blocking adblock ads trackers ublock shield filter crypto miner mining',
       control: (
         <div className="row-actions">
           {/* Lists update by themselves every day; the button only shows when that fell behind. */}
@@ -548,12 +548,24 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'adblock',
+      label: 'Count ads and trackers separately',
+      hint: 'The shield, its panel and the Alchemy menu show ads and trackers as two numbers. Anything on EasyList counts as an ad; everything else blocked counts as a tracker.',
+      keywords: 'split ads trackers count separate shield',
+      control: <Switch on={s.splitBlockCounts} onChange={(v) => set({ splitBlockCounts: v })} />
+    },
+    {
+      category: 'adblock',
       label: 'Blocked so far',
       hint: stats ? `Since ${new Date(stats.since).toLocaleDateString([], { month: 'long', day: 'numeric' })}` : '',
       keywords: 'stats count',
       control: (
         <span className="stat-number">
           {(stats?.blocked ?? 0).toLocaleString()}
+          {s.splitBlockCounts && stats && (
+            <small>
+              {stats.ads.toLocaleString()} ads · {stats.trackers.toLocaleString()} trackers since you turned on separate counts
+            </small>
+          )}
           <small>~{Math.max(0, Math.round(((stats?.blocked ?? 0) * 0.05) / 60))} min saved</small>
         </span>
       )
@@ -767,6 +779,28 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
 
     // ---- tabs & sidebar ----
+    {
+      category: 'tabs',
+      label: 'Sidebar',
+      hint:
+        s.sidebar === 'hidden'
+          ? 'Hidden Sidebar: tucked away until you move the mouse to the left edge of the window, then it slides out.'
+          : s.sidebar === 'off'
+            ? 'The sidebar with your workspaces and sidebar sites is turned off.'
+            : 'Your workspaces and sidebar sites, down the left side.',
+      keywords: 'sidebar rail hidden hide auto workspaces panels left edge',
+      control: (
+        <Segmented
+          value={s.sidebar ?? 'shown'}
+          options={[
+            { value: 'shown', label: 'Shown' },
+            { value: 'hidden', label: 'Hidden Sidebar' },
+            { value: 'off', label: 'Off' }
+          ]}
+          onChange={(sidebar) => set({ sidebar })}
+        />
+      )
+    },
     {
       category: 'tabs',
       label: 'Sleeping tabs',

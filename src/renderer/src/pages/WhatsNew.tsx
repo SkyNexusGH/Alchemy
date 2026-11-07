@@ -30,6 +30,27 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.13',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Sparkle,
+        title: 'Meet the Aegis blocker',
+        text: 'Alchemy’s ad blocker has a new name. Turn on “Count ads and trackers separately” in Settings → Aegis blocker to see the two as separate numbers.'
+      },
+      {
+        icon: AppWindow,
+        title: 'Hidden Sidebar',
+        text: 'Settings → Tabs & sidebar: keep the sidebar shown, hide it until you move to the left edge, or turn it off.'
+      },
+      {
+        icon: Gauge,
+        title: 'Click again to close',
+        text: 'The shield, downloads and Alchemy menu now close when you click their button a second time. The Alchemy menu is also simpler.'
+      }
+    ]
+  },
+  {
     version: '0.1.12',
     date: 'November 2026',
     items: [

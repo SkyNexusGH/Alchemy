@@ -1,3 +1,8 @@
+/* The page body doesn't scroll by default (base.css); What's new is long, so it does. */
+body:has(.whatsnew) {
+  overflow-y: auto;
+}
+
 .whatsnew {
   max-width: 860px;
   margin: 0 auto;

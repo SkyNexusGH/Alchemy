@@ -62,7 +62,7 @@ if (!app.requestSingleInstanceLock()) {
     void initFilters()
     // Extensions load before the first window so their content scripts see every tab.
     await initExtensions().catch((err) => console.error('[extensions] failed to start', err))
-    onRequestBlocked((id, url) => tabsByContents.get(id)?.recordBlocked(url))
+    onRequestBlocked((id, url, tracker) => tabsByContents.get(id)?.recordBlocked(url, tracker))
     registerIpc()
     initPanels({
       onChange: () => {

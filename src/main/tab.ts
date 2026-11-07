@@ -70,6 +70,8 @@ export class Tab {
   workspaceId: string
   islandId: number | null
   blocked = 0
+  /** Of the blocked requests, how many were trackers. */
+  trackers = 0
   readonly blockedHosts = new Map<string, number>()
 
   private saved: { entries: NavigationEntry[]; index: number } | null = null
@@ -185,8 +187,9 @@ export class Tab {
     else wc.reload()
   }
 
-  recordBlocked(url: string): void {
+  recordBlocked(url: string, tracker = false): void {
     this.blocked++
+    if (tracker) this.trackers++
     let host = url
     try {
       host = new URL(url).hostname.replace(/^www\./, '')
@@ -282,6 +285,7 @@ export class Tab {
       security: this.security(),
       bookmarked: isBookmarked(this.pageUrl()),
       blocked: this.blocked,
+      trackers: this.trackers,
       shields: shieldsEnabled(this.pageUrl()),
       workspaceId: this.workspaceId,
       islandId: this.islandId
@@ -351,6 +355,7 @@ export class Tab {
       // A new page starts with a fresh blocked count.
       if (details.isMainFrame && !details.isSameDocument) {
         this.blocked = 0
+        this.trackers = 0
         this.blockedHosts.clear()
       }
     })

@@ -13,7 +13,7 @@ function openBeside(el: HTMLElement, payload: object, width = 320): void {
   api.invoke('overlay:show', { x: r.right + 2, y: Math.max(r.top - 16, 0), width, height: 420 }, payload, true)
 }
 
-export function SideRail(): React.JSX.Element {
+export function SideRail(props: { onMouseEnter?: () => void; onMouseLeave?: () => void }): React.JSX.Element {
   const isPrivate = useShell((s) => s.win.private)
   // Sidebar sites don't go through Tor, so Alchemy Tor windows leave them out.
   const isTor = useShell((s) => s.win.tor)
@@ -32,7 +32,7 @@ export function SideRail(): React.JSX.Element {
   )
 
   return (
-    <nav className="rail">
+    <nav className="rail" onMouseEnter={props.onMouseEnter} onMouseLeave={props.onMouseLeave}>
       {!isPrivate && (
         <>
           {workspaces.map((w) => (
