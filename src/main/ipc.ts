@@ -9,7 +9,7 @@ import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
-import { destroyPanel, hidePanel, panelStates, panelPreview, presetIcons, reloadPanel, showPanel, togglePanel } from './panels'
+import { destroyPanel, hidePanel, panelStates, panelPreview, presetIcons, setPanelDesktop, reloadPanel, showPanel, togglePanel } from './panels'
 import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
 import * as bookmarks from './bookmarks'
@@ -464,6 +464,7 @@ export function registerIpc(): void {
     showMenu(bw, [
       { label: 'Reload', enabled: !!state?.loaded, click: () => reloadPanel(id) },
       { label: 'Unload (free memory)', enabled: !!state?.loaded, click: () => destroyPanel(id) },
+      { label: 'Use desktop version', type: 'checkbox', checked: !!state?.desktop, click: () => setPanelDesktop(id, !state?.desktop) },
       { type: 'separator' },
       { label: 'Remove from sidebar', click: () => removePanel(id) }
     ], x, y)

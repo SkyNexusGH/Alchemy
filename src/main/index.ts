@@ -19,9 +19,16 @@ import { applyColorMode, BrowserWin, repaintWindowChrome } from './window'
 registerSchemePrivileges()
 app.setAppUserModelId('com.ovyra.browser')
 
-// Sites (Google sign-in especially) treat "Electron" in the user agent as an embedded,
-// untrusted browser. Present the plain Chrome user agent the engine really is.
-app.userAgentFallback = app.userAgentFallback.replace(/\s(Electron|ovyra)\/\S+/gi, '')
+// Sites treat unknown names in the user agent badly: Google sign-in refuses "Electron", and
+// Twitch sends "Alchemy/…" to its mobile site. Present the plain Chrome user agent the engine
+// really is, with every extra product name (Alchemy, Electron, ovyra, …) removed.
+app.userAgentFallback = plainChromeUserAgent(app.userAgentFallback)
+
+function plainChromeUserAgent(ua: string): string {
+  return ua
+    .replace(/\(KHTML, like Gecko\)(?:\s+(?!Chrome\/)\S+\/\S+)+/, '(KHTML, like Gecko)')
+    .replace(/\s(Electron|ovyra|Alchemy)\/\S+/gi, '')
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()

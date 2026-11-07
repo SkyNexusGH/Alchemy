@@ -1,8 +1,8 @@
-import { clipboard, session, WebContentsView, type Session } from 'electron'
+import { app, clipboard, session, WebContentsView, type Session } from 'electron'
 import { showMenu } from './popup'
 import { PANEL_PRESETS, type PanelItem, type PanelState } from '@shared/types'
 import { setupBrowsingSession } from './sessions'
-import { getSettings, onSettingsChanged } from './settings'
+import { getSettings, onSettingsChanged, updateSettings } from './settings'
 import { JsonStore } from './store'
 import type { BrowserWin } from './window'
 
@@ -19,7 +19,32 @@ interface LivePanel {
   unread: number
 }
 
+/** Desktop sites are built for wide windows; a slightly smaller zoom fits them in a sidebar. */
 const PANEL_ZOOM = 0.8
+
+/**
+ * Sidebar sites load their mobile version by default: the sidebar is phone-sized, so that's
+ * the layout that fits. Same Chrome version as Alchemy, presented as Chrome on Android.
+ */
+function mobileUserAgent(): string {
+  return app.userAgentFallback.replace(/\([^)]*Windows[^)]*\)/, '(Linux; Android 10; K)').replace(/Safari\/([\d.]+)$/, 'Mobile Safari/$1')
+}
+
+function applyMode(wc: Electron.WebContents, desktop: boolean): void {
+  wc.setUserAgent(desktop ? app.userAgentFallback : mobileUserAgent())
+}
+
+/** Switches a sidebar site between its mobile and desktop versions, and reloads it. */
+export function setPanelDesktop(id: string, desktop: boolean): void {
+  const item = getSettings().panels.find((p) => p.id === id)
+  if (!item) return
+  updateSettings({ panels: getSettings().panels.map((p) => (p.id === id ? { ...p, desktop } : p)) })
+  const wc = live.get(id)?.view.webContents
+  if (!wc || wc.isDestroyed()) return
+  applyMode(wc, desktop)
+  // Start again from the site's own address: a mobile site may have redirected to m.example.com.
+  wc.loadURL(item.url).catch(() => {})
+}
 const meta = new JsonStore<{ favicons: Record<string, string> }>('panels', { favicons: {} })
 const live = new Map<string, LivePanel>()
 let panelSession: Session | null = null
@@ -197,14 +222,20 @@ function createPanel(item: PanelItem): LivePanel {
     } else if (p.selectionText) {
       items.push({ role: 'copy' }, { type: 'separator' })
     }
-    items.push({ label: 'Reload', click: () => wc.reload() }, { label: 'Inspect', click: () => wc.openDevTools({ mode: 'detach' }) })
+    const desktop = !!getSettings().panels.find((p) => p.id === item.id)?.desktop
+    items.push(
+      { label: 'Reload', click: () => wc.reload() },
+      { label: 'Use desktop version', type: 'checkbox', checked: desktop, click: () => setPanelDesktop(item.id, !desktop) },
+      { label: 'Inspect', click: () => wc.openDevTools({ mode: 'detach' }) }
+    )
     const owner = panel.owner
     const at = view.getBounds()
     if (owner) showMenu(owner, items, at.x + p.x, at.y + p.y, wc)
   })
 
-  // Messengers are built for wide windows; a slightly smaller zoom fits them in a sidebar.
-  wc.on('did-finish-load', () => wc.setZoomFactor(PANEL_ZOOM))
+  // Desktop versions are zoomed out a little to fit; mobile versions are made for this width.
+  wc.on('did-finish-load', () => wc.setZoomFactor(getSettings().panels.find((p) => p.id === item.id)?.desktop ? PANEL_ZOOM : 1))
+  applyMode(wc, !!item.desktop)
   wc.loadURL(item.url).catch(() => {})
   return panel
 }

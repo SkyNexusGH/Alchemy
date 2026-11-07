@@ -73,6 +73,8 @@ export interface PanelItem {
   title: string
   url: string
   color: string
+  /** Load the desktop version of the site instead of the mobile one. */
+  desktop?: boolean
 }
 
 export interface PanelState extends PanelItem {
