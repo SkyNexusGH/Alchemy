@@ -1,5 +1,5 @@
 import './shell.css'
-import { VenetianMask } from '../lib/icons'
+import { Onion, VenetianMask } from '../lib/icons'
 import { useRef } from 'react'
 import { api } from '../lib/api'
 import { useSettings } from '../lib/settings'
@@ -53,7 +53,7 @@ export default function Shell(): React.JSX.Element {
                 : 'Masked Mode: nothing is saved after you close all Masked Mode windows'
             }
           >
-            <VenetianMask size={14} />
+            {isTor ? <Onion size={14} /> : <VenetianMask size={14} />}
             {isTor ? 'Alchemy Tor' : 'Masked Mode'}
           </span>
         )}

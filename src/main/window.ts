@@ -451,10 +451,35 @@ export class BrowserWin implements TabHost {
     return i === -1 ? this.tabs.length : i
   }
 
+  /** Pictures of tabs as they looked when you last left them, for the tab hover card. */
+  private previews = new Map<number, string>()
+
+  /** Captures a tab that is on screen. Gives up after a moment rather than waiting forever. */
+  private async capturePreview(tab: Tab): Promise<string | null> {
+    const wc = tab.wc
+    if (!wc || wc.isDestroyed()) return null
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+    const image = await Promise.race([wc.capturePage().catch(() => null), timeout])
+    if (!image || image.isEmpty()) return null
+    const url = `data:image/jpeg;base64,${image.resize({ width: 560, quality: 'good' }).toJPEG(80).toString('base64')}`
+    this.previews.set(tab.id, url)
+    return url
+  }
+
+  /** The hover card's picture: live for the tab on screen, the last snapshot for the others. */
+  async tabPreview(id: number): Promise<string | null> {
+    const tab = this.tab(id)
+    if (!tab) return null
+    if (tab === this.active) return (await this.capturePreview(tab)) ?? this.previews.get(id) ?? null
+    return this.previews.get(id) ?? null
+  }
+
   activate(tab: Tab): void {
     const prev = this.active
     if (prev && prev !== tab) {
       prev.lastActive = Date.now()
+      // Picture the tab we're leaving while it's still on screen.
+      if (!prev.isNewTab) void this.capturePreview(prev)
       if (this.find.open) this.closeFind()
     }
     // Coming back to a floating video's tab puts the page back in the window.
@@ -511,6 +536,7 @@ export class BrowserWin implements TabHost {
   }
 
   closeTab(tab: Tab): void {
+    this.previews.delete(tab.id)
     const index = this.tabs.indexOf(tab)
     if (index === -1) return
     if (!tab.isNewTab) {
@@ -865,10 +891,9 @@ export class BrowserWin implements TabHost {
     this.showOverlay(this.contentRect, { kind: 'eyedropper', image: image.toDataURL() }, true)
   }
 
+  /** The palette covers the whole page area, so the page behind it can be dimmed. */
   openPalette(): void {
-    const r = this.contentRect
-    const width = Math.min(680, r.width - 40)
-    this.showOverlay({ x: r.x + (r.width - width) / 2 - 14, y: r.y + 10, width: width + 28, height: 480 }, { kind: 'palette' }, true)
+    this.showOverlay(this.contentRect, { kind: 'palette' }, true)
   }
 
   htmlFullscreen(tab: Tab, on: boolean): void {

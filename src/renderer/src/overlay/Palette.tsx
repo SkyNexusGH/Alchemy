@@ -23,6 +23,7 @@ import {
   ShieldOff,
   Store,
   TextSearch,
+  Onion,
   VenetianMask,
   X,
   ZoomIn,
@@ -47,13 +48,15 @@ interface Item {
   icon: ReactNode
   cmd: string
   arg?: string
+  /** A small label after the title, like "Hides IP". */
+  tag?: string
 }
 
 const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'New tab', cmd: 'new-tab', shortcut: 'Ctrl+T', icon: <Plus size={16} /> },
   { title: 'New window', cmd: 'new-window', shortcut: 'Ctrl+N', icon: <AppWindow size={16} /> },
   { title: 'New Masked Mode window', cmd: 'new-private', shortcut: 'Ctrl+Shift+N', keywords: 'incognito private', icon: <VenetianMask size={16} /> },
-  { title: 'New Alchemy Tor window', cmd: 'new-tor', keywords: 'tor onion anonymous vpn ip hide', icon: <VenetianMask size={16} /> },
+  { title: 'New Alchemy Tor window', cmd: 'new-tor', keywords: 'tor onion anonymous vpn ip hide', icon: <Onion size={16} />, tag: 'Hides IP' },
   { title: 'Reopen closed tab', cmd: 'reopen-tab', shortcut: 'Ctrl+Shift+T', keywords: 'undo restore', icon: <RotateCcw size={16} /> },
   { title: 'Close tab', cmd: 'close-tab', shortcut: 'Ctrl+W', icon: <X size={16} /> },
   { title: 'Split view', cmd: 'split-view', keywords: 'side by side tile two tabs', icon: <Columns2 size={16} /> },
@@ -201,7 +204,13 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
   useEffect(() => setSelected(0), [query])
   useLayoutEffect(() => {
     if (panel.current) onFit(panel.current.offsetHeight)
+    fadeIfMore()
   })
+  // Fade the bottom of the list while there's more below, so a half-shown row reads as "scroll for more".
+  function fadeIfMore(): void {
+    const l = list.current
+    if (l) l.classList.toggle('more', l.scrollTop + l.clientHeight < l.scrollHeight - 4)
+  }
   useEffect(() => {
     list.current?.querySelector('.pal-item.selected')?.scrollIntoView({ block: 'nearest' })
   }, [selected])
@@ -234,7 +243,7 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
         />
         <kbd>Esc</kbd>
       </div>
-      <div className="pal-list" ref={list}>
+      <div className="pal-list" ref={list} onScroll={fadeIfMore}>
         {items.length === 0 && <div className="pal-empty">Nothing found.</div>}
         {items.map((item, i) => {
           const header = !query.trim() && item.group !== lastGroup ? item.group : null
@@ -252,8 +261,15 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
               >
                 <span className="pal-icon">{item.icon}</span>
                 <span className="pal-title">{item.title}</span>
+                {item.tag && <span className="pal-tag">{item.tag}</span>}
                 {item.detail && <span className="pal-detail">{item.detail}</span>}
-                {item.shortcut && <kbd>{item.shortcut}</kbd>}
+                {item.shortcut && (
+                  <span className="pal-keys">
+                    {item.shortcut.split('+').map((k) => (
+                      <kbd key={k}>{k}</kbd>
+                    ))}
+                  </span>
+                )}
               </div>
             </div>
           )

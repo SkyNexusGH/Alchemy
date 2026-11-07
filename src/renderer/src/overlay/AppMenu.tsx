@@ -11,17 +11,16 @@ import {
   Moon,
   Pipette,
   Plus,
+  Power,
   Printer,
   Puzzle,
   RefreshCw,
   Search,
   Settings as Gear,
-  Store,
   Sun,
   TextSearch,
   VenetianMask,
   WorkspaceIcon,
-  X,
   ZoomIn,
   ZoomOut,
   type Icon
@@ -146,28 +145,6 @@ export function AppMenu(): React.JSX.Element {
         ))}
       </div>
 
-      {!info?.private && (
-        <div className="am-section">
-          <div className="am-label">
-            Extensions
-            <button className="am-link" onClick={() => run('extensions')}>
-              Manage
-            </button>
-          </div>
-          <div className="am-exts">
-            {info?.extensions.map((e) => (
-              <button key={e.id} className="am-ext" title={e.name} onClick={() => run('extensions')}>
-                {e.icon ? <img src={e.icon} alt="" /> : <Puzzle size={16} />}
-              </button>
-            ))}
-            <button className="am-ext add" title="Get extensions from the Chrome Web Store" onClick={() => run('web-store')}>
-              <Store size={16} />
-              {!info?.extensions.length && <span>Get extensions</span>}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="am-section">
         <div className="am-modes">
           {MODES.map((m) => (
@@ -197,27 +174,31 @@ export function AppMenu(): React.JSX.Element {
       </div>
 
       <div className="am-foot">
-        <button onClick={() => run('find')} title="Find in page (Ctrl+F)">
-          <TextSearch size={15} /> Find
+        <button onClick={() => run('find')} title="Find in page (Ctrl+F)" aria-label="Find in page">
+          <TextSearch size={16} />
         </button>
-        <button onClick={() => run('print')} title="Print (Ctrl+P)">
-          <Printer size={15} /> Print
+        <button onClick={() => run('print')} title="Print (Ctrl+P)" aria-label="Print">
+          <Printer size={16} />
         </button>
-        <button onClick={() => run('color-picker')} title="Pick a color from the page">
-          <Pipette size={15} /> Color
+        <button onClick={() => run('color-picker')} title="Pick a color from the page" aria-label="Pick a color">
+          <Pipette size={16} />
         </button>
-        <button onClick={() => run('devtools')} title="Developer tools (F12)">
-          <Code size={15} /> DevTools
+        <button onClick={() => run('devtools')} title="Developer tools (F12)" aria-label="Developer tools">
+          <Code size={16} />
         </button>
-        <button onClick={() => run('exit')} title="Exit Alchemy">
-          <X size={15} /> Exit
+        <button className="exit" onClick={() => run('exit')} title="Exit Alchemy" aria-label="Exit Alchemy">
+          <Power size={16} />
         </button>
       </div>
 
       {info && (
         <div className="am-stats">
-          {info.memoryMB.toLocaleString()} MB · {info.tabs} tab{info.tabs === 1 ? '' : 's'}
-          {info.sleeping > 0 && ` (${info.sleeping} sleeping)`} · {info.blocked.toLocaleString()} blocked
+          <span>{info.memoryMB.toLocaleString()} MB</span>
+          <span>
+            {info.tabs} tab{info.tabs === 1 ? '' : 's'}
+            {info.sleeping > 0 && ` · ${info.sleeping} asleep`}
+          </span>
+          <span className="blocked">{info.blocked.toLocaleString()} blocked</span>
         </div>
       )}
     </div>

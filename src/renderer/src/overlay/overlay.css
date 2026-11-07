@@ -10,6 +10,25 @@ html[data-page='overlay'] body {
 .overlay-root.full {
   padding: 0;
 }
+/* The command palette dims the page behind it and sits near the top, centered. */
+.overlay-root.dim {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10px 20px;
+  background: rgba(3, 6, 10, 0.5);
+  animation: dim-in 140ms var(--ease);
+}
+@keyframes dim-in {
+  from {
+    background: transparent;
+  }
+}
+.overlay-root.dim .palette {
+  width: min(680px, 100%);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.7);
+}
 
 .panel {
   background: var(--panel);
@@ -202,6 +221,10 @@ kbd {
   overflow-y: auto;
   padding: 6px;
 }
+.pal-list.more {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 44px), transparent);
+}
 .pal-group {
   padding: 10px 10px 4px;
   color: var(--text-3);
@@ -267,8 +290,29 @@ kbd {
   color: var(--text-3);
   font-size: 12px;
 }
-.pal-item kbd {
+.pal-keys {
+  display: flex;
+  gap: 3px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+.pal-keys kbd {
+  min-width: 20px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-2);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  color: var(--text-2);
+  text-align: center;
+}
+.pal-tag {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #a57cf0 18%, transparent);
+  color: #b893f5;
+  font-size: 11px;
+  font-weight: 600;
 }
 .pal-empty {
   padding: 28px;
@@ -713,33 +757,6 @@ kbd {
 .am-link:hover {
   text-decoration: underline;
 }
-.am-exts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding-bottom: 6px;
-}
-.am-ext {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 9px;
-  border-radius: calc(var(--r) - 2px);
-  background: var(--surface);
-  color: var(--text-2);
-  font-weight: 540;
-}
-.am-ext img {
-  width: 20px;
-  height: 20px;
-}
-.am-ext:hover {
-  background: var(--hover);
-  color: var(--text);
-}
 .am-modes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -806,33 +823,51 @@ kbd {
 }
 .am-foot {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   margin-top: 6px;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
 }
 .am-foot button {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
+  display: grid;
+  place-items: center;
+  height: 34px;
   border-radius: calc(var(--r) - 2px);
+  background: var(--surface);
   color: var(--text-2);
-  font-size: 12px;
-  font-weight: 540;
 }
 .am-foot button:hover {
   background: var(--hover);
   color: var(--text);
 }
+.am-foot button.exit {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.am-foot button.exit:hover {
+  background: var(--danger);
+  color: #fff;
+}
 .am-stats {
-  padding: 8px 8px 4px;
-  color: var(--text-3);
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 4px 2px;
   font-size: 11.5px;
-  text-align: center;
+  font-weight: 540;
   font-variant-numeric: tabular-nums;
+}
+.am-stats span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+}
+.am-stats span.blocked {
+  background: var(--accent-softer);
+  color: var(--accent-fg);
 }
 
 /* Color picker */
@@ -901,6 +936,23 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.tc-preview {
+  display: block;
+  width: calc(100% + 28px);
+  margin: -12px -14px 4px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  object-position: top;
+  border-radius: var(--r) var(--r) 0 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--page);
+  animation: tc-preview-in 160ms var(--ease);
+}
+@keyframes tc-preview-in {
+  from {
+    opacity: 0;
+  }
 }
 .tc-head {
   display: flex;

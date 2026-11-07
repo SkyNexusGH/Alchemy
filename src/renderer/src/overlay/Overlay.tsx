@@ -45,7 +45,7 @@ export default function Overlay(): React.JSX.Element {
 
   return (
     <div
-      className={`overlay-root${payload?.kind === 'menu' ? ' full' : ''}`}
+      className={`overlay-root${payload?.kind === 'menu' ? ' full' : ''}${payload?.kind === 'palette' ? ' full dim' : ''}`}
       onMouseDown={(e) => e.target === e.currentTarget && api.invoke('overlay:hide')}
     >
       {payload?.kind === 'omnibox' && <Suggestions items={payload.items} selected={payload.selected} />}
@@ -64,7 +64,8 @@ export default function Overlay(): React.JSX.Element {
 
 function PaletteHost(): React.JSX.Element {
   useDismiss()
-  return <Palette onFit={(h) => void api.invoke('overlay:resize', h + 28)} />
+  // The overlay already covers the page, so the palette never needs to resize it.
+  return <Palette onFit={() => {}} />
 }
 
 // ---- menus -------------------------------------------------------------------------

@@ -12,7 +12,16 @@ const memory = (mb: number): string => (mb >= 1024 ? `${(mb / 1024).toFixed(1)} 
 /** The card shown when hovering a tab: what it is, what it costs, and its volume boost. */
 export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null {
   const [info, setInfo] = useState<Info | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
   const card = useRef<HTMLDivElement>(null)
+  const fit = (): void => {
+    if (card.current) void api.invoke('overlay:resize', card.current.offsetHeight + 28)
+  }
+
+  useEffect(() => {
+    setPreview(null)
+    void api.invoke<string | null>('tab:preview', tabId).then(setPreview)
+  }, [tabId])
 
   useEffect(() => {
     const load = (): void => void api.invoke<Info | null>('tab:info', tabId).then(setInfo)
@@ -21,9 +30,7 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
     return () => clearInterval(id)
   }, [tabId])
 
-  useLayoutEffect(() => {
-    if (card.current) void api.invoke('overlay:resize', card.current.offsetHeight + 28)
-  })
+  useLayoutEffect(fit)
 
   if (!info) return null
   const url = prettyUrl(info.displayUrl)
@@ -41,6 +48,7 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
       onPointerEnter={() => void api.invoke('tabcard:hover', true)}
       onPointerLeave={() => void api.invoke('tabcard:hover', false)}
     >
+      {preview && !info.sleeping && <img className="tc-preview" src={preview} alt="" onLoad={fit} />}
       <div className="tc-head">
         <Favicon src={info.favicon} url={info.displayUrl} size={18} />
         <div className="tc-title">{info.title}</div>

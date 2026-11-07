@@ -370,28 +370,24 @@ export const THEME_PRESETS: ThemePreset[] = [
   { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' }
 ]
 
-/** The accent palette: a full rainbow plus the colors that go with each background. */
+/**
+ * The accent palette: one color per hue, plus the accents of the background themes.
+ * Kept short so every color is easy to tell apart; the "+" swatch picks anything else.
+ */
 export const ACCENTS = [
   '#ec4856',
-  '#ef2e2e',
+  '#ef2e8b',
   '#ef8b2e',
+  '#fea757',
   '#efb92e',
-  '#a6ef2e',
+  '#fee9c4',
+  '#77793e',
   '#32ef2e',
   '#2eefbb',
   '#2ed2ef',
-  '#2e70ef',
-  '#322eef',
-  '#772eef',
-  '#b72eef',
-  '#ef2ee7',
-  '#ef2e8b',
-  '#ef2e45',
-  '#fea757',
-  '#77793e',
-  '#af7ab6',
   '#4488bd',
-  '#fee9c4'
+  '#772eef',
+  '#af7ab6'
 ]
 
 /** The two base colors of the interface. */

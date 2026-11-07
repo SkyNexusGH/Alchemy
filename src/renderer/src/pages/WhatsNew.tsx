@@ -30,6 +30,37 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.12',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Layers,
+        title: 'Roomier tabs',
+        text: 'Tabs stay full width so titles aren’t cut off, the tab you’re on joins the toolbar, and hovering a tab shows a picture of the page.'
+      },
+      {
+        icon: Search,
+        title: 'A clearer new tab page',
+        text: 'A frosted search box, bigger site icons, and the date above the clock with a greeting below.'
+      },
+      {
+        icon: Keyboard,
+        title: 'Polished menus',
+        text: 'Ctrl+K dims the page and shows shortcuts as keys, the Alchemy menu has tidy icon buttons, and Alchemy Tor has its own onion icon.'
+      },
+      {
+        icon: Palette,
+        title: 'Tidier Settings',
+        text: 'Centered on wide screens, a checkmark on your theme, 13 easy-to-tell-apart accent colors, and Privacy grouped into sections.'
+      },
+      {
+        icon: VenetianMask,
+        title: 'Hide your IP from Masked Mode',
+        text: 'The Masked Mode page now has a “Hide my IP address” switch, and the ad-block count shows as a clear pill in the address bar.'
+      }
+    ]
+  },
+  {
     version: '0.1.11',
     date: 'November 2026',
     items: [

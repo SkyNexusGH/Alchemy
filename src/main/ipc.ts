@@ -83,6 +83,8 @@ export function registerIpc(): void {
     const metric = wc && !wc.isDestroyed() ? app.getAppMetrics().find((m) => m.pid === wc.getOSProcessId()) : undefined
     return { ...tab.state(), memoryMB: metric ? Math.round(metric.memory.workingSetSize / 1024) : null }
   })
+  // A small picture of the tab's page for its hover card.
+  shell('tab:preview', ({ bw }, id: number) => bw?.tabPreview(id) ?? null)
   shell('tab:move', ({ bw }, id: number, to: number) => bw?.moveTab(id, to))
   shell('tab:mute', ({ bw }, id: number) => {
     const tab = bw?.tab(id)

@@ -14,7 +14,7 @@ function ShieldButton({ tab }: { tab: TabState }): React.JSX.Element {
   const count = tab.blocked > 99 ? '99+' : String(tab.blocked)
   return (
     <button
-      className={`omni-shield${tab.shields ? ' on' : ''}`}
+      className={`omni-shield${tab.shields ? ' on' : ''}${tab.shields && tab.blocked > 0 ? ' has-count' : ''}`}
       title={tab.shields ? `Protections on · ${tab.blocked} blocked on this page` : 'Protections off for this site'}
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect()

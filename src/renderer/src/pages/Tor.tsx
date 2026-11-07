@@ -2,7 +2,7 @@ import './tor.css'
 import { useEffect, useState } from 'react'
 import type { TorStatus } from '@shared/types'
 import { api } from '../lib/api'
-import { VenetianMask } from '../lib/icons'
+import { Onion } from '../lib/icons'
 import { setPageIcon } from '../lib/ui'
 
 document.title = 'Alchemy Tor'
@@ -31,7 +31,7 @@ export default function Tor(): React.JSX.Element {
     <div className="tor-page">
       <div className="tor-card">
         <span className={`tor-mark${failed ? '' : ' pulsing'}`}>
-          <VenetianMask size={30} />
+          <Onion size={30} />
         </span>
         <h1>{failed ? 'Couldn’t connect to Tor' : status?.state === 'ready' ? 'Connected' : 'Connecting to Tor'}</h1>
         <p className="tor-step">

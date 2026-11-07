@@ -15,6 +15,7 @@ import {
 import { api } from '../lib/api'
 import { inkOn } from '../lib/color'
 import {
+  Check,
   Download,
   EngineIcon,
   Lock,
@@ -72,6 +73,8 @@ interface Row {
   keywords?: string
   /** Wide rows put their control under the label instead of beside it. */
   wide?: boolean
+  /** A heading inside the page; rows that share one are shown together under it. */
+  group?: string
   control: ReactNode
 }
 
@@ -160,19 +163,37 @@ export default function Settings(): React.JSX.Element {
             ) : current.id === 'about' ? (
               <AboutSection />
             ) : (
-              <div className="set-card">
-                {rows
-                  .filter((r) => r.category === current.id)
-                  .map((r) => (
-                    <SettingRow key={r.label} row={r} />
-                  ))}
-              </div>
+              <GroupedRows rows={rows.filter((r) => r.category === current.id)} />
             )}
           </>
         )}
       </main>
       {clearing && <ClearDataDialog onClose={() => setClearing(false)} />}
     </div>
+  )
+}
+
+/** A page's rows in one card, or one card per group, each under its heading. */
+function GroupedRows({ rows }: { rows: Row[] }): React.JSX.Element {
+  const groups: { name?: string; rows: Row[] }[] = []
+  for (const r of rows) {
+    const last = groups[groups.length - 1]
+    if (last && last.name === r.group) last.rows.push(r)
+    else groups.push({ name: r.group, rows: [r] })
+  }
+  return (
+    <>
+      {groups.map((g, i) => (
+        <section key={g.name ?? i} className="set-section">
+          {g.name && <h2 className="set-subhead">{g.name}</h2>}
+          <div className="set-card">
+            {g.rows.map((r) => (
+              <SettingRow key={r.label} row={r} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   )
 }
 
@@ -231,9 +252,16 @@ export function ThemeGrid({ settings }: { settings: S }): React.JSX.Element {
               className="theme-thumb"
               style={thumb ? { backgroundImage: `url(${thumb})` } : { background: baseColor(p.mode, true) }}
             >
-              <span className="theme-dot" style={{ background: p.accent }} />
+              {a.background === p.id && (
+                <span className="theme-check">
+                  <Check size={12} strokeWidth={3} />
+                </span>
+              )}
             </span>
-            <span className="theme-name">{p.name}</span>
+            <span className="theme-name">
+              <span className="theme-swatch" style={{ background: p.accent }} title="Accent color for this theme" />
+              {p.name}
+            </span>
           </button>
         )
       })}
@@ -356,7 +384,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       hint: 'Used for highlights, the active tab and buttons. Workspaces can have their own.',
       keywords: 'color colour highlight',
       wide: true,
-      control: <AccentPicker value={a.accent} onChange={(accent) => accent && saveAppearance({ accent })} />
+      control: <AccentPicker size={30} value={a.accent} onChange={(accent) => accent && saveAppearance({ accent })} />
     },
     {
       category: 'appearance',
@@ -553,18 +581,21 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     // ---- privacy ----
     {
       category: 'privacy',
+      group: 'Tracking',
       label: 'Block third-party cookies',
       hint: 'Stops companies following you across sites. A few embedded logins may need protections off for that site.',
       control: <Switch on={s.blockThirdPartyCookies} onChange={(v) => set({ blockThirdPartyCookies: v })} />
     },
     {
       category: 'privacy',
+      group: 'Tracking',
       label: 'Fingerprinting protection',
       hint: 'Adds invisible noise to canvas, audio and graphics readouts so sites can’t identify your device.',
       control: <Switch on={s.fingerprintProtection} onChange={(v) => set({ fingerprintProtection: v })} />
     },
     {
       category: 'privacy',
+      group: 'Tracking',
       label: 'Always use secure connections',
       hint: 'Upgrades sites to HTTPS, and falls back only if a site doesn’t support it.',
       keywords: 'https ssl',
@@ -572,6 +603,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Tracking',
       label: 'Send Global Privacy Control',
       hint: 'Tells sites not to sell or share your data.',
       keywords: 'gpc do not track dnt',
@@ -579,6 +611,15 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Hide your IP',
+      label: 'Hide my IP in Masked Mode',
+      hint: 'New Masked Mode windows go through Tor, so sites can’t see your real IP address. Slower, and some sites block Tor.',
+      keywords: 'tor vpn ip hide proxy incognito private masked anonymous',
+      control: <Switch on={s.maskedUsesTor} onChange={(v) => set({ maskedUsesTor: v })} />
+    },
+    {
+      category: 'privacy',
+      group: 'Hide your IP',
       label: 'Alchemy Tor',
       hint: 'A Masked Mode window that goes through the Tor network, so sites can’t see your real IP address. Slower than normal browsing.',
       keywords: 'tor onion vpn anonymous ip hide proxy',
@@ -590,13 +631,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
-      label: 'Hide my IP in Masked Mode',
-      hint: 'New Masked Mode windows go through Tor, so sites can’t see your real IP address. Slower, and some sites block Tor.',
-      keywords: 'tor vpn ip hide proxy incognito private masked anonymous',
-      control: <Switch on={s.maskedUsesTor} onChange={(v) => set({ maskedUsesTor: v })} />
-    },
-    {
-      category: 'privacy',
+      group: 'Hide your IP',
       label: 'Always use Tor bridges',
       hint: 'Connect through Snowflake bridges, for networks that block Tor. Alchemy switches to them by itself when Tor can’t connect.',
       keywords: 'tor bridges snowflake censorship blocked',
@@ -604,6 +639,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Your data',
       label: 'Clear browsing data',
       hint: 'History, cookies, cache, permissions.',
       keywords: 'delete history cookies cache',
@@ -615,6 +651,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Your data',
       label: 'Telemetry',
       hint: 'Alchemy never sends usage data anywhere.',
       control: <span className="good">None, ever</span>

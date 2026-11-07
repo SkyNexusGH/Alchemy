@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { allEngines, engineOf, type LocalSuggestions, type SearchEngineId, type SpeedDialItem, type Suggestion } from '@shared/types'
 import { hostOf, toUrl } from '@shared/url'
 import { api } from '../lib/api'
-import { Check, ChevronDown, EngineIcon, Globe, Plus, Search, VenetianMask, X } from '../lib/icons'
+import { Check, ChevronDown, EngineIcon, Globe, Onion, Plus, Search, VenetianMask, X } from '../lib/icons'
 import { backgroundUrl, saveSettings, useSettings } from '../lib/settings'
 import { Favicon, setPageIcon } from '../lib/ui'
 
@@ -45,8 +45,9 @@ export default function NewTab(): React.JSX.Element {
       <div className="ntp-center">
         {a.showClock && (
           <>
-            <Clock now={now} style={a.clockStyle ?? 'classic'} />
             <div className="date">{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            <Clock now={now} style={a.clockStyle ?? 'classic'} />
+            <div className="greeting">{greeting(now)}</div>
           </>
         )}
 
@@ -55,7 +56,7 @@ export default function NewTab(): React.JSX.Element {
         {isPrivate && (
           <div className="private-card">
             <span className="mask-badge">
-              <VenetianMask size={22} />
+              {isTor ? <Onion size={22} /> : <VenetianMask size={22} />}
             </span>
             <div>
               {isTor ? (
@@ -71,10 +72,10 @@ export default function NewTab(): React.JSX.Element {
                 <>
                   <b>You’re in Masked Mode</b>
                   <p>
-                    When you close every Masked Mode window, Alchemy forgets your history, cookies, site data and form
-                    entries from it. Downloads and bookmarks you make are kept. Sites, your employer or your internet
-                    provider can still see what you visit.
+                    When you close every Masked Mode window, Alchemy forgets its history, cookies, site data and form
+                    entries. Downloads and bookmarks are kept.
                   </p>
+                  <HideIpRow />
                 </>
               )}
             </div>
@@ -93,7 +94,7 @@ export default function NewTab(): React.JSX.Element {
                 <span className="tile-icon">
                   {/* The site's own colors, blurred into a soft glow behind its icon. */}
                   {icons[d.url] && <span className="tile-glow" style={{ backgroundImage: `url("${icons[d.url]}")` }} />}
-                  <Favicon src={icons[d.url]} url={d.url} size={32} />
+                  <Favicon src={icons[d.url]} url={d.url} size={38} />
                 </span>
                 <span className="tile-title">{d.title || hostOf(d.url)}</span>
                 <button
@@ -128,6 +129,44 @@ export default function NewTab(): React.JSX.Element {
       )}
     </div>
   )
+}
+
+/** The "Hide my IP in Masked Mode" setting, right where it matters. */
+function HideIpRow(): React.JSX.Element | null {
+  const on = useSettings((s) => !!s.settings?.maskedUsesTor)
+  return (
+    <div className="hide-ip">
+      <div className="hide-ip-text">
+        <span className="hide-ip-label">Hide my IP address</span>
+        <span className="hide-ip-hint">
+          {on
+            ? 'New Masked Mode windows go through Tor. This window still shows your real IP.'
+            : 'Sites and your internet provider can see your real IP here. Turn this on and new Masked Mode windows go through Tor.'}
+        </span>
+      </div>
+      {on && (
+        <button type="button" className="hide-ip-open" onClick={() => void api.invoke('window:newPrivate')}>
+          Open one
+        </button>
+      )}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Hide my IP address in new Masked Mode windows"
+        className="switch"
+        onClick={() => void saveSettings({ maskedUsesTor: !on })}
+      />
+    </div>
+  )
+}
+
+function greeting(now: Date): string {
+  const h = now.getHours()
+  if (h >= 5 && h < 12) return 'Good morning'
+  if (h >= 12 && h < 18) return 'Good afternoon'
+  if (h >= 18 && h < 23) return 'Good evening'
+  return 'Up late'
 }
 
 /** A gentle reminder while Alchemy isn't the default browser (turn off in Settings). */
