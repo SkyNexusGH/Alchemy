@@ -30,6 +30,17 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.15',
+    date: 'November 2026',
+    items: [
+      {
+        icon: AppWindow,
+        title: 'Desktop sites, everywhere they belong',
+        text: 'Twitch and other sites no longer open their mobile version in tabs. Sidebar sites stay mobile-sized, and you can switch any of them to the desktop version from its right-click menu.'
+      }
+    ]
+  },
+  {
     version: '0.1.14',
     date: 'November 2026',
     items: [
