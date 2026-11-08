@@ -4,7 +4,8 @@ import { totalmem } from 'node:os'
 import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
-import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, TabAudio, Workspace, ToastData } from '@shared/types'
+import { ELIXIRS } from '@shared/types'
+import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, SiteRestyle, UserScript, TabAudio, Workspace, ToastData } from '@shared/types'
 import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
@@ -13,18 +14,24 @@ import { destroyPanel, hidePanel, panelStates, panelPreview, presetIcons, setPan
 import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
 import * as bookmarks from './bookmarks'
+import { isAwakeSite, setAwakeSite } from './awake'
 import { broadcast } from './broadcast'
+import { hostOf } from '@shared/url'
 import { clearDownloads, downloadAction, listDownloads } from './downloads'
 import * as history from './history'
 import { appMenu, appMenuInfo, bookmarkFolderMenu, islandMenu, tabContextMenu } from './menus'
 import { localSuggestions, remoteSuggestions, resolveInput, searchUrl } from './omnibox'
-import { clearPermissionDecisions } from './permissions'
+import { clearPermissionDecisions, listPermissionDecisions, setPermissionDecision } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
 import { isInternalUrl, userAssetsDir } from './protocol'
 import { getSettings, onSettingsChanged, updateSettings } from './settings'
 import { newTorIdentity, retryTor, torStatus } from './tor'
 import { baseLang, restorePage, translatePage } from './translate'
+import { batterySaverActive } from './battery'
+import { addPassword, checkAllBreaches, importPasswordsCsv, listPasswords, removePassword, revealPassword, savePending } from './passwords'
+import { aiDocs, searchTabs, webSnippets } from './pagetext'
+import { allRestyles, listScripts, pickAndHide, restyleFor, saveScripts, setRestyle, undoLastHide } from './sitemods'
 import { findPlaces, focusState, news, startFocus, stopFocus, weather } from './widgets'
 
 /** Fresh Tor circuits and cookies, then the Tor window's tabs reload through them. */
@@ -64,6 +71,37 @@ function handle(channel: string, fn: Handler, shellOnly = false): void {
 }
 
 const shell = (channel: string, fn: Handler): void => handle(channel, fn, true)
+
+/** Translates a tab into your language, or puts it back. */
+async function translateTab(bw: BrowserWin, tab: NonNullable<BrowserWin['active']>): Promise<void> {
+  const wc = tab.wc
+  if (!wc) return
+  if (tab.translated) {
+    await restorePage(wc)
+    tab.translated = false
+  } else {
+    const target = getSettings().translateTo || baseLang(app.getLocale())
+    const res = await translatePage(wc, target)
+    tab.translated = res.ok
+    if (!res.ok) bw.send('toast', { text: 'Couldn’t translate this page' } satisfies ToastData)
+  }
+  bw.tabChanged()
+}
+
+const GAME_URL = 'alchemy://error/?game=1'
+
+// The AI models are kept in the browser's cache for Alchemy's own window (see aiWorker.ts).
+const modelsScript = (remove?: 'ai' | 'voice'): string => `(async () => {
+  const cache = await caches.open('transformers-cache')
+  const sizes = { ai: 0, voice: 0 }
+  for (const req of await cache.keys()) {
+    const kind = req.url.includes('whisper') ? 'voice' : 'ai'
+    if (kind === ${JSON.stringify(remove ?? '')}) { await cache.delete(req); continue }
+    const res = await cache.match(req)
+    sizes[kind] += Number(res?.headers.get('content-length') ?? 0)
+  }
+  return sizes
+})()`
 
 function restartApp(): void {
   app.relaunch()
@@ -109,18 +147,7 @@ export function registerIpc(): void {
   // Translate (Google Translate) or put the original back.
   shell('tab:translate', async ({ bw }, id: number) => {
     const tab = bw?.tab(id)
-    const wc = tab?.wc
-    if (!tab || !wc) return
-    if (tab.translated) {
-      await restorePage(wc)
-      tab.translated = false
-    } else {
-      const target = getSettings().translateTo || baseLang(app.getLocale())
-      const res = await translatePage(wc, target)
-      tab.translated = res.ok
-      if (!res.ok) bw!.send('toast', { text: 'Couldn’t translate this page' } satisfies ToastData)
-    }
-    bw!.tabChanged()
+    if (tab) await translateTab(bw!, tab)
   })
   shell('tab:pin', ({ bw }, id: number) => {
     const tab = bw?.tab(id)
@@ -152,7 +179,7 @@ export function registerIpc(): void {
   })
   // Also used by the new tab page's own search box.
   handle('omnibox:local', (_c, text: string) => localSuggestions(text))
-  handle('omnibox:remote', (_c, text: string, engine?: SearchEngineId) => remoteSuggestions(text, engine))
+  handle('omnibox:remote', ({ bw }, text: string, engine?: SearchEngineId) => (bw?.incognito ? [] : remoteSuggestions(text, engine)))
   shell('menu:choose', ({ bw }, id: string) => {
     bw?.hideOverlay()
     chooseMenuItem(id)
@@ -322,7 +349,8 @@ export function registerIpc(): void {
   // ---- new tab widgets ----
   handle('widgets:places', (_c, q: string) => findPlaces(q).catch(() => []))
   // "weather paris" in the address bar: the first matching place's weather.
-  handle('omnibox:weather', async (_c, q: string) => {
+  handle('omnibox:weather', async ({ bw }, q: string) => {
+    if (bw?.incognito) return null
     const place = (await findPlaces(q).catch(() => []))[0]
     if (!place) return null
     const w = await weather(place.lat, place.lon, getSettings().tempUnit ?? 'C')
@@ -399,6 +427,65 @@ export function registerIpc(): void {
 
   // ---- Alchemy Tor ----
   handle('tor:status', () => torStatus())
+  // ---- site mods: Force dark, Elixirs, MyHue Restyle, custom scripts ----
+  handle('mods:site', ({ bw }) => {
+    const url = bw?.active?.pageUrl() ?? ''
+    if (!/^https?:/.test(url)) return null
+    const site = siteOf(url)
+    return { site, restyle: restyleFor(site), elixirs: ELIXIRS.filter((e) => e.sites.includes(site)).map((e) => e.id) }
+  })
+  handle('mods:restyles', () => allRestyles())
+  handle('mods:setRestyle', (_c, site: string, r: SiteRestyle | null) => setRestyle(site, r))
+  handle('mods:scripts', () => listScripts())
+  handle('mods:saveScripts', ({ bw }, scripts: UserScript[]) => {
+    saveScripts(scripts)
+    bw?.active?.reload()
+  })
+  shell('mods:pick', async ({ bw }) => {
+    const wc = bw?.active?.wc
+    if (!wc) return
+    bw!.hideOverlay()
+    wc.focus()
+    const hidden = await pickAndHide(wc)
+    if (hidden) bw!.send('toast', { text: 'Hidden on this site', action: { label: 'Undo', cmd: 'restyle-undo' } } satisfies ToastData)
+  })
+  // ---- on-device AI: the text it reads comes from here, the thinking happens in the shell ----
+  shell('ai:docs', ({ bw }, scope: 'page' | 'tabs') => {
+    if (!bw) return []
+    return aiDocs(scope === 'page' ? (bw.active ? [bw.active] : []) : bw.visible())
+  })
+  // "Show me where": bring up the tab and find the words on it.
+  shell('ai:show', ({ bw }, tabId: number, words: string) => {
+    const tab = bw?.tab(tabId)
+    if (!tab) return
+    bw!.activate(tab)
+    tab.wc?.findInPage(words)
+    setTimeout(() => tab.wc?.stopFindInPage('keepSelection'), 2500)
+  })
+  shell('ai:web', ({ bw }, q: string) => {
+    const lab = getSettings().lab
+    return bw?.incognito || !lab?.ask || !lab.instantAnswers ? [] : webSnippets(q)
+  })
+  handle('ai:modelSizes', ({ bw }) => bw?.win.webContents.executeJavaScript(modelsScript()) ?? { ai: 0, voice: 0 })
+  handle('ai:removeModels', ({ bw }, which: 'ai' | 'voice') => {
+    broadcast('ai:models-removed', which)
+    return bw?.win.webContents.executeJavaScript(modelsScript(which)) ?? { ai: 0, voice: 0 }
+  })
+  handle('game:open', ({ bw }) => void bw?.newTab(GAME_URL))
+  shell('ask:toggle', ({ bw }) => getSettings().lab?.ask && bw?.send('ask:toggle'))
+  shell('search:everywhere', ({ bw }, q: string) => bw?.searchEverywhere(q))
+  // Ctrl+K: search the words inside your open tabs (kept in memory only).
+  shell('tabs:searchContent', ({ bw }, q: string) => (bw && getSettings().lab?.tabSearch !== false ? searchTabs(bw.visible().filter((t) => t !== bw.active), q) : []))
+  // ---- passwords ----
+  handle('passwords:list', () => listPasswords())
+  handle('passwords:reveal', (_c, id: string) => revealPassword(id))
+  handle('passwords:remove', (_c, id: string) => removePassword(id))
+  handle('passwords:add', (_c, url: string, username: string, password: string) => addPassword(url, username, password))
+  handle('passwords:import', () => importPasswordsCsv())
+  handle('passwords:checkBreaches', () => checkAllBreaches())
+  handle('permissions:list', () => listPermissionDecisions())
+  handle('permissions:set', (_c, origin: string, permission: string, allowed: boolean | null) => setPermissionDecision(origin, permission, allowed))
+  handle('battery:state', () => batterySaverActive())
   handle('tor:retry', (_c, bridges?: boolean) => retryTor(bridges))
   // New identity, then reload the Tor window's tabs so they come back through new circuits.
   handle('tor:newIdentity', ({ bw }) => (bw ? newIdentity(bw) : false))
@@ -505,6 +592,12 @@ export function registerIpc(): void {
       'new-window': () => BrowserWin.open(),
       'new-private': () => BrowserWin.open({ incognito: true }),
       'new-tor': () => BrowserWin.open({ tor: true }),
+      'search-everywhere': () => arg && bw.searchEverywhere(arg),
+      'pw-save': () => arg && savePending(arg),
+      ask: () => s.lab?.ask && bw.send('ask:toggle'),
+      restyle: () => bw.openRestyle(),
+      'restyle-undo': () => wc && undoLastHide(wc),
+      'force-dark': () => updateSettings({ forceDark: !s.forceDark }),
       'reopen-tab': () => bw.reopenClosed(),
       'tor-identity': () => void newIdentity(bw),
       'reopen-tabs': () => {
@@ -517,7 +610,23 @@ export function registerIpc(): void {
       history: () => bw.openInternal('history'),
       bookmarks: () => bw.openInternal('bookmarks'),
       downloads: () => bw.openInternal('downloads'),
-      settings: () => bw.openInternal('settings'),
+      settings: () => bw.openInternal('settings', arg),
+      translate: () => bw.active && void translateTab(bw, bw.active),
+      'mute-tab': () => bw.active?.setMuted(!bw.active.muted),
+      'sleep-others': () => {
+        const tabs = bw.sleepCandidates()
+        for (const t of tabs) bw.sleepTab(t)
+        bw.send('toast', { text: tabs.length ? `${tabs.length} ${tabs.length === 1 ? 'tab' : 'tabs'} put to sleep` : 'No tabs to put to sleep' } satisfies ToastData)
+      },
+      'keep-awake': () => {
+        const url = bw.active?.pageUrl()
+        if (!url || !/^https?:/.test(url)) return
+        const on = !isAwakeSite(url)
+        setAwakeSite(url, on)
+        bw.send('toast', { text: `${hostOf(url)} ${on ? 'will stay awake' : 'can go to sleep again'}` } satisfies ToastData)
+      },
+      'view-source': () => bw.active && bw.newTab(`view-source:${bw.active.pageUrl()}`, { opener: bw.active }),
+      game: () => bw.newTab(GAME_URL),
       extensions: () => bw.openInternal('extensions'),
       palette: () => bw.openPalette(),
       'web-store': () => bw.newTab('https://chromewebstore.google.com/'),

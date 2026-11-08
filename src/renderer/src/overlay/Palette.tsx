@@ -9,6 +9,10 @@ import {
   Download,
   Expand,
   Globe,
+  Key,
+  Keyboard,
+  Languages,
+  Lock,
   PanelTop,
   Pin,
   Plus,
@@ -24,6 +28,9 @@ import {
   Store,
   TextSearch,
   Onion,
+  Sparkle,
+  Moon,
+  Palette as PaletteIcon,
   Volume2,
   VolumeX,
   VenetianMask,
@@ -58,6 +65,9 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'New tab', cmd: 'new-tab', shortcut: 'Ctrl+T', icon: <Plus size={16} /> },
   { title: 'New window', cmd: 'new-window', shortcut: 'Ctrl+N', icon: <AppWindow size={16} /> },
   { title: 'New Masked Mode window', cmd: 'new-private', shortcut: 'Ctrl+Shift+N', keywords: 'incognito private', icon: <VenetianMask size={16} /> },
+  { title: 'Ask this page', cmd: 'ask', keywords: 'ai question answer tabs on device', icon: <Sparkle size={16} /> },
+  { title: 'MyHue Restyle this site', cmd: 'restyle', keywords: 'style css hide element font myhue custom', icon: <PaletteIcon size={16} /> },
+  { title: 'Turn Force dark on/off', cmd: 'force-dark', keywords: 'dark mode night invert', icon: <Moon size={16} /> },
   { title: 'New Alchemy Tor window', cmd: 'new-tor', keywords: 'tor onion anonymous vpn ip hide', icon: <Onion size={16} />, tag: 'Hides IP' },
   { title: 'New Tor identity', cmd: 'tor-identity', keywords: 'tor onion new identity circuit ip refresh', icon: <Onion size={16} /> },
   { title: 'Reopen closed tab', cmd: 'reopen-tab', shortcut: 'Ctrl+Shift+T', keywords: 'undo restore', icon: <RotateCcw size={16} /> },
@@ -83,7 +93,20 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'Print', cmd: 'print', shortcut: 'Ctrl+P', icon: <Printer size={16} /> },
   { title: 'Full screen', cmd: 'fullscreen', shortcut: 'F11', icon: <Expand size={16} /> },
   { title: 'Pick a color from the page', cmd: 'color-picker', keywords: 'eyedropper hex colour', icon: <Pipette size={16} /> },
-  { title: 'Developer tools', cmd: 'devtools', shortcut: 'F12', keywords: 'inspect console', icon: <Code size={16} /> }
+  { title: 'Developer tools', cmd: 'devtools', shortcut: 'F12', keywords: 'inspect console', icon: <Code size={16} /> },
+  { title: 'Translate this page', cmd: 'translate', keywords: 'language foreign', icon: <Languages size={16} /> },
+  { title: 'Mute / unmute this tab', cmd: 'mute-tab', keywords: 'sound audio silence', icon: <VolumeX size={16} /> },
+  { title: 'Put other tabs to sleep', cmd: 'sleep-others', keywords: 'memory ram free', icon: <Moon size={16} /> },
+  { title: 'Keep this site awake on/off', cmd: 'keep-awake', keywords: 'sleep never', icon: <Clock size={16} /> },
+  { title: 'View page source', cmd: 'view-source', shortcut: 'Ctrl+U', keywords: 'html code', icon: <Code size={16} /> },
+  { title: 'Passwords', cmd: 'settings', arg: 'passwords', keywords: 'logins saved breach pwned', icon: <Key size={16} /> },
+  { title: 'Site permissions', cmd: 'settings', arg: 'privacy', keywords: 'camera microphone location notifications', icon: <Lock size={16} /> },
+  { title: 'Clear browsing data', cmd: 'settings', arg: 'privacy', keywords: 'history cookies cache delete', icon: <Lock size={16} /> },
+  { title: 'Elixirs', cmd: 'settings', arg: 'magic', keywords: 'site fixes youtube reddit', icon: <Sparkle size={16} /> },
+  { title: 'Custom scripts', cmd: 'settings', arg: 'magic', keywords: 'javascript userscript tampermonkey', icon: <Code size={16} /> },
+  { title: 'Alchemy Lab', cmd: 'settings', arg: 'lab', keywords: 'experiments ai models', icon: <Sparkle size={16} /> },
+  { title: 'Keyboard shortcuts', cmd: 'settings', arg: 'shortcuts', keywords: 'keys hotkeys mouse tips help', icon: <Keyboard size={16} /> },
+  { title: 'Play the potion game', cmd: 'game', keywords: 'offline fun wizard', icon: <Sparkle size={16} /> }
 ]
 
 /** Higher is better; null means no match. Prefix > word start > substring > in-order letters. */
@@ -108,6 +131,7 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
   const [tabs, setTabs] = useState<(TabState & { workspaceId: string })[]>([])
   const [activeId, setActiveId] = useState<number | null>(null)
   const [found, setFound] = useState<LocalSuggestions>({ items: [], inline: null })
+  const [inTabs, setInTabs] = useState<{ tabId: number; title: string; url: string; favicon: string | null; snippet: string }[]>([])
   const settings = useSettings((s) => s.settings)
   const panel = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
@@ -122,6 +146,14 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
   useEffect(() => {
     if (!query.trim()) return setFound({ items: [], inline: null })
     const id = setTimeout(() => api.invoke<LocalSuggestions>('omnibox:local', query).then(setFound), 60)
+    return () => clearTimeout(id)
+  }, [query])
+
+  // The words inside your open tabs, a moment after you stop typing.
+  useEffect(() => {
+    setInTabs([])
+    if (query.trim().length < 3) return
+    const id = setTimeout(() => void api.invoke<typeof inTabs>('tabs:searchContent', query).then(setInTabs), 180)
     return () => clearTimeout(id)
   }, [query])
 
@@ -150,7 +182,7 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
         query ? 15 : 0
       )
     }
-    for (const c of COMMANDS) add({ ...c, key: `cmd:${c.cmd}`, group: 'Commands' }, `${c.title} ${c.keywords ?? ''}`)
+    for (const c of COMMANDS) if (c.cmd !== 'ask' || settings?.lab?.ask) add({ ...c, key: `cmd:${c.cmd}:${c.title}`, group: 'Commands' }, `${c.title} ${c.keywords ?? ''}`)
     for (const w of settings?.workspaces ?? []) {
       const accent = w.accent ?? settings?.appearance.accent ?? '#ec4856'
       add(
@@ -176,6 +208,28 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
       )
     }
     if (query.trim()) {
+      for (const m of inTabs) {
+        pool.push({
+          key: `intab:${m.tabId}`,
+          group: 'In your tabs',
+          title: m.title,
+          detail: m.snippet,
+          icon: <Favicon src={m.favicon} url={m.url} size={16} />,
+          cmd: 'tab',
+          arg: String(m.tabId),
+          score: 55
+        })
+      }
+      if (settings?.lab?.searchEverywhere !== false) pool.push({
+        key: 'multi',
+        group: 'Go',
+        title: `Search everywhere for “${query.trim()}”`,
+        detail: 'Several engines, side by side',
+        icon: <Columns2 size={16} />,
+        cmd: 'search-everywhere',
+        arg: query.trim(),
+        score: 9
+      })
       for (const s of found.items) {
         pool.push({
           key: `hist:${s.value}`,
@@ -202,7 +256,7 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
     // Without a query: tabs first, then commands. With one: best matches first.
     if (query.trim()) pool.sort((a, b) => b.score - a.score)
     return pool.slice(0, 60)
-  }, [tabs, activeId, settings, query, found])
+  }, [tabs, activeId, settings, query, found, inTabs])
 
   useEffect(() => setSelected(0), [query])
   useLayoutEffect(() => {

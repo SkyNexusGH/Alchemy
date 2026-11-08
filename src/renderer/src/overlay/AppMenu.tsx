@@ -6,6 +6,7 @@ import {
   Columns2,
   Download,
   Expand,
+  Onion,
   Pipette,
   Plus,
   Printer,
@@ -126,6 +127,9 @@ export function AppMenu(): React.JSX.Element {
       </div>
 
       <div className="am-foot">
+        <button onClick={() => run('new-tor')} title="New Alchemy Tor window (hides your IP)" aria-label="New Alchemy Tor window">
+          <Onion size={16} />
+        </button>
         <button onClick={() => run('find')} title="Find in page (Ctrl+F)" aria-label="Find in page">
           <TextSearch size={16} />
         </button>

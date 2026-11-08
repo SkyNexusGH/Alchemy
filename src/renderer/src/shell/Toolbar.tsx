@@ -1,4 +1,6 @@
-import { ArrowLeft, ArrowRight, Columns2, Download, RefreshCw, RotateCw, X } from '../lib/icons'
+import { ArrowLeft, ArrowRight, Columns2, Download, RefreshCw, RotateCw, Sparkle, X } from '../lib/icons'
+import { useSettings } from '../lib/settings'
+import { useAskPanel } from './AskPanel'
 import { useEffect, useRef, useState } from 'react'
 import type { UpdateState } from '@shared/types'
 import { api } from '../lib/api'
@@ -9,6 +11,9 @@ export function Toolbar(): React.JSX.Element {
   const tab = useActiveTab()
   const isPrivate = useShell((s) => s.win.private)
   const split = useShell((s) => s.win.split)
+  const askOpen = useAskPanel((s) => s.open)
+  const toggleAsk = useAskPanel((s) => s.toggle)
+  const askOn = useSettings((s) => s.settings?.lab?.ask === true)
   return (
     <div className="toolbar">
       <div className="nav-buttons">
@@ -46,6 +51,11 @@ export function Toolbar(): React.JSX.Element {
           </button>
         )}
         <UpdateButton />
+        {!isPrivate && askOn && (
+          <button className={`icon-btn${askOpen ? ' split-on' : ''}`} title="Ask this page (on your PC)" onClick={toggleAsk}>
+            <Sparkle size={16} />
+          </button>
+        )}
         <DownloadsButton />
       </div>
       {tab?.loading && <div className="load-bar" />}

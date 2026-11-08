@@ -13,7 +13,8 @@ const code = params.get('c') ?? ''
 const detail = params.get('d') ?? ''
 const host = hostOf(url) || url
 
-document.title = host
+const game = params.has('game')
+document.title = game ? 'Potion game' : host
 setPageIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>')
 
 function describe(): { icon: typeof CloudOff; title: string; text: string; art: ErrorArtKind } {
@@ -41,6 +42,22 @@ function describe(): { icon: typeof CloudOff; title: string; text: string; art: 
 }
 
 export default function ErrorPage(): React.JSX.Element {
+  if (game) return <GamePage />
+  return <Failure />
+}
+
+function GamePage(): React.JSX.Element {
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 32 }}>
+      <div style={{ maxWidth: 640, width: '100%' }}>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 750, letterSpacing: '-0.02em' }}>Potion game</h1>
+        <OfflineGame />
+      </div>
+    </div>
+  )
+}
+
+function Failure(): React.JSX.Element {
   const { title, text, art } = describe()
   const secure = Number(code) <= -200 && Number(code) > -300
   const offline = Number(code) === -106

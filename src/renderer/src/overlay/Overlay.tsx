@@ -2,6 +2,7 @@ import './overlay.css'
 import * as Icons from '../lib/icons'
 import {
   Bookmark,
+  Columns2,
   Check,
   ChevronRight,
   CircleX,
@@ -31,6 +32,7 @@ import { inkOn } from '../lib/color'
 import { AccentPicker, WorkspaceIconPicker } from '../lib/pickers'
 import { useSettings } from '../lib/settings'
 import { AppMenu } from './AppMenu'
+import { RestylePanel } from './RestylePanel'
 import { Eyedropper } from './Eyedropper'
 import { BookmarkCard, Switcher, TabCard } from './TabCard'
 import { Palette } from './Palette'
@@ -58,6 +60,7 @@ export default function Overlay(): React.JSX.Element {
       {payload?.kind === 'app' && <AppMenu />}
       {payload?.kind === 'tabcard' && <TabCard key={payload.tabId} tabId={payload.tabId} />}
       {payload?.kind === 'bmcard' && <BookmarkCard key={payload.url} {...payload} />}
+      {payload?.kind === 'restyle' && <RestylePanel />}
       {payload?.kind === 'panelcard' && <BookmarkCard key={payload.id} url={payload.url} title={payload.title} favicon={null} panelId={payload.id} />}
       {payload?.kind === 'switcher' && <Switcher items={payload.items} index={payload.index} />}
       {payload?.kind === 'eyedropper' && <Eyedropper key={payload.image.length} image={payload.image} />}
@@ -104,7 +107,9 @@ const MENU_ICONS: [RegExp, Icons.Icon][] = [
   [/^Select all/, Icons.TextSearch],
   [/dictionary/i, Icons.Bookmark],
   [/^Search /, Icons.Search],
-  [/[Bb]ookmark/, Icons.Star]
+  [/[Bb]ookmark/, Icons.Star],
+  [/MyHue/, Icons.Palette],
+  [/^Ask /, Icons.Sparkle]
 ]
 const menuIcon = (label: string): Icons.Icon | undefined => MENU_ICONS.find(([re]) => re.test(label))?.[1]
 
@@ -490,6 +495,8 @@ function Suggestions({ items, selected }: { items: Suggestion[]; selected: numbe
           <span className="sugg-icon">
             {s.kind === 'answer' ? (
               <span className="sugg-answer">{s.favicon ?? '='}</span>
+            ) : s.kind === 'multi' ? (
+              <Columns2 size={15} />
             ) : s.kind === 'search' || s.kind === 'suggest' ? (
               <Search size={15} />
             ) : (

@@ -23,7 +23,7 @@ export function Toasts(): React.JSX.Element {
       setList((l) => [...l.slice(-1), { ...t, key }])
       timers.current.set(
         key,
-        setTimeout(() => dismiss(key), t.kind === 'gold' ? 6500 : 4500)
+        setTimeout(() => dismiss(key), t.ms ?? (t.kind === 'gold' ? 6500 : 4500))
       )
     }
     const offToast = api.on('toast', show)

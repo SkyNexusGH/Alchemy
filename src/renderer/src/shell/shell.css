@@ -1659,3 +1659,117 @@ browser-action-list::part(badge) {
   color: var(--text);
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
 }
+
+/* ---- Ask (AskPanel.tsx) ---- */
+.ask-panel {
+  width: 320px;
+  overflow: hidden;
+}
+.ask-setup {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ask-setup p {
+  margin: 0;
+  color: var(--text-2);
+}
+.ask-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 8px 10px 0;
+  padding: 3px;
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.ask-scope button {
+  height: 26px;
+  border-radius: calc(var(--r) - 2px);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 560;
+}
+.ask-scope button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.ask-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 10px;
+  user-select: text;
+}
+.ask-turn {
+  display: grid;
+  gap: 6px;
+}
+.ask-q {
+  justify-self: end;
+  max-width: 90%;
+  padding: 6px 10px;
+  border-radius: 12px 12px 3px 12px;
+  background: var(--accent-soft);
+  font-size: 12.5px;
+}
+.ask-thinking,
+.ask-none {
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.ask-thinking {
+  animation: shimmer-text 1.4s ease-in-out infinite;
+}
+@keyframes shimmer-text {
+  50% {
+    opacity: 0.5;
+  }
+}
+.ask-a {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: left;
+  font-size: 12.5px;
+}
+.ask-a:hover {
+  background: var(--hover);
+}
+.ask-a b {
+  font-size: 13.5px;
+}
+.ask-quote {
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.ask-source {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.ask-input {
+  padding: 8px 10px 4px;
+}
+.ask-input .field {
+  width: 100%;
+}
+.ask-private {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 2px 8px 8px;
+  color: var(--text-3);
+  font-size: 11px;
+}

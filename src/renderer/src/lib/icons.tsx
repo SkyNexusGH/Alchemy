@@ -348,6 +348,18 @@ export const Onion = icon(
     <path d="M12 6.2V4.5c0-1 .7-1.7 1.8-2" />
   </>
 )
+export const Key = icon(
+  <>
+    <circle cx="8" cy="15.5" r="4.5" />
+    <path d="M11.3 12.2L20 3.5M16.5 7l3 3M13.5 10l2 2" />
+  </>
+)
+export const Eye = icon(
+  <>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </>
+)
 export const Mic = icon(
   <>
     <rect x="9" y="3.5" width="6" height="11" rx="3" />

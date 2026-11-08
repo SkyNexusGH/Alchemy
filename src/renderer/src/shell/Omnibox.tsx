@@ -1,5 +1,6 @@
 import { Info, Languages, Lock, Mic, Search, ShieldCheck, ShieldOff, Star, TriangleAlert } from '../lib/icons'
 import { listen, stopListening, type VoiceState } from '../lib/voice'
+import { aiDownloaded, askAi, type AiDoc } from '../lib/ai'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { allEngines, engineOf, type EngineInfo, type LocalSuggestions, type Settings, type Suggestion, type TabState } from '@shared/types'
 import { prettyUrl, toUrl } from '@shared/url'
@@ -106,6 +107,8 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   const blurTimer = useRef<number>(0)
   /** "weather london": its answer, once fetched. */
   const weatherAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
+  const instantAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
+  const instantTimer = useRef<number>(0)
   const [voice, setVoice] = useState<VoiceState>({ kind: 'idle' })
 
   async function voiceSearch(): Promise<void> {
@@ -123,6 +126,11 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       setTimeout(() => setVoice({ kind: 'idle' }), 4000)
     }
   }
+  // Switched off in the Lab while listening: stop using the microphone.
+  const voiceOn = settings?.lab?.voice === true
+  useEffect(() => {
+    if (!voiceOn) stopListening()
+  }, [voiceOn])
   const overlayOpen = useRef(false)
   itemsRef.current = items
 
@@ -215,7 +223,9 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           ? { kind: 'answer', title: converted, value: converted.split(' = ')[1], detail: 'Press Enter to copy', favicon: '⇄' }
           : weatherAnswer.current && weatherAnswer.current.query === q.toLowerCase()
             ? weatherAnswer.current.item
-            : null
+            : instantAnswer.current && instantAnswer.current.query === q.toLowerCase()
+              ? instantAnswer.current.item
+              : null
     const out: Suggestion[] = answer ? [answer, first] : [first]
     const seen = new Set([first.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')])
     for (const s of picked ? [] : local.current) {
@@ -224,6 +234,8 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       seen.add(key)
       out.push(s)
     }
+    // Search everywhere: the same search in several engines, side by side.
+    if (!picked && !toUrl(q) && settings?.lab?.searchEverywhere !== false) out.push({ kind: 'multi', title: q, value: q, detail: 'Search everywhere, side by side' })
     for (const r of remote.current) {
       if (r.toLowerCase() === q.toLowerCase() || out.length >= 9) continue
       out.push({ kind: 'suggest', title: r, value: r })
@@ -255,6 +267,23 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       }
       rebuild()
     })
+    // Instant answers: a question gets an answer quoted from Wikipedia, worked out on this PC.
+    // Only once the AI is downloaded, so typing never starts a big download.
+    const looksLikeQuestion = /^(who|what|when|where|why|how|which)\b.{4,}|\?$/i.test(value.trim())
+    if (!picked && looksLikeQuestion && settings?.lab?.ask && settings.lab.instantAnswers && settings.searchSuggestions && aiDownloaded()) {
+      window.clearTimeout(instantTimer.current)
+      instantTimer.current = window.setTimeout(async () => {
+        const docs = await api.invoke<AiDoc[]>('ai:web', value.trim())
+        if (id !== seq.current || !docs.length) return
+        const [best] = await askAi(value.trim(), docs, undefined, 2)
+        if (id !== seq.current || !best || best.score < 0.3) return
+        instantAnswer.current = {
+          query: value.trim().toLowerCase(),
+          item: { kind: 'answer', title: best.answer, value: value.trim(), detail: `From ${best.title}`, favicon: '✦' }
+        }
+        rebuild()
+      }, 450)
+    }
     // Rich answer: the weather for "weather <city>" or "<city> weather".
     const wq = value
       .trim()
@@ -281,6 +310,15 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   }
 
   function go(item: Suggestion, newTab = false): void {
+    if (item.kind === 'multi') {
+      editing.current = false
+      seq.current++
+      setItems([])
+      close()
+      input.current?.blur()
+      void api.invoke('search:everywhere', item.value)
+      return
+    }
     // Sums and conversions copy their answer; a weather answer searches for the forecast.
     if (item.kind === 'answer' && item.detail === 'Press Enter to copy') {
       void navigator.clipboard.writeText(item.value).catch(() => {})
@@ -463,7 +501,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           {tab.translated ? 'Original' : 'Translate'}
         </button>
       )}
-      {(focused || isNewTab || voice.kind !== 'idle') && (
+      {settings?.lab?.voice && (focused || isNewTab || voice.kind !== 'idle') && (
         <button
           className={`omni-mic ${voice.kind}`}
           title={voice.kind === 'listening' ? 'Stop listening' : 'Search by voice (on this computer, with Whisper)'}

@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import {
   baseColor,
   ISLAND_COLORS,
+  engineOf,
+  engineSearchUrl,
   NEW_TAB_URL,
   type IslandState,
   type ColorMode,
@@ -71,8 +73,8 @@ export class BrowserWin implements TabHost {
   readonly islands = new Map<number, { color: string; collapsed: boolean; manual?: boolean }>()
   panelId: string | null = null
 
-  /** Two tabs shown side by side, when split view is on. */
-  split: [number, number] | null = null
+  /** Tabs shown side by side, when split view is on (two or three). */
+  split: number[] | null = null
   /** Tabs whose pages are attached to the window right now. */
   private shown: Tab[] = []
   private contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 }
@@ -571,7 +573,10 @@ export class BrowserWin implements TabHost {
     unfloatTab(tab)
     if (tab.view) this.win.contentView.removeChildView(tab.view)
     this.shown = this.shown.filter((t) => t !== tab)
-    if (this.split?.includes(tab.id)) this.split = null
+    if (this.split?.includes(tab.id)) {
+      const rest = this.split.filter((id) => id !== tab.id)
+      this.split = rest.length >= 2 ? rest : null
+    }
     tab.destroy()
     this.tabs.splice(index, 1)
     this.normalizeIslands()
@@ -714,17 +719,22 @@ export class BrowserWin implements TabHost {
     this.changed()
   }
 
-  openInternal(page: InternalPage): void {
+  /** Opens one of Alchemy's pages; `section` is a part of it, like a page of Settings. */
+  openInternal(page: InternalPage, section?: string): void {
     const prefix = `alchemy://${page}/`
+    const target = section ? `${prefix}#${encodeURIComponent(section)}` : prefix
     const existing = this.visible().find((t) => t.url.startsWith(prefix))
-    if (existing) return this.activate(existing)
+    if (existing) {
+      if (section) existing.load(target)
+      return this.activate(existing)
+    }
     const tab = this.active
     if (tab?.isNewTab) {
-      tab.load(prefix)
+      tab.load(target)
       tab.wc?.focus()
       this.changed()
     } else {
-      this.newTab(prefix)
+      this.newTab(target)
     }
   }
 
@@ -785,6 +795,9 @@ export class BrowserWin implements TabHost {
   setContentRect(rect: Rect): void {
     this.contentRect = rect
     this.layout()
+    const r = { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+    if (this.overlayShown && this.overlayKind === 'palette') this.overlay.setBounds(r)
+    else if (this.overlayShown && this.overlayKind === 'restyle') this.overlay.setBounds({ x: r.x + r.width - 400, y: r.y, width: 400, height: 560 })
   }
 
   relayout(): void {
@@ -810,21 +823,21 @@ export class BrowserWin implements TabHost {
       view.setBounds({ x: 0, y: 0, width, height })
       return
     }
-    const pair = this.shown.length === 2 ? this.splitTabs() : null
+    const pair = this.shown.length >= 2 ? this.splitTabs() : null
     // Edge to edge, like Opera GX: the page fills the window to the right and bottom.
     if (!pair) {
       view.setBorderRadius(0)
       view.setBounds(roundRect(this.contentRect))
       return
     }
-    // Split view: two pages side by side, each inset so the shell can outline the focused one.
+    // Split view: pages side by side, each inset so the shell can outline the focused one.
     const r = this.contentRect
     const gap = SPLIT_GAP
-    const half = (r.width - gap) / 2
+    const each = (r.width - gap * (pair.length - 1)) / pair.length
     pair.forEach((t, i) => {
       t.view?.setBorderRadius(7)
       t.view?.setBounds(
-        roundRect({ x: r.x + i * (half + gap) + 2, y: r.y + 2, width: half - 4, height: r.height - 4 })
+        roundRect({ x: r.x + i * (each + gap) + 2, y: r.y + 2, width: each - 4, height: r.height - 4 })
       )
     })
   }
@@ -896,6 +909,16 @@ export class BrowserWin implements TabHost {
     if (this.overlayShown) this.win.contentView.addChildView(this.overlay)
   }
 
+  /** Search everywhere: the same search in up to three engines, side by side. */
+  searchEverywhere(query: string): void {
+    const s = getSettings()
+    const engines = (s.multiEngines?.length ? s.multiEngines : ['google', 'bing', 'duckduckgo']).slice(0, 3)
+    const tabs = engines.map((id) => this.newTab(engineSearchUrl(engineOf(s, id), query), { foreground: false }))
+    if (tabs.length < 2) return this.activate(tabs[0])
+    this.split = tabs.map((t) => t.id)
+    this.activate(tabs[0])
+  }
+
   /** Shows a tab side by side with another (by default the next tab, or a new one). */
   splitWith(tab: Tab, other?: Tab): void {
     const vis = this.visible()
@@ -929,6 +952,12 @@ export class BrowserWin implements TabHost {
     const image = await wc.capturePage()
     if (image.isEmpty()) return
     this.showOverlay(this.contentRect, { kind: 'eyedropper', image: image.toDataURL() }, true)
+  }
+
+  /** MyHue Restyle's panel, at the top right of the page. */
+  openRestyle(): void {
+    const r = this.contentRect
+    this.showOverlay({ x: r.x + r.width - 400, y: r.y, width: 400, height: 560 }, { kind: 'restyle' }, true)
   }
 
   /** The palette covers the whole page area, so the page behind it can be dimmed. */

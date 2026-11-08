@@ -83,9 +83,23 @@ export interface PanelState extends PanelItem {
   unread: number
 }
 
+/** A saved login, as Alchemy's own pages see it (never with the password). */
+export interface SavedPassword {
+  id: string
+  origin: string
+  username: string
+  created: number
+  updated: number
+  /** How many known data breaches contain this password (undefined: not checked yet). */
+  breaches?: number
+  checked?: number
+}
+
 /** A short message in the title bar, with an optional action (a palette command). */
 export interface ToastData {
   text: string
+  /** How long it stays, in milliseconds. */
+  ms?: number
   kind?: 'normal' | 'gold'
   action?: { label: string; cmd: string; arg?: string }
 }
@@ -172,8 +186,8 @@ export interface WindowState {
   /** The side panel open in this window, if any. */
   panelId: string | null
   panels: PanelState[]
-  /** Tab ids shown side by side, when split view is on. */
-  split: [number, number] | null
+  /** Tab ids shown side by side, when split view is on (two or three). */
+  split: number[] | null
   /** The active tab has DevTools open (docked on the right). */
   devtools: boolean
 }
@@ -269,6 +283,25 @@ export interface Settings {
   /** How hard the Aegis blocker blocks: Chill (ads only), Comfort (ads and trackers),
    *  Extreme (everything, including cookie banners and annoyances). */
   aegisLevel: 'chill' | 'comfort' | 'extreme'
+  /** The engines "Search everywhere" opens side by side (up to three). */
+  multiEngines: string[]
+  /** Alchemy Lab: experiments that are switched on. The AI ones (ask, instantAnswers, voice) start off,
+   *  and while they're off nothing about them shows anywhere but the Lab. */
+  lab: { ask: boolean; instantAnswers: boolean; voice: boolean; tabSearch: boolean; searchEverywhere: boolean }
+  /** Offer to save and fill passwords. */
+  passwordManager: boolean
+  /** Force dark mode: a dark version of every site that's bright. */
+  forceDark: boolean
+  /** Sites Force dark leaves alone. */
+  forceDarkOff: string[]
+  /** Elixirs that are switched on (see ELIXIRS). */
+  elixirs: Record<string, boolean>
+  /** Stop pages changing what you copy, or writing to the clipboard without a click. */
+  pasteProtection: boolean
+  /** Each site sees a different, believable PC (screen size, CPU, memory). */
+  fingerprintProfiles: boolean
+  /** Save power: 'auto' turns on when the PC is running on battery. */
+  batterySaver: 'auto' | 'on' | 'off'
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
@@ -344,7 +377,7 @@ export interface DownloadState {
 }
 
 export interface Suggestion {
-  kind: 'search' | 'url' | 'history' | 'bookmark' | 'suggest' | 'answer'
+  kind: 'search' | 'url' | 'history' | 'bookmark' | 'suggest' | 'answer' | 'multi'
   title: string
   /** The text navigated to when chosen. */
   value: string
@@ -372,6 +405,7 @@ export type OverlayPayload =
   | { kind: 'tabcard'; tabId: number }
   | { kind: 'bmcard'; url: string; title: string; favicon: string | null }
   | { kind: 'panelcard'; id: string; title: string; url: string }
+  | { kind: 'restyle' }
   | { kind: 'switcher'; items: { id: number; title: string; favicon: string | null; url: string }[]; index: number }
 
 /** What the Alchemy menu (the logo button) shows. */
@@ -512,6 +546,111 @@ export interface Appearance {
 export type ClockStyle = 'classic' | 'seconds' | 'bold' | 'analog' | 'words'
 
 export type UiFont = 'inter' | 'segoe' | 'nunito' | 'grotesk' | 'outfit' | 'mono'
+
+/** MyHue Restyle: your own changes to one site. */
+export interface SiteRestyle {
+  /** CSS selectors of things you've hidden. */
+  hide: string[]
+  /** Your own CSS. */
+  css: string
+  font?: string
+  /** Text size, as a percentage. */
+  fontSize?: number
+}
+
+/** A custom script: runs on matching sites when their pages load. */
+export interface UserScript {
+  id: string
+  name: string
+  /** Sites it runs on, comma separated: "youtube.com, *.reddit.com" or "*". */
+  match: string
+  code: string
+  enabled: boolean
+}
+
+/** Elixirs: one-tap fixes for popular sites. */
+export const ELIXIRS: { id: string; site: string; sites: string[]; title: string; hint: string; css: string }[] = [
+  {
+    id: 'yt-no-shorts',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No Shorts',
+    hint: 'Hides Shorts from the home page, search and the menu.',
+    css: `ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer, ytd-rich-section-renderer:has([is-shorts]), ytd-guide-entry-renderer:has(a[title="Shorts"]), ytd-mini-guide-entry-renderer[aria-label="Shorts"], ytm-reel-shelf-renderer { display: none !important; }`
+  },
+  {
+    id: 'yt-no-endcards',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No end screens',
+    hint: 'Removes the video cards that cover the last seconds of a video.',
+    css: `.ytp-ce-element, .ytp-endscreen-content { display: none !important; }`
+  },
+  {
+    id: 'yt-no-comments',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No comments',
+    hint: 'Hides the comments under videos.',
+    css: `ytd-comments#comments { display: none !important; }`
+  },
+  {
+    id: 'reddit-no-promoted',
+    site: 'Reddit',
+    sites: ['reddit.com'],
+    title: 'No promoted posts',
+    hint: 'Hides ads made to look like posts.',
+    css: `shreddit-ad-post, shreddit-comments-page-ad, .promotedlink, [data-promoted="true"] { display: none !important; }`
+  },
+  {
+    id: 'x-no-promoted',
+    site: 'X',
+    sites: ['x.com', 'twitter.com'],
+    title: 'No promoted posts',
+    hint: 'Hides ads in the timeline.',
+    css: `article:has([data-testid="placementTracking"]), div[data-testid="cellInnerDiv"]:has([data-testid="placementTracking"]) { display: none !important; }`
+  },
+  {
+    id: 'x-no-trends',
+    site: 'X',
+    sites: ['x.com', 'twitter.com'],
+    title: 'No trends',
+    hint: 'Hides the trending list on the side.',
+    css: `[data-testid="sidebarColumn"] section:has([data-testid="trend"]) { display: none !important; }`
+  },
+  {
+    id: 'ig-no-reels',
+    site: 'Instagram',
+    sites: ['instagram.com'],
+    title: 'No Reels button',
+    hint: 'Removes the shortcut to Reels from the menu.',
+    css: `a[href="/reels/"] { display: none !important; }`
+  },
+  {
+    id: 'twitch-no-recommended',
+    site: 'Twitch',
+    sites: ['twitch.tv'],
+    title: 'No recommended channels',
+    hint: 'Keeps only the channels you follow in the side list.',
+    css: `.side-nav-section[aria-label*="Recommended" i], .side-nav-section[aria-label*="Viewers Also" i] { display: none !important; }`
+  },
+  {
+    id: 'amazon-no-sponsored',
+    site: 'Amazon',
+    sites: ['amazon.com', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 'amazon.ca'],
+    title: 'No sponsored results',
+    hint: 'Hides paid placements in search results.',
+    css: `[data-component-type="sp-sponsored-result"], .AdHolder, [cel_widget_id*="sponsored" i] { display: none !important; }`
+  },
+  {
+    id: 'wiki-no-banners',
+    site: 'Wikipedia',
+    sites: ['wikipedia.org'],
+    title: 'No banners',
+    hint: 'Hides donation and notice banners.',
+    css: `#centralNotice, #siteNotice, .frb { display: none !important; }`
+  }
+]
 
 export type WidgetId = 'weather' | 'quote' | 'todo' | 'news' | 'focus' | 'stats' | 'music' | 'countdown' | 'recent'
 

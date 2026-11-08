@@ -1,3 +1,4 @@
+import { attachSiteMods } from './sitemods'
 import { pageLanguage } from './translate'
 import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
@@ -351,6 +352,7 @@ export class Tab {
   }
 
   private attach(wc: WebContents): void {
+    attachSiteMods(wc, this.host.incognito)
     const changed = (): void => this.host.tabChanged(this)
     // Private windows leave no history behind.
     const record = this.host.incognito ? null : history

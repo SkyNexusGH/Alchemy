@@ -103,6 +103,22 @@ export function setupPermissions(session: Session, opts: { remember: boolean; au
   })
 }
 
+/** Everything sites have been allowed or blocked from, for the dashboard in Settings. */
+export function listPermissionDecisions(): { origin: string; permission: string; allowed: boolean }[] {
+  return Object.entries(decisions.data).map(([key, allowed]) => {
+    const cut = key.lastIndexOf('|')
+    return { origin: key.slice(0, cut), permission: key.slice(cut + 1), allowed }
+  })
+}
+
+/** Changes a saved decision, or forgets it (the site asks again) when `allowed` is null. */
+export function setPermissionDecision(origin: string, permission: string, allowed: boolean | null): void {
+  const key = `${origin}|${permission}`
+  if (allowed === null) delete decisions.data[key]
+  else decisions.data[key] = allowed
+  decisions.save()
+}
+
 export function clearPermissionDecisions(): void {
   decisions.data = {}
   decisions.save()

@@ -55,7 +55,7 @@ export async function translatePage(wc: WebContents, target: string): Promise<{ 
     const body = new URLSearchParams()
     for (const t of batch) body.append('q', t.trim())
     try {
-      const res = await fetch(`${ENDPOINT}&tl=${encodeURIComponent(target)}`, {
+      const res = await wc.session.fetch(`${ENDPOINT}&tl=${encodeURIComponent(target)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body

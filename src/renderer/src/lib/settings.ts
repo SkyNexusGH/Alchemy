@@ -37,7 +37,7 @@ function applyTheme(): void {
   root.dataset.compact = String(settings.appearance.compactTabs)
   root.dataset.font = settings.appearance.font ?? 'inter'
   root.dataset.contrast = String(!!settings.appearance.highContrast)
-  root.dataset.motion = settings.appearance.reduceMotion ? 'reduced' : 'full'
+  root.dataset.motion = settings.appearance.reduceMotion || batterySaver ? 'reduced' : 'full'
   setRuneIcons(settings.appearance.iconSet === 'runes')
   root.dataset.material = context.private ? 'solid' : (settings.appearance.material ?? 'solid')
   // Switching light/dark or the accent fades the colors over instead of snapping.
@@ -49,6 +49,16 @@ function applyTheme(): void {
   }
   lastThemeKey = key
 }
+// Battery saver stops Alchemy's own animations while it's on.
+let batterySaver = false
+void api.invoke<boolean>('battery:state').then((on) => {
+  batterySaver = on
+  applyTheme()
+})
+api.on('battery:saver', (on: boolean) => {
+  batterySaver = on
+  applyTheme()
+})
 let lastThemeKey = ''
 let fadeTimer: ReturnType<typeof setTimeout> | undefined
 

@@ -5,6 +5,7 @@ import {
   AppWindow,
   Code,
   Gauge,
+  Key,
   Keyboard,
   Layers,
   Moon,
@@ -29,6 +30,47 @@ interface Release {
 
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
+  {
+    version: '0.1.16',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Key,
+        title: 'A built-in password manager',
+        text: 'Alchemy offers to save your logins, fills them after Windows Hello, and warns you if a password has appeared in a known data breach. Passwords are encrypted on your PC, and you can import them from a Chrome, Edge, Brave or Opera CSV.'
+      },
+      {
+        icon: Palette,
+        title: 'Make any site your own',
+        text: 'Site magic in Settings adds Force dark, one-tap Elixirs for popular sites, MyHue Restyle for hiding parts of a page or changing its fonts, and your own custom scripts.'
+      },
+      {
+        icon: VenetianMask,
+        title: 'More private than ever',
+        text: 'A permission dashboard shows every choice you’ve made for a site. Paste protection stops pages tampering with your clipboard, and each site can see a different device. Masked Mode and Tor windows also no longer send what you type in the address bar to search or weather services, and translating in a Tor window now stays on Tor.'
+      },
+      {
+        icon: Sparkle,
+        title: 'Alchemy Lab',
+        text: 'A new home for experiments. Ask the page, Instant answers and Voice search all run on your PC. They start switched off and stay out of sight until you turn them on in the Lab, so if you used the microphone in the address bar, that’s where it’s gone.'
+      },
+      {
+        icon: Search,
+        title: 'Find more, faster',
+        text: 'Ctrl+K now searches the words inside your open tabs and reaches far more of Alchemy, and Search everywhere runs one search in several engines side by side.'
+      },
+      {
+        icon: Keyboard,
+        title: 'Nothing hidden',
+        text: 'Settings has a new Shortcuts & tips page, you can choose the language pages translate into, delete downloaded AI models from the Lab, open Alchemy Tor from the Alchemy menu, and play the potion game whenever you like.'
+      },
+      {
+        icon: Gauge,
+        title: 'Battery saver and fixes',
+        text: 'On battery, background tabs sleep sooner and Alchemy’s animations stop. Closing one of three split panes now keeps the other two, and the command palette follows the window when you resize it.'
+      }
+    ]
+  },
   {
     version: '0.1.15',
     date: 'November 2026',

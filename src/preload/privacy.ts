@@ -2,6 +2,10 @@ export interface PrivacyConfig {
   farble: boolean
   gpc: boolean
   seed: number
+  /** Paste protection. */
+  clipboard: boolean
+  /** A different, believable device for each site. */
+  profile: boolean
 }
 
 /**
@@ -10,7 +14,7 @@ export interface PrivacyConfig {
  * per-site noise. Each site sees a stable but different fingerprint, so sites can't
  * link you across the web. Serialized into the page, so it must be self-contained.
  */
-export function protect({ farble, gpc, seed }: PrivacyConfig): void {
+export function protect({ farble, gpc, seed, clipboard, profile }: PrivacyConfig): void {
   const define = (obj: object, name: string, fn: (...a: never[]) => unknown): void => {
     const original = (obj as Record<string, unknown>)[name] as object
     const native = Function.prototype.toString.call(original)
@@ -26,7 +30,63 @@ export function protect({ farble, gpc, seed }: PrivacyConfig): void {
       /* already defined */
     }
   }
+
+  // ---- paste protection ---------------------------------------------------------------
+  // Two tricks: writing to the clipboard when you didn't click anything, and swapping what
+  // you copied for something else (a crypto address or link for one of theirs).
+  if (clipboard) {
+    const blocked = (): void => void window.dispatchEvent(new Event('__alchemy_clipboard_blocked'))
+    const looksSensitive = (t: string): boolean => /^(bc1\w{20,}|[13][a-km-zA-HJ-NP-Z1-9]{25,}|0x[0-9a-fA-F]{30,}|https?:\/\/\S+|[A-Za-z0-9]{30,})$/.test(t.trim())
+    const active = (): boolean => (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive !== false
+    if (window.Clipboard) {
+      for (const name of ['writeText', 'write'] as const) {
+        const original = Clipboard.prototype[name] as (...a: unknown[]) => Promise<void>
+        define(Clipboard.prototype, name, function (this: Clipboard, ...args: never[]) {
+          if (!active()) {
+            blocked()
+            return Promise.reject(new DOMException('Blocked by Alchemy paste protection', 'NotAllowedError'))
+          }
+          return original.apply(this, args)
+        })
+      }
+    }
+    const setData = DataTransfer.prototype.setData
+    define(DataTransfer.prototype, 'setData', function (this: DataTransfer, ...args: never[]) {
+      const [format, value] = args as unknown as [string, string]
+      const selected = document.getSelection()?.toString() ?? ''
+      // Only while copying, only when the page replaces something like an address or link.
+      if (window.event?.type === 'copy' && /text/i.test(format) && looksSensitive(selected) && String(value).trim() !== selected.trim()) {
+        blocked()
+        return
+      }
+      return (setData as (...a: unknown[]) => void).apply(this, args)
+    })
+  }
+
   if (!farble) return
+
+  // ---- device profile -------------------------------------------------------------------
+  // A believable PC, picked from the site's own seed: stable there, different elsewhere.
+  if (profile) {
+    const pick = <T,>(list: T[], salt: number): T => list[(Math.imul(seed ^ salt, 2654435761) >>> 0) % list.length]
+    const real = { w: screen.width, h: screen.height }
+    // Never smaller than the real window, or the numbers wouldn't add up.
+    const sizes = [[1366, 768], [1536, 864], [1920, 1080], [2560, 1440]].filter(([w, h]) => w >= window.outerWidth && h >= window.outerHeight)
+    const [w, h] = sizes.length ? pick(sizes, 11) : [real.w, real.h]
+    const get = (obj: object, name: string, value: unknown): void => {
+      try {
+        Object.defineProperty(obj, name, { get: () => value, configurable: true })
+      } catch {
+        /* not changeable here */
+      }
+    }
+    get(Screen.prototype, 'width', w)
+    get(Screen.prototype, 'height', h)
+    get(Screen.prototype, 'availWidth', w)
+    get(Screen.prototype, 'availHeight', h - 40)
+    get(Navigator.prototype, 'hardwareConcurrency', pick([4, 6, 8, 12], 23))
+    if ('deviceMemory' in navigator) get(Navigator.prototype, 'deviceMemory', pick([4, 8], 37))
+  }
 
   // Deterministic per (site, position): the same canvas reads the same way every time.
   const noise = (i: number): number => Math.imul(seed ^ i, 2654435761) >>> 0

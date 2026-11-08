@@ -1250,3 +1250,74 @@ kbd {
   background: var(--accent);
   color: var(--accent-ink);
 }
+
+/* ---- MyHue Restyle (RestylePanel.tsx) ---- */
+.restyle {
+  width: 372px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.rs-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.rs-head b {
+  font-size: 14px;
+}
+.rs-head span {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.rs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+.rs-label {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.rs-hidden {
+  display: grid;
+  gap: 3px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+.rs-hidden div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 11px ui-monospace, Consolas, monospace;
+  color: var(--text-2);
+}
+.rs-hidden span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.restyle textarea,
+.restyle select {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border-2);
+  background: var(--field);
+  color: var(--text);
+  padding: 6px 8px;
+  font: 12px ui-monospace, Consolas, monospace;
+  outline: none;
+}
+.restyle select {
+  font-family: inherit;
+}
+.restyle input[type='range'] {
+  flex: 1;
+}

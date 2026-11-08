@@ -578,3 +578,201 @@ html[data-page='settings'] body {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* ---- permissions dashboard ---- */
+.perm-list {
+  display: grid;
+  gap: 8px;
+}
+.perm-site {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.perm-host {
+  min-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.perm-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.perm-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.perm-chip button {
+  padding: 3px 4px 3px 9px;
+  color: inherit;
+}
+.perm-chip .perm-forget {
+  padding: 3px 7px 3px 3px;
+  opacity: 0.6;
+}
+.perm-chip .perm-forget:hover {
+  opacity: 1;
+}
+.perm-chip.on {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+.perm-chip.off {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+/* ---- site magic ---- */
+.elixirs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 14px 22px;
+}
+.elixir-group {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.elixir-group > b {
+  font-size: 12.5px;
+}
+.elixir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+}
+.elixir small {
+  display: block;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.scripts {
+  display: grid;
+  gap: 8px;
+}
+.script {
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.script-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+}
+.script-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  text-align: left;
+  font-size: 12.5px;
+}
+.script-name small {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.script-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.script-body textarea {
+  font-family: 'JetBrains Mono Variable', ui-monospace, monospace;
+  font-size: 12px;
+  height: auto;
+  padding: 8px;
+}
+
+/* ---- passwords ---- */
+.pw {
+  display: grid;
+  gap: 8px;
+}
+.pw-alert {
+  padding: 8px 12px;
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.pw-add {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  gap: 6px;
+}
+.pw-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.pw-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  font-size: 12.5px;
+}
+.pw-text b,
+.pw-text span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pw-text span {
+  color: var(--text-2);
+}
+.pw-leak {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pw-secret {
+  max-width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+  font: 12px ui-monospace, Consolas, monospace;
+  user-select: text;
+}
+
+.set-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.set-keys kbd {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--field);
+  border: 1px solid var(--border-2);
+  color: var(--text-2);
+  font: 600 11.5px/1.3 inherit;
+  white-space: nowrap;
+}
+.set-model {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  white-space: nowrap;
+}

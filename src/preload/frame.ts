@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { setupJsonViewer } from './json'
+import { setupPasswords } from './passwords'
 import { setupPopout } from './popout'
 import { protect, type PrivacyConfig } from './privacy'
 
@@ -23,13 +24,17 @@ if (location.protocol === 'https:' || location.protocol === 'http:') {
     void webFrame.executeJavaScript(code).catch(() => {})
   }
 
-  if (config && (config.farble || config.gpc)) {
+  // Paste protection reports what it stopped from the page's world through this event.
+  window.addEventListener('__alchemy_clipboard_blocked', () => ipcRenderer.send('ovyra:clipboard-blocked'))
+
+  if (config && (config.farble || config.gpc || config.clipboard)) {
     try {
       contextBridge.executeInMainWorld({ func: protect, args: [config] })
     } catch {
       /* frames without a main world (e.g. some sandboxed iframes) */
     }
   }
+  setupPasswords()
   setupPopout(!!config?.popout)
   setupJsonViewer()
 }

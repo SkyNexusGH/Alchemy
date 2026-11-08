@@ -84,6 +84,15 @@ const DEFAULTS: Settings = {
   maskedUsesTor: false,
   splitBlockCounts: false,
   aegisLevel: 'comfort',
+  multiEngines: ['google', 'bing', 'duckduckgo'],
+  lab: { ask: false, instantAnswers: false, voice: false, tabSearch: true, searchEverywhere: true },
+  passwordManager: true,
+  forceDark: false,
+  forceDarkOff: [],
+  elixirs: {},
+  pasteProtection: true,
+  fingerprintProfiles: true,
+  batterySaver: 'auto',
   performance: DEFAULT_PERFORMANCE
 }
 
@@ -106,6 +115,7 @@ function migrate(s: Settings & Record<string, unknown>): void {
   }
   s.appearance = { ...DEFAULT_APPEARANCE, ...(s.appearance ?? {}) }
   s.widgets = { ...DEFAULTS.widgets, ...(s.widgets ?? {}) }
+  s.lab = { ...DEFAULTS.lab, ...(s.lab ?? {}) }
   s.performance = { ...DEFAULT_PERFORMANCE, ...(s.performance ?? {}) }
   s.customEngines ??= DEFAULT_ENGINES
   delete s.theme

@@ -11,13 +11,22 @@ import {
   type Settings as S,
   type UpdateState,
   type Workspace,
-  type AegisStats
+  type AegisStats,
+  type SavedPassword,
+  type SiteRestyle,
+  type UserScript,
+  ELIXIRS
 } from '@shared/types'
 import { CompanyBubbles, SavedTiles, TopSites, WeekChart } from './AegisStats'
 import { api } from '../lib/api'
 import { inkOn } from '../lib/color'
 import {
   Check,
+  Copy,
+  Eye,
+  Key,
+  Keyboard,
+  Sparkle,
   Download,
   EngineIcon,
   Lock,
@@ -52,18 +61,22 @@ import { ClearDataDialog } from './ClearDataDialog'
 document.title = 'Settings'
 setPageIcon('<polygon points="15.7,4.2 19.8,8.3 19.8,15.7 15.7,19.8 8.3,19.8 4.2,15.7 4.2,8.3 8.3,4.2"/><path d="M12 8.5l3.5 3.5-3.5 3.5L8.5 12z"/>')
 
-type CategoryId = 'appearance' | 'newtab' | 'workspaces' | 'performance' | 'privacy' | 'adblock' | 'tabs' | 'downloads' | 'startup' | 'about'
+type CategoryId = 'appearance' | 'newtab' | 'workspaces' | 'magic' | 'passwords' | 'lab' | 'performance' | 'privacy' | 'adblock' | 'tabs' | 'downloads' | 'startup' | 'shortcuts' | 'about'
 
 const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'newtab', label: 'New Tab & Search', icon: LayoutGrid },
   { id: 'workspaces', label: 'Workspaces', icon: Layers },
+  { id: 'magic', label: 'Site magic', icon: Sparkle },
   { id: 'adblock', label: 'Aegis blocker', icon: Shield },
   { id: 'privacy', label: 'Privacy', icon: Lock },
+  { id: 'passwords', label: 'Passwords', icon: Key },
   { id: 'tabs', label: 'Tabs & sidebar', icon: Sidebar },
   { id: 'performance', label: 'Performance', icon: Gauge },
   { id: 'downloads', label: 'Downloads', icon: Download },
   { id: 'startup', label: 'Startup & import', icon: Rocket },
+  { id: 'lab', label: 'Alchemy Lab', icon: Sparkle },
+  { id: 'shortcuts', label: 'Shortcuts & tips', icon: Keyboard },
   { id: 'about', label: 'About Alchemy', icon: Info }
 ]
 
@@ -89,6 +102,15 @@ export default function Settings(): React.JSX.Element {
   useEffect(() => {
     history.replaceState(null, '', `#${category}`)
   }, [category])
+  // Ctrl+K can open a page of Settings while it's already showing.
+  useEffect(() => {
+    const onHash = (): void => {
+      setQuery('')
+      setCategory(location.hash.slice(1) as CategoryId)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const rows = useSettingRows(s, () => setClearing(true))
   const q = query.trim().toLowerCase()
@@ -209,6 +231,374 @@ function GroupedRows({ rows }: { rows: Row[] }): React.JSX.Element {
         </section>
       ))}
     </>
+  )
+}
+
+const TRANSLATE_LANGUAGES: [string, string][] = [
+  ['ar', 'Arabic'], ['zh-CN', 'Chinese (Simplified)'], ['zh-TW', 'Chinese (Traditional)'], ['cs', 'Czech'], ['da', 'Danish'],
+  ['nl', 'Dutch'], ['en', 'English'], ['fi', 'Finnish'], ['fr', 'French'], ['de', 'German'], ['el', 'Greek'], ['he', 'Hebrew'],
+  ['hi', 'Hindi'], ['hu', 'Hungarian'], ['id', 'Indonesian'], ['it', 'Italian'], ['ja', 'Japanese'], ['ko', 'Korean'],
+  ['no', 'Norwegian'], ['pl', 'Polish'], ['pt', 'Portuguese'], ['ro', 'Romanian'], ['ru', 'Russian'], ['es', 'Spanish'],
+  ['sv', 'Swedish'], ['th', 'Thai'], ['tr', 'Turkish'], ['uk', 'Ukrainian'], ['vi', 'Vietnamese']
+]
+
+/** One downloaded AI model: how much room it takes, and a way to delete it. */
+function ModelSize({ which }: { which: 'ai' | 'voice' }): React.JSX.Element {
+  const [size, setSize] = useState<number | null>(null)
+  const load = (sizes: { ai: number; voice: number }): void => setSize(sizes[which])
+  useEffect(() => {
+    void api.invoke<{ ai: number; voice: number }>('ai:modelSizes').then(load).catch(() => setSize(0))
+  }, [])
+  return (
+    <span className="set-model">
+      <span>{size === null ? '' : size ? `${Math.round(size / 1048576)} MB` : 'Not downloaded'}</span>
+      <button className="btn small" disabled={!size} onClick={() => void api.invoke<{ ai: number; voice: number }>('ai:removeModels', which).then(load)}>
+        <Trash2 size={14} /> Delete
+      </button>
+    </span>
+  )
+}
+
+const SHORTCUTS: [string, string, string[]][] = [
+  ['Tabs', 'New tab', ['Ctrl+T']],
+  ['Tabs', 'Reopen the last closed tab', ['Ctrl+Shift+T']],
+  ['Tabs', 'Close tab', ['Ctrl+W', 'Ctrl+F4']],
+  ['Tabs', 'Switch tabs, with pictures', ['Ctrl+Tab', 'Ctrl+Shift+Tab']],
+  ['Tabs', 'Next or previous tab', ['Ctrl+PageDown', 'Ctrl+PageUp']],
+  ['Tabs', 'Go to tab 1 to 8', ['Ctrl+1…8']],
+  ['Tabs', 'Go to the last tab', ['Ctrl+9']],
+  ['Windows', 'New window', ['Ctrl+N']],
+  ['Windows', 'New Masked Mode window', ['Ctrl+Shift+N']],
+  ['Windows', 'Full screen', ['F11']],
+  ['Address bar', 'Command palette: search tabs, commands and more', ['Ctrl+K']],
+  ['Address bar', 'Go to the address bar', ['Ctrl+L', 'Ctrl+E', 'Alt+D', 'F6']],
+  ['Pages', 'Reload', ['Ctrl+R', 'F5']],
+  ['Pages', 'Reload without the cache', ['Ctrl+Shift+R', 'Ctrl+F5', 'Shift+F5']],
+  ['Pages', 'Back and forward', ['Alt+←', 'Alt+→']],
+  ['Pages', 'Back to the new tab page', ['Alt+Home']],
+  ['Pages', 'Find in page', ['Ctrl+F']],
+  ['Pages', 'Next or previous match', ['F3', 'Shift+F3']],
+  ['Pages', 'Zoom in and out', ['Ctrl+=', 'Ctrl+-']],
+  ['Pages', 'Reset zoom', ['Ctrl+0']],
+  ['Pages', 'Print', ['Ctrl+P']],
+  ['Pages', 'View page source', ['Ctrl+U']],
+  ['Pages', 'Developer tools', ['F12', 'Ctrl+Shift+I']],
+  ['Your stuff', 'History', ['Ctrl+H']],
+  ['Your stuff', 'Downloads', ['Ctrl+J']],
+  ['Your stuff', 'Bookmarks', ['Ctrl+Shift+O']],
+  ['Your stuff', 'Bookmark this page', ['Ctrl+D']],
+  ['Your stuff', 'Show or hide the bookmarks bar', ['Ctrl+Shift+B']]
+]
+
+const MOUSE_TIPS: [string, string, string][] = [
+  ['Select several tabs', 'Then right-click them to group, pin, mute, move or close them all.', 'Ctrl or Shift + click a tab'],
+  ['Sleep, mute or keep a site awake', 'Also where you split, duplicate and pin a tab.', 'Right-click a tab'],
+  ['Collapse or recolor a tab group', 'Collapsing tucks its tabs away until you need them.', 'Right-click the group’s dot'],
+  ['Desktop version of a sidebar site', 'Sidebar sites open their mobile version unless you switch this on.', 'Right-click its sidebar icon'],
+  ['Search with another engine', 'Type the engine’s keyword in the address bar first. Keywords are in New Tab & Search.', 'Keyword, then Tab']
+]
+
+const shortcutRows: Row[] = [
+  ...SHORTCUTS.map(([group, label, keys]): Row => ({
+    category: 'shortcuts',
+    group,
+    label,
+    keywords: `keyboard shortcut hotkey ${keys.join(' ')}`,
+    control: (
+      <span className="set-keys">
+        {keys.map((k) => (
+          <kbd key={k}>{k}</kbd>
+        ))}
+      </span>
+    )
+  })),
+  ...MOUSE_TIPS.map(([label, hint, how]): Row => ({
+    category: 'shortcuts',
+    group: 'Mouse tips',
+    label,
+    hint,
+    keywords: 'mouse tip right click',
+    control: <span className="set-keys"><kbd>{how}</kbd></span>
+  })),
+  {
+    category: 'shortcuts',
+    group: 'Just for fun',
+    label: 'Potion game',
+    hint: 'A wizard jumps over potion bottles. It also appears when you’re offline.',
+    keywords: 'offline game play wizard',
+    control: (
+      <button className="btn small" onClick={() => void api.invoke('game:open')}>
+        Play
+      </button>
+    )
+  }
+]
+
+/** Saved logins: reveal (asks for Windows Hello), copy, delete, import and breach checks. */
+function PasswordList(): React.JSX.Element {
+  const [list, setList] = useState<SavedPassword[] | null>(null)
+  const [query, setQuery] = useState('')
+  const [shown, setShown] = useState<Record<string, string>>({})
+  const [note, setNote] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState({ url: '', username: '', password: '' })
+  const [checking, setChecking] = useState(false)
+  const load = (): void => void api.invoke<SavedPassword[]>('passwords:list').then(setList)
+  useEffect(load, [])
+  if (!list) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
+  const q = query.trim().toLowerCase()
+  const visible = list
+    .filter((p) => !q || p.origin.toLowerCase().includes(q) || p.username.toLowerCase().includes(q))
+    .sort((a, b) => a.origin.localeCompare(b.origin))
+  const leaked = list.filter((p) => (p.breaches ?? 0) > 0).length
+  const reveal = async (id: string): Promise<void> => {
+    if (shown[id]) {
+      const { [id]: _gone, ...rest } = shown
+      return setShown(rest)
+    }
+    const pw = await api.invoke<string | null>('passwords:reveal', id)
+    if (pw) setShown({ ...shown, [id]: pw })
+  }
+  const copy = async (id: string): Promise<void> => {
+    const pw = shown[id] ?? (await api.invoke<string | null>('passwords:reveal', id))
+    if (!pw) return
+    await navigator.clipboard.writeText(pw)
+    setNote('Copied.')
+  }
+  return (
+    <div className="pw">
+      <div className="row-actions" style={{ flexWrap: 'wrap' }}>
+        <input className="field" style={{ flex: 1, minWidth: 180 }} placeholder="Search your passwords" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <button className="btn small" onClick={() => setAdding(!adding)}>
+          <Plus size={13} /> Add
+        </button>
+        <button
+          className="btn small"
+          title="A CSV exported from Chrome, Edge, Brave or Opera"
+          onClick={() =>
+            void api.invoke<number>('passwords:import').then((n) => {
+              if (n) setNote(`Imported ${n} password${n === 1 ? '' : 's'}.`)
+              load()
+            })
+          }
+        >
+          Import CSV
+        </button>
+        <button
+          className="btn small"
+          disabled={checking || !list.length}
+          onClick={() => {
+            setChecking(true)
+            void api.invoke<number>('passwords:checkBreaches').then((n) => {
+              setChecking(false)
+              setNote(n ? `${n} password${n === 1 ? ' has' : 's have'} appeared in data breaches.` : 'None of your passwords appear in known breaches.')
+              load()
+            })
+          }}
+        >
+          {checking ? 'Checking…' : 'Check for breaches'}
+        </button>
+      </div>
+      {note && <div className="set-hint good">{note}</div>}
+      {leaked > 0 && <div className="pw-alert">⚠ {leaked} password{leaked === 1 ? ' has' : 's have'} appeared in data breaches. Change {leaked === 1 ? 'it' : 'them'} on the site.</div>}
+      {adding && (
+        <form
+          className="pw-add"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void api.invoke('passwords:add', draft.url, draft.username, draft.password).then(() => {
+              setDraft({ url: '', username: '', password: '' })
+              setAdding(false)
+              load()
+            })
+          }}
+        >
+          <input className="field" required placeholder="Site, like example.com" value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+          <input className="field" placeholder="Username" value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} />
+          <input className="field" required type="password" placeholder="Password" value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} />
+          <button className="btn small primary" type="submit">
+            Save
+          </button>
+        </form>
+      )}
+      {list.length === 0 && <div className="ag-empty">No saved passwords yet. Alchemy offers to save them when you log in.</div>}
+      {visible.map((p) => (
+        <div key={p.id} className="pw-row">
+          <Favicon url={p.origin} size={18} />
+          <div className="pw-text">
+            <b>{p.origin.replace(/^https?:\/\//, '')}</b>
+            <span>{p.username || '(no username)'}</span>
+          </div>
+          {(p.breaches ?? 0) > 0 && (
+            <span className="pw-leak" title={`Found in ${p.breaches!.toLocaleString()} data breaches`}>
+              In breaches
+            </span>
+          )}
+          <code className="pw-secret">{shown[p.id] ?? '••••••••'}</code>
+          <button className="icon-btn" title={shown[p.id] ? 'Hide' : 'Show (asks for Windows Hello)'} onClick={() => void reveal(p.id)}>
+            <Eye size={15} />
+          </button>
+          <button className="icon-btn" title="Copy password" onClick={() => void copy(p.id)}>
+            <Copy size={14} />
+          </button>
+          <button className="icon-btn" title="Delete" onClick={() => void api.invoke('passwords:remove', p.id).then(load)}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ElixirList({ settings }: { settings: S }): React.JSX.Element {
+  const sites = [...new Set(ELIXIRS.map((e) => e.site))]
+  return (
+    <div className="elixirs">
+      {sites.map((site) => (
+        <div key={site} className="elixir-group">
+          <b>{site}</b>
+          {ELIXIRS.filter((e) => e.site === site).map((e) => (
+            <div key={e.id} className="elixir">
+              <div>
+                <span>{e.title}</span>
+                <small>{e.hint}</small>
+              </div>
+              <Switch on={!!settings.elixirs?.[e.id]} onChange={(v) => saveSettings({ elixirs: { ...settings.elixirs, [e.id]: v } })} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function RestyleList(): React.JSX.Element {
+  const [list, setList] = useState<Record<string, SiteRestyle>>({})
+  const load = (): void => void api.invoke<Record<string, SiteRestyle>>('mods:restyles').then(setList)
+  useEffect(load, [])
+  const sites = Object.keys(list)
+  if (!sites.length) return <div className="ag-empty">You haven’t restyled any sites yet.</div>
+  return (
+    <div className="allow-cards">
+      {sites.map((site) => (
+        <div key={site} className="allow-card">
+          <Favicon url={`https://${site}`} size={18} />
+          <span>{site}</span>
+          <button className="icon-btn" title="Remove your changes to this site" onClick={() => void api.invoke('mods:setRestyle', site, null).then(load)}>
+            <X size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ScriptEditor(): React.JSX.Element {
+  const [scripts, setScripts] = useState<UserScript[] | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
+  useEffect(() => void api.invoke<UserScript[]>('mods:scripts').then(setScripts), [])
+  if (!scripts) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
+  const save = (next: UserScript[]): void => {
+    setScripts(next)
+    void api.invoke('mods:saveScripts', next)
+  }
+  const change = (id: string, patch: Partial<UserScript>): void => setScripts(scripts.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+  return (
+    <div className="scripts">
+      {scripts.map((sc) => (
+        <div key={sc.id} className="script">
+          <div className="script-head">
+            <button className="script-name" onClick={() => setOpen(open === sc.id ? null : sc.id)}>
+              <b>{sc.name || 'Untitled script'}</b>
+              <small>{sc.match || 'No sites yet'}</small>
+            </button>
+            <Switch on={sc.enabled} onChange={(enabled) => save(scripts.map((x) => (x.id === sc.id ? { ...x, enabled } : x)))} />
+          </div>
+          {open === sc.id && (
+            <div className="script-body">
+              <input className="field" placeholder="Name" value={sc.name} onChange={(e) => change(sc.id, { name: e.target.value })} />
+              <input className="field" placeholder="Sites, like youtube.com, *.reddit.com" spellCheck={false} value={sc.match} onChange={(e) => change(sc.id, { match: e.target.value })} />
+              <textarea className="field" rows={9} spellCheck={false} placeholder="document.title = 'Hello'" value={sc.code} onChange={(e) => change(sc.id, { code: e.target.value })} />
+              <div className="row-actions">
+                <button className="btn small primary" onClick={() => save(scripts)}>
+                  Save
+                </button>
+                <button className="btn small" onClick={() => save(scripts.filter((x) => x.id !== sc.id))}>
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      <button
+        className="btn small"
+        style={{ justifySelf: 'start' }}
+        onClick={() => {
+          const id = String(Date.now())
+          setScripts([...scripts, { id, name: '', match: '', code: '', enabled: true }])
+          setOpen(id)
+        }}
+      >
+        <Plus size={13} /> New script
+      </button>
+    </div>
+  )
+}
+
+const PERMISSION_NAMES: Record<string, string> = {
+  geolocation: 'Location',
+  notifications: 'Notifications',
+  'clipboard-read': 'Read clipboard',
+  midi: 'MIDI',
+  midiSysex: 'MIDI',
+  idleDetection: 'Idle detection',
+  'window-management': 'Window management',
+  'storage-access': 'Cookies',
+  'top-level-storage-access': 'Cookies'
+}
+const permissionName = (p: string): string => {
+  if (!p.startsWith('media:')) return PERMISSION_NAMES[p] ?? p
+  const audio = p.includes('audio')
+  const video = p.includes('video')
+  return audio && video ? 'Camera & mic' : video ? 'Camera' : 'Microphone'
+}
+
+/** The permissions dashboard: sites and what you've allowed or blocked them from. */
+function PermissionsList(): React.JSX.Element {
+  const [list, setList] = useState<{ origin: string; permission: string; allowed: boolean }[] | null>(null)
+  const load = (): void => void api.invoke<NonNullable<typeof list>>('permissions:list').then(setList)
+  useEffect(load, [])
+  if (!list) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
+  if (!list.length) return <div className="ag-empty">No site has asked for anything yet.</div>
+  const sites = [...new Set(list.map((p) => p.origin))].sort()
+  const change = async (origin: string, permission: string, allowed: boolean | null): Promise<void> => {
+    await api.invoke('permissions:set', origin, permission, allowed)
+    load()
+  }
+  return (
+    <div className="perm-list">
+      {sites.map((origin) => (
+        <div key={origin} className="perm-site">
+          <Favicon url={origin} size={16} />
+          <span className="perm-host">{origin.replace(/^https?:\/\//, '')}</span>
+          <span className="perm-items">
+            {list
+              .filter((p) => p.origin === origin)
+              .map((p) => (
+                <span key={p.permission} className={`perm-chip ${p.allowed ? 'on' : 'off'}`}>
+                  <button title={p.allowed ? 'Allowed. Click to block.' : 'Blocked. Click to allow.'} onClick={() => void change(origin, p.permission, !p.allowed)}>
+                    {p.allowed ? '✓' : '✕'} {permissionName(p.permission)}
+                  </button>
+                  <button className="perm-forget" title="Forget this (the site will ask again)" onClick={() => void change(origin, p.permission, null)}>
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+          </span>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -680,6 +1070,34 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'newtab',
+      label: 'Search everywhere',
+      hint: 'Pick up to three engines. Typing a search and choosing “Search everywhere” opens them side by side.',
+      keywords: 'multi multiple engines side by side split compare meta search',
+      wide: true,
+      control: (
+        <div className="chips">
+          {allEngines(s).map((e) => {
+            const list = s.multiEngines ?? []
+            const on = list.includes(e.id)
+            return (
+              <button
+                key={e.id}
+                type="button"
+                className={`chip toggle${on ? ' on' : ''}`}
+                aria-pressed={on}
+                disabled={!on && list.length >= 3}
+                onClick={() => set({ multiEngines: on ? list.filter((x) => x !== e.id) : [...list, e.id] })}
+              >
+                {on && <Check size={12} strokeWidth={3} />}
+                {e.name}
+              </button>
+            )
+          })}
+        </div>
+      )
+    },
+    {
+      category: 'newtab',
       label: 'Search shortcuts',
       hint: 'Type a keyword in the address bar and press Tab to search that site, like “yt” then Tab for YouTube.',
       keywords: 'custom search engine keyword tab youtube wikipedia',
@@ -691,6 +1109,177 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       label: 'Search suggestions',
       hint: 'Send what you type to your search engine for suggestions (without cookies).',
       control: <Switch on={s.searchSuggestions} onChange={(v) => set({ searchSuggestions: v })} />
+    },
+
+    // ---- Alchemy Lab ----
+    {
+      category: 'lab',
+      group: 'Experiments',
+      label: 'Ask the page and Ask all my tabs',
+      hint: 'A tiny AI on your PC (about 90 MB, downloaded when you first use it) answers questions with words quoted from your pages. Nothing you read is sent anywhere.',
+      keywords: 'ai ask question answer page tabs on device private local model',
+      control: <Switch on={!!s.lab?.ask} onChange={(ask) => set({ lab: { ...s.lab, ask } })} />
+    },
+    ...(s.lab?.ask
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Experiments',
+            label: 'Instant answers in the address bar',
+            hint: 'Questions get an answer as you type. Your question goes to Wikipedia to fetch the text (only if Search suggestions is on); the answer is worked out on your PC. Needs the Ask download.',
+            keywords: 'ai instant answers address bar omnibox wikipedia',
+            control: <Switch on={!!s.lab?.instantAnswers} onChange={(instantAnswers) => set({ lab: { ...s.lab, instantAnswers } })} />
+          }
+        ]
+      : []),
+    {
+      category: 'lab',
+      group: 'Experiments',
+      label: 'Voice search',
+      hint: 'Adds a microphone to the address bar. A speech model on your PC (downloaded when you first use it) turns what you say into a search. Your voice isn’t sent anywhere.',
+      keywords: 'ai voice speech microphone mic whisper talk dictate',
+      control: <Switch on={!!s.lab?.voice} onChange={(voice) => set({ lab: { ...s.lab, voice } })} />
+    },
+    {
+      category: 'lab',
+      group: 'Experiments',
+      label: 'Search inside your tabs',
+      hint: 'Ctrl+K also searches the words on your open pages, not just their titles. Kept in memory only.',
+      keywords: 'tab search content text ctrl k palette',
+      control: <Switch on={s.lab?.tabSearch !== false} onChange={(tabSearch) => set({ lab: { ...s.lab, tabSearch } })} />
+    },
+    {
+      category: 'lab',
+      group: 'Experiments',
+      label: 'Search everywhere',
+      hint: 'Adds an option to run a search in several engines, side by side. Pick the engines in New Tab & Search.',
+      keywords: 'multi engines side by side',
+      control: <Switch on={s.lab?.searchEverywhere !== false} onChange={(searchEverywhere) => set({ lab: { ...s.lab, searchEverywhere } })} />
+    },
+    ...(s.lab?.ask
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Downloaded AI models',
+            label: 'Ask and Instant answers',
+            hint: 'Kept on this PC. If you delete it, it downloads again the next time you use Ask.',
+            keywords: 'ai model delete remove space storage disk',
+            control: <ModelSize which="ai" />
+          }
+        ]
+      : []),
+    ...(s.lab?.voice
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Downloaded AI models',
+            label: 'Voice search model',
+            hint: 'Kept on this PC. If you delete it, it downloads again the next time you use the microphone.',
+            keywords: 'ai model whisper voice delete remove space storage disk',
+            control: <ModelSize which="voice" />
+          }
+        ]
+      : []),
+    {
+      category: 'lab',
+      group: 'Tell us what you think',
+      label: 'Found a bug, or love something here?',
+      hint: 'Experiments can change or disappear. Your feedback decides which ones stay.',
+      control: (
+        <button className="btn small" onClick={() => api.invoke('tab:navigate', 'https://github.com/SkyNexusGH/Alchemy/issues', { newTab: true })}>
+          Send feedback
+        </button>
+      )
+    },
+
+    // ---- passwords ----
+    {
+      category: 'passwords',
+      label: 'Offer to save and fill passwords',
+      hint: 'Encrypted with your Windows account and never sent anywhere. Filling and showing a password asks for Windows Hello. Not saved from Masked Mode or Tor.',
+      keywords: 'password manager login save fill windows hello',
+      control: <Switch on={s.passwordManager} onChange={(v) => set({ passwordManager: v })} />
+    },
+    {
+      category: 'passwords',
+      label: 'Your passwords',
+      keywords: 'passwords logins saved import csv chrome breach pwned',
+      wide: true,
+      control: <PasswordList />
+    },
+
+    ...shortcutRows,
+
+    // ---- site magic ----
+    {
+      category: 'magic',
+      group: 'Force dark',
+      label: 'Force dark mode',
+      hint: 'Gives bright sites a dark look. Sites that are already dark are left alone.',
+      keywords: 'dark mode night invert force',
+      control: <Switch on={!!s.forceDark} onChange={(v) => set({ forceDark: v })} />
+    },
+    ...((s.forceDarkOff ?? []).length
+      ? [
+          {
+            category: 'magic' as const,
+            group: 'Force dark',
+            label: 'Sites left bright',
+            hint: 'Change this from MyHue Restyle on the site. ✕ turns Force dark back on there.',
+            wide: true,
+            control: (
+              <div className="chips">
+                {s.forceDarkOff.map((site) => (
+                  <button key={site} className="chip" onClick={() => set({ forceDarkOff: s.forceDarkOff.filter((x) => x !== site) })}>
+                    {site} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )
+          }
+        ]
+      : []),
+    {
+      category: 'magic',
+      group: 'Elixirs',
+      label: 'One-tap fixes for popular sites',
+      hint: 'Switch on what you’d like gone. They apply straight away.',
+      keywords: 'elixirs youtube shorts reddit promoted twitch amazon sponsored instagram reels wikipedia x twitter',
+      wide: true,
+      control: <ElixirList settings={s} />
+    },
+    {
+      category: 'magic',
+      group: 'MyHue Restyle',
+      label: 'Your restyled sites',
+      hint: 'To restyle a site, right-click it and choose MyHue Restyle, or use Ctrl+K. Hide parts of a page, change its font and text size, or add your own CSS.',
+      keywords: 'myhue restyle css hide element font',
+      wide: true,
+      control: <RestyleList />
+    },
+    {
+      category: 'magic',
+      group: 'Custom scripts',
+      label: 'Your scripts',
+      hint: 'Small JavaScript programs that run on the sites you choose, like Tampermonkey. Only add scripts you trust: a script can read everything on the sites it runs on. They never run in Masked Mode.',
+      keywords: 'scripts javascript userscript tampermonkey greasemonkey custom code',
+      wide: true,
+      control: <ScriptEditor />
+    },
+    {
+      category: 'magic',
+      group: 'Translate',
+      label: 'Translate pages into',
+      hint: 'The language Translate uses. Its button shows in the address bar on foreign pages, and Ctrl+K can translate any page. Page text is sent to Google Translate.',
+      keywords: 'translate language foreign google',
+      control: (
+        <Select
+          value={s.translateTo ?? ''}
+          width={210}
+          onChange={(translateTo) => set({ translateTo })}
+          options={[{ value: '', label: 'Same as Alchemy' }, ...TRANSLATE_LANGUAGES.map(([value, label]) => ({ value, label }))]}
+        />
+      )
     },
 
     // ---- Aegis blocker (ad blocking) ----
@@ -911,6 +1500,31 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Protection',
+      label: 'Paste protection',
+      hint: 'Stops sites writing to your clipboard without a click, or swapping an address or link you copy for their own.',
+      keywords: 'clipboard paste copy hijack crypto swap',
+      control: <Switch on={s.pasteProtection} onChange={(v) => set({ pasteProtection: v })} />
+    },
+    {
+      category: 'privacy',
+      group: 'Protection',
+      label: 'Device profiles',
+      hint: 'Each site sees a different, believable PC (screen size, processor, memory), so visits can’t be linked. Needs Fingerprinting protection on.',
+      keywords: 'fingerprint anti profile spoof screen hardware',
+      control: <Switch on={s.fingerprintProfiles} onChange={(v) => set({ fingerprintProfiles: v })} />
+    },
+    {
+      category: 'privacy',
+      group: 'Site permissions',
+      label: 'What sites can do',
+      hint: 'Every camera, microphone, location, notification and other decision you’ve made. Click a permission to switch it; ✕ makes the site ask again.',
+      keywords: 'permissions camera microphone mic location notifications dashboard',
+      wide: true,
+      control: <PermissionsList />
+    },
+    {
+      category: 'privacy',
       group: 'Your data',
       label: 'Telemetry',
       hint: 'Alchemy never sends usage data anywhere.',
@@ -918,6 +1532,23 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
 
     // ---- performance ----
+    {
+      category: 'performance',
+      label: 'Battery saver',
+      hint: 'Puts background tabs to sleep after 5 minutes and stops Alchemy’s own animations. Auto turns on when your PC is running on battery.',
+      keywords: 'battery power saver laptop energy',
+      control: (
+        <Segmented
+          value={s.batterySaver ?? 'auto'}
+          options={[
+            { value: 'auto', label: 'Auto' },
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' }
+          ]}
+          onChange={(batterySaver) => set({ batterySaver })}
+        />
+      )
+    },
     {
       category: 'performance',
       label: 'Heavy Mode',

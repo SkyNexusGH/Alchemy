@@ -18,6 +18,13 @@ function getWorker(): Worker {
   return worker
 }
 
+/** The model was deleted (Settings): let go of it; it downloads again next time. */
+export function forgetVoiceModel(): void {
+  worker?.terminate()
+  worker = null
+  files.clear()
+}
+
 /** Whisper takes 16 kHz mono audio. */
 async function toSamples(blob: Blob): Promise<Float32Array> {
   const ctx = new AudioContext({ sampleRate: 16000 })

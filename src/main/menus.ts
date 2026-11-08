@@ -56,6 +56,12 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
     items.push({ label: `Save ${p.mediaType} as…`, click: () => wc.downloadURL(p.srcURL) }, SEP)
   }
 
+  if (!p.isEditable && /^https?:/.test(p.pageURL)) {
+    items.push({ label: 'MyHue Restyle this site…', click: () => bw.openRestyle() })
+    if (getSettings().lab?.ask && !bw.incognito) items.push({ label: 'Ask this page…', click: () => bw.send('ask:toggle') })
+    items.push(SEP)
+  }
+
   if (p.isEditable) {
     if (p.misspelledWord) {
       for (const s of p.dictionarySuggestions.slice(0, 5)) items.push({ label: s, click: () => wc.replaceMisspelling(s) })

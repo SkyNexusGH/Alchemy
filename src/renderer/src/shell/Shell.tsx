@@ -13,6 +13,9 @@ import { useShell } from './store'
 import { TabStrip } from './TabStrip'
 import { Toasts } from './Toasts'
 import { BookmarksPanel, useBookmarksPanel } from './BookmarksPanel'
+import { forgetAiModels } from '../lib/ai'
+import { forgetVoiceModel } from '../lib/voice'
+import { AskPanel, useAskPanel } from './AskPanel'
 import { Toolbar } from './Toolbar'
 
 export default function Shell(): React.JSX.Element {
@@ -34,6 +37,14 @@ export default function Shell(): React.JSX.Element {
   useReportRect(content, 'layout:content')
   const sidebar = useSettings((s) => s.settings?.sidebar ?? 'shown')
   const bookmarksPanel = useBookmarksPanel((s) => s.open)
+  const askPanel = useAskPanel((s) => s.open)
+  const askOn = useSettings((s) => s.settings?.lab?.ask === true)
+  // Switched off in the Lab: it's gone, and stays closed if it's switched back on.
+  useEffect(() => {
+    if (!askOn && useAskPanel.getState().open) useAskPanel.getState().toggle()
+  }, [askOn])
+  useEffect(() => api.on('ask:toggle', () => useAskPanel.getState().toggle()), [])
+  useEffect(() => api.on('ai:models-removed', (which: 'ai' | 'voice') => (which === 'ai' ? forgetAiModels() : forgetVoiceModel())), [])
   const side = useSettings((s) => s.settings?.sidebarSide ?? 'left')
   const vertical = useSettings((s) => s.settings?.tabLayout === 'vertical')
   const settingsAll = useSettings((s) => s.settings)
@@ -119,6 +130,7 @@ export default function Shell(): React.JSX.Element {
             )}
           </div>
           {devtools && <DevtoolsPane />}
+          {askPanel && askOn && !isPrivate && <AskPanel />}
         </div>
       </main>
     </div>

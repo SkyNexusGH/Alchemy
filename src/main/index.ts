@@ -5,7 +5,10 @@ import { initExtensions } from './extensions'
 import { registerIpc } from './ipc'
 import { initPanels } from './panels'
 import { initFilters } from './privacy/engine'
-import { onRequestBlocked, registerPrivacyIpc } from './privacy/network'
+import { onClipboardBlocked, onRequestBlocked, registerPrivacyIpc } from './privacy/network'
+import { batterySaverActive, initBatterySaver } from './battery'
+import { initSiteMods } from './sitemods'
+import { registerPasswordIpc } from './passwords'
 import { onMilestone } from './privacy/shields'
 import { registerSchemePrivileges } from './protocol'
 import { setupBrowsingSession } from './sessions'
@@ -106,13 +109,23 @@ if (!app.requestSingleInstanceLock()) {
     // So Windows lists Alchemy under Default apps → Web browser.
     void registerAsBrowser()
 
+    initBatterySaver()
+    initSiteMods()
+    registerPasswordIpc()
+    // Tell the window you're looking at when paste protection steps in.
+    onClipboardBlocked((id) => {
+      const tab = tabsByContents.get(id)
+      for (const w of BrowserWin.all) if (tab && w.tabs.includes(tab)) w.send('toast', { text: 'Stopped this site changing your clipboard' })
+    })
     // Updates download in the background and apply on restart.
     initUpdater(() => {})
 
     // Sleeping tabs: unload background tabs that haven't been looked at in a while
     // (never in Heavy Mode).
     setInterval(() => {
-      const { sleepAfterMinutes: minutes, performance } = getSettings()
+      const { sleepAfterMinutes, performance } = getSettings()
+      // Battery saver puts tabs to sleep sooner, even if sleeping tabs are otherwise off.
+      const minutes = batterySaverActive() ? Math.min(sleepAfterMinutes || 5, 5) : sleepAfterMinutes
       if (minutes > 0 && !performance.heavy) for (const w of BrowserWin.all) w.sleepIdleTabs(minutes * 60_000)
     }, 30_000)
     // The RAM limit: over it, the least recently used background tab goes to sleep.

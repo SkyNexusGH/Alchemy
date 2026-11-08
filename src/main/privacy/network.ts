@@ -15,6 +15,11 @@ const FRAME_PRELOAD = join(__dirname, '../preload/frame.js')
 type BlockedListener = (webContentsId: number, url: string, tracker: boolean) => void
 const blockedListeners = new Set<BlockedListener>()
 
+const clipboardListeners = new Set<(webContentsId: number) => void>()
+export function onClipboardBlocked(fn: (webContentsId: number) => void): void {
+  clipboardListeners.add(fn)
+}
+
 export function onRequestBlocked(fn: BlockedListener): void {
   blockedListeners.add(fn)
 }
@@ -250,14 +255,21 @@ export function registerPrivacyIpc(): void {
     return !!blocker && shieldsEnabled(event.sender.getURL()) && blocker.config.enableMutationObserver
   })
   // Asked synchronously by every frame before page scripts run.
+  // A page tried to change the clipboard behind your back; tell whoever's looking at it.
+  ipcMain.on('ovyra:clipboard-blocked', (event) => {
+    for (const fn of clipboardListeners) fn(event.sender.id)
+  })
   ipcMain.on('ovyra:frame', (event, frameUrl: string) => {
-    const top = event.sender.getURL()
+    // While a new page starts, the tab still reports the old address; its own frame knows better.
+    const top = event.senderFrame === event.sender.mainFrame && frameUrl ? frameUrl : event.sender.getURL()
     const settings = getSettings()
     const on = /^https?:/.test(top) && siteProtected(top)
     event.returnValue = {
       farble: on && settings.fingerprintProtection,
       gpc: on && settings.sendGpc,
       seed: seedFor(top),
+      clipboard: on && settings.pasteProtection,
+      profile: on && settings.fingerprintProtection && settings.fingerprintProfiles,
       popout: settings.videoPopout,
       scriptlets: scriptletsFor(frameUrl || top, top)
     }
