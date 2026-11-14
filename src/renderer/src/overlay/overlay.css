@@ -523,6 +523,12 @@ kbd {
   color: var(--text-3);
   font-size: 12px;
 }
+.sh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px 0;
+}
 .sh-list {
   max-height: 210px;
   overflow-y: auto;
@@ -842,32 +848,6 @@ kbd {
 .am-link:hover {
   text-decoration: underline;
 }
-.am-modes {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  padding: 3px;
-  border-radius: calc(var(--r) + 1px);
-  background: var(--surface);
-}
-.am-modes button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 30px;
-  border-radius: calc(var(--r) - 2px);
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 560;
-}
-.am-modes button:hover {
-  color: var(--text);
-}
-.am-modes button.on {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
 .am-row {
   display: flex;
   align-items: center;
@@ -879,32 +859,6 @@ kbd {
   color: var(--text-2);
   font-weight: 540;
 }
-.am-zoom {
-  display: flex;
-  align-items: center;
-  border-radius: calc(var(--r) - 2px);
-  background: var(--surface);
-}
-.am-zoom button {
-  display: grid;
-  place-items: center;
-  height: 32px;
-  min-width: 34px;
-  border-radius: calc(var(--r) - 2px);
-  color: var(--text-2);
-}
-.am-zoom button:hover:not(:disabled) {
-  background: var(--hover);
-  color: var(--text);
-}
-.am-zoom button:disabled {
-  opacity: 0.4;
-}
-.am-zoom .am-zoom-value {
-  min-width: 54px;
-  color: var(--text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 .am-foot {
   display: flex;
@@ -1320,4 +1274,73 @@ kbd {
 }
 .restyle input[type='range'] {
   flex: 1;
+}
+
+.ap-color {
+  width: 36px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--field);
+  cursor: pointer;
+}
+
+.sh-level,
+.sh-fp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.sh-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.sh-seg button {
+  padding: 3px 7px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.sh-seg button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.rs-broken {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.rs-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rs-color {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+.rs-color input {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
 }

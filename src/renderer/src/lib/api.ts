@@ -6,8 +6,8 @@ interface AlchemyBridge {
 
 declare global {
   interface Window {
-    ovyra: AlchemyBridge
+    alchemy: AlchemyBridge
   }
 }
 
-export const api: AlchemyBridge = window.ovyra
+export const api: AlchemyBridge = window.alchemy

@@ -1,6 +1,6 @@
 import './shell.css'
 import { Onion, VenetianMask } from '../lib/icons'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { backgroundUrl, useSettings } from '../lib/settings'
 import { BrandLogo, Logo } from '../lib/ui'
@@ -13,7 +13,7 @@ import { useShell } from './store'
 import { TabStrip } from './TabStrip'
 import { Toasts } from './Toasts'
 import { BookmarksPanel, useBookmarksPanel } from './BookmarksPanel'
-import { forgetAiModels } from '../lib/ai'
+import { forgetAiModels, forgetSmartModel } from '../lib/ai'
 import { forgetVoiceModel } from '../lib/voice'
 import { AskPanel, useAskPanel } from './AskPanel'
 import { Toolbar } from './Toolbar'
@@ -31,6 +31,7 @@ export default function Shell(): React.JSX.Element {
   const panelOpen = useShell((s) => s.win.panelId !== null)
   // The split frames only matter while one of the split tabs is the one on screen.
   const split = useShell((s) => (s.win.split?.includes(s.win.activeId ?? -1) ? s.win.split : null))
+  const splitVertical = useShell((s) => s.win.splitVertical)
   const activeId = useShell((s) => s.win.activeId)
   const floating = useShell((s) => s.win.tabs.find((t) => t.id === s.win.activeId)?.floating ?? false)
   const content = useRef<HTMLDivElement>(null)
@@ -38,13 +39,14 @@ export default function Shell(): React.JSX.Element {
   const sidebar = useSettings((s) => s.settings?.sidebar ?? 'shown')
   const bookmarksPanel = useBookmarksPanel((s) => s.open)
   const askPanel = useAskPanel((s) => s.open)
-  const askOn = useSettings((s) => s.settings?.lab?.ask === true)
+  // AI features stay off in Masked Mode and Alchemy Tor.
+  const askOn = useSettings((s) => s.settings?.lab?.ask === true) && !isPrivate
   // Switched off in the Lab: it's gone, and stays closed if it's switched back on.
   useEffect(() => {
     if (!askOn && useAskPanel.getState().open) useAskPanel.getState().toggle()
   }, [askOn])
   useEffect(() => api.on('ask:toggle', () => useAskPanel.getState().toggle()), [])
-  useEffect(() => api.on('ai:models-removed', (which: 'ai' | 'voice') => (which === 'ai' ? forgetAiModels() : forgetVoiceModel())), [])
+  useEffect(() => api.on('ai:models-removed', (which: 'ai' | 'smart' | 'voice') => (which === 'ai' ? forgetAiModels() : which === 'smart' ? forgetSmartModel() : forgetVoiceModel())), [])
   const side = useSettings((s) => s.settings?.sidebarSide ?? 'left')
   const vertical = useSettings((s) => s.settings?.tabLayout === 'vertical')
   const settingsAll = useSettings((s) => s.settings)
@@ -114,9 +116,9 @@ export default function Shell(): React.JSX.Element {
         <div className="body">
           {bookmarksPanel && <BookmarksPanel />}
           {panelOpen && <SidePanel />}
-          <div className={`content${split ? ' split' : ''}`} ref={content}>
+          <div className={`content${split ? ' split' : ''}${split && splitVertical ? ' vertical' : ''}`} ref={content}>
             {split ? (
-              split.map((id) => <div key={id} className={`split-pane${id === activeId ? ' focused' : ''}`} />)
+              <SplitPanes ids={split} activeId={activeId} />
             ) : floating ? (
               <div className="floating-note">
                 <Logo size={44} />
@@ -134,5 +136,46 @@ export default function Shell(): React.JSX.Element {
         </div>
       </main>
     </div>
+  )
+}
+
+/**
+ * The frames behind split view's pages. Two pages share the space by the ratio you drag the
+ * line between them to (pages themselves are drawn by the main process in the same places).
+ */
+function SplitPanes({ ids, activeId }: { ids: number[]; activeId: number | null }): React.JSX.Element {
+  const ratio = useShell((s) => s.win.splitRatio)
+  const vertical = useShell((s) => s.win.splitVertical)
+  const two = ids.length === 2
+  const drag = (e: React.PointerEvent<HTMLDivElement>): void => {
+    const box = e.currentTarget.parentElement!.getBoundingClientRect()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent): void => {
+      const r = vertical ? (ev.clientY - box.top) / box.height : (ev.clientX - box.left) / box.width
+      void api.invoke('split:ratio', r)
+    }
+    const up = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  return (
+    <>
+      {ids.map((id, i) => (
+        <Fragment key={id}>
+          {i > 0 && (
+            <div
+              className="split-handle"
+              title="Drag to resize · double-click to even them out · right-click a tab to swap sides"
+              onPointerDown={two ? drag : undefined}
+              onDoubleClick={() => two && void api.invoke('split:ratio', 0.5)}
+            />
+          )}
+          <div className={`split-pane${id === activeId ? ' focused' : ''}`} style={{ flex: two ? (i === 0 ? ratio : 1 - ratio) : 1 }} />
+        </Fragment>
+      ))}
+    </>
   )
 }

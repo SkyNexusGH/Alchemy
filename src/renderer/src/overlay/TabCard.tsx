@@ -3,6 +3,7 @@ import type { TabAudio, TabState } from '@shared/types'
 import { prettyUrl } from '@shared/url'
 import { api } from '../lib/api'
 import { Moon, Volume2, VolumeX } from '../lib/icons'
+import { useSettings } from '../lib/settings'
 import { Favicon } from '../lib/ui'
 
 type Info = TabState & { memoryMB: number | null }
@@ -14,6 +15,7 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
   const [info, setInfo] = useState<Info | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const card = useRef<HTMLDivElement>(null)
+  const developer = useSettings((st) => !!st.settings?.developer)
   const fit = (): void => {
     if (card.current) void api.invoke('overlay:resize', card.current.offsetHeight + 28)
   }
@@ -60,7 +62,7 @@ export function TabCard({ tabId }: { tabId: number }): React.JSX.Element | null 
             <Moon size={12} /> Sleeping · using no memory
           </span>
         ) : (
-          info.memoryMB !== null && <span>Memory {memory(info.memoryMB)}</span>
+          developer && info.memoryMB !== null && <span>Memory {memory(info.memoryMB)}</span>
         )}
         {info.audible && !info.muted && <span className="tc-playing">Playing</span>}
       </div>
@@ -137,12 +139,15 @@ export function Switcher({
 }): React.JSX.Element {
   const [pics, setPics] = useState<Record<number, string | null>>({})
   const list = useRef<HTMLDivElement>(null)
+  // Without the graphics card, taking pictures of every tab is slow: show icons instead.
+  const plain = useSettings((st) => st.settings?.performance?.hardwareAcceleration === false)
   useEffect(() => {
+    if (plain) return
     for (const it of items) {
       if (it.id in pics) continue
       void api.invoke<string | null>('tab:preview', it.id).then((p) => setPics((cur) => ({ ...cur, [it.id]: p })))
     }
-  }, [items])
+  }, [items, plain])
   useEffect(() => {
     list.current?.children[index]?.scrollIntoView({ block: 'nearest', inline: 'center' })
   }, [index])

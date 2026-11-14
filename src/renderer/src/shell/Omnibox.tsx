@@ -6,9 +6,11 @@ import { allEngines, engineOf, type EngineInfo, type LocalSuggestions, type Sett
 import { prettyUrl, toUrl } from '@shared/url'
 import { calculate, formatAnswer } from '@shared/calc'
 import { convertUnits } from '@shared/units'
+import { currencyQuery, timeIn, typoFix } from '@shared/answers'
 import { api } from '../lib/api'
 import { Logo } from '../lib/ui'
 import { useSettings } from '../lib/settings'
+import { useShell } from './store'
 
 const ROW_HEIGHT = 40
 const PANEL_PAD = 6
@@ -108,17 +110,24 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   /** "weather london": its answer, once fetched. */
   const weatherAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
   const instantAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
+  const currencyAnswer = useRef<{ query: string; item: Suggestion } | null>(null)
   const instantTimer = useRef<number>(0)
   const [voice, setVoice] = useState<VoiceState>({ kind: 'idle' })
 
-  async function voiceSearch(): Promise<void> {
-    if (voice.kind === 'listening') return stopListening()
-    if (voice.kind !== 'idle' && voice.kind !== 'error') return
+  const voiceRef = useRef(voice)
+  voiceRef.current = voice
+  async function voiceSearch(manual = false): Promise<void> {
+    if (voiceRef.current.kind === 'listening') return stopListening()
+    if (voiceRef.current.kind !== 'idle' && voiceRef.current.kind !== 'error') return
     try {
-      const said = await listen(setVoice)
+      const lab = settings?.lab
+      const said = await listen(setVoice, { model: lab?.voiceModel ?? 'small', language: lab?.voiceLanguage ?? '', manual })
       setVoice({ kind: 'idle' })
       if (!said) return
       const words = said.replace(/[.。!?]+$/, '').trim()
+      // "New tab", "go back", "close tab": a few things you can say instead of search.
+      const command = VOICE_COMMANDS.find(([re]) => re.test(words))
+      if (command) return void api.invoke('palette:run', command[1])
       setText(words)
       go({ kind: toUrl(words) ? 'url' : 'search', title: words, value: words })
     } catch (err) {
@@ -127,10 +136,22 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
     }
   }
   // Switched off in the Lab while listening: stop using the microphone.
-  const voiceOn = settings?.lab?.voice === true
+  // AI features, voice included, stay off in Masked Mode and Alchemy Tor.
+  const isPrivate = useShell((s) => s.win.private)
+  const voiceOn = settings?.lab?.voice === true && !isPrivate
   useEffect(() => {
     if (!voiceOn) stopListening()
   }, [voiceOn])
+  // Push to talk: hold Ctrl+Space anywhere in Alchemy, speak, let go.
+  useEffect(
+    () =>
+      api.on('voice:ptt', (down: boolean) => {
+        if (!voiceOn) return
+        if (down) void voiceSearch(true)
+        else if (voiceRef.current.kind === 'listening') stopListening()
+      }),
+    [voiceOn, settings]
+  )
   const overlayOpen = useRef(false)
   itemsRef.current = items
 
@@ -214,19 +235,33 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           : { kind: 'search', title: q, value: q, detail: `${engineName} search` }
     if (tabTo) first.detail = `Press Tab to search ${tabTo.name}`
     // A sum ("128*4.5") gets its answer first; Enter copies it.
+    // #108 "@bookmarks …": only your bookmarks.
+    if (!picked && /^@(bookmarks|b)\s/i.test(q)) {
+      setItems(local.current.length ? local.current : [{ kind: 'search', title: 'No bookmarks match', value: q, detail: 'Type after @bookmarks to search them' }])
+      setSelected(0)
+      return
+    }
     const sum = picked ? null : calculate(q)
     const converted = picked || sum !== null ? null : convertUnits(q)
+    const clock = picked ? null : timeIn(q)
     const answer: Suggestion | null =
       sum !== null
         ? { kind: 'answer', title: `= ${formatAnswer(sum)}`, value: formatAnswer(sum), detail: 'Press Enter to copy' }
         : converted
           ? { kind: 'answer', title: converted, value: converted.split(' = ')[1], detail: 'Press Enter to copy', favicon: '⇄' }
-          : weatherAnswer.current && weatherAnswer.current.query === q.toLowerCase()
-            ? weatherAnswer.current.item
-            : instantAnswer.current && instantAnswer.current.query === q.toLowerCase()
-              ? instantAnswer.current.item
-              : null
-    const out: Suggestion[] = answer ? [answer, first] : [first]
+          : clock
+            ? { kind: 'answer', title: clock, value: clock.split(' in ')[0], detail: 'Press Enter to copy', favicon: '🕒' }
+            : currencyAnswer.current && currencyAnswer.current.query === q.toLowerCase()
+              ? currencyAnswer.current.item
+              : weatherAnswer.current && weatherAnswer.current.query === q.toLowerCase()
+                ? weatherAnswer.current.item
+                : instantAnswer.current && instantAnswer.current.query === q.toLowerCase()
+                  ? instantAnswer.current.item
+                  : null
+    // #127 "gogle.com": offer the site you probably meant first.
+    const fix = picked || answer ? null : typoFix(q)
+    const typo: Suggestion | null = fix ? { kind: 'url', title: fix, value: `https://${fix}`, detail: `Did you mean ${fix}?` } : null
+    const out: Suggestion[] = answer ? [answer, first] : typo ? [typo, first] : [first]
     const seen = new Set([first.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')])
     for (const s of picked ? [] : local.current) {
       const key = s.value.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
@@ -268,21 +303,47 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       rebuild()
     })
     // Instant answers: a question gets an answer quoted from Wikipedia, worked out on this PC.
-    // Only once the AI is downloaded, so typing never starts a big download.
-    const looksLikeQuestion = /^(who|what|when|where|why|how|which)\b.{4,}|\?$/i.test(value.trim())
-    if (!picked && looksLikeQuestion && settings?.lab?.ask && settings.lab.instantAnswers && settings.searchSuggestions && aiDownloaded()) {
+    // Only once the AI is downloaded, so typing never starts a big download. It's tuned for
+    // what a quoted answer does well (who, when, where, how many, what is, define) and stays
+    // quiet for "why" and "how to" questions.
+    const asked = instantQuestion(value)
+    const instantOn = !picked && !!settings?.lab?.ask && !!settings.lab.instantAnswers
+    if (instantOn && asked && !aiDownloaded()) {
+      // Said once: it can't answer until Ask's model is downloaded.
+      if (!instantNoticeShown()) {
+        instantAnswer.current = {
+          query: value.trim().toLowerCase(),
+          item: { kind: 'answer', title: 'Instant answers needs the Ask download first', value: 'alchemy://settings/#lab', detail: 'Open Ask once to get it (90 MB)', favicon: '✦' }
+        }
+        rebuild()
+      }
+    } else if (instantOn && asked) {
       window.clearTimeout(instantTimer.current)
       instantTimer.current = window.setTimeout(async () => {
-        const docs = await api.invoke<AiDoc[]>('ai:web', value.trim())
+        const docs = await api.invoke<AiDoc[]>('ai:web', asked)
         if (id !== seq.current || !docs.length) return
-        const [best] = await askAi(value.trim(), docs, undefined, 2)
+        const [best] = await askAi(asked, docs, undefined, 2)
         if (id !== seq.current || !best || best.score < 0.3) return
         instantAnswer.current = {
           query: value.trim().toLowerCase(),
-          item: { kind: 'answer', title: best.answer, value: value.trim(), detail: `From ${best.title}`, favicon: '✦' }
+          // Enter opens the article the answer was quoted from.
+          item: { kind: 'answer', title: best.answer, value: best.url, detail: `From ${best.title} · Enter opens it`, favicon: '✦' }
         }
         rebuild()
       }, 450)
+    }
+    // #104 Currency, with today's rate.
+    const money = picked ? null : currencyQuery(value)
+    if (money) {
+      api.invoke<{ value: number; rate: number; date: string } | null>('omnibox:currency', money.amount, money.from, money.to).then((r) => {
+        if (id !== seq.current || !r) return
+        const shown = `${money.amount.toLocaleString()} ${money.from} = ${r.value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${money.to}`
+        currencyAnswer.current = {
+          query: value.trim().toLowerCase(),
+          item: { kind: 'answer', title: shown, value: r.value.toFixed(2), detail: `Press Enter to copy · ECB rate ${r.date}`, favicon: '💱' }
+        }
+        rebuild()
+      })
     }
     // Rich answer: the weather for "weather <city>" or "<city> weather".
     const wq = value
@@ -389,6 +450,15 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       go(usesItem ? item : { kind: engine ? 'search' : 'url', title: raw, value: raw }, e.altKey)
       return
     }
+    if (e.key === 'Delete' && e.shiftKey && items[selected]?.kind === 'history') {
+      e.preventDefault()
+      const gone = items[selected]
+      void api.invoke('history:forget', gone.value)
+      local.current = local.current.filter((s) => s.value !== gone.value)
+      setItems(items.filter((s) => s !== gone))
+      setSelected(Math.max(0, selected - 1))
+      return
+    }
     if (e.key === 'Escape') {
       e.preventDefault()
       if (items.length || editing.current) revert()
@@ -471,6 +541,19 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
             setText(value)
             query(value, inserting)
           }}
+          onDoubleClick={(e) => {
+            // One part of the address: a word of the host, a folder of the path, a value.
+            const el = e.currentTarget
+            const v = el.value
+            if (/\s/.test(v)) return
+            const at = el.selectionStart ?? 0
+            const stop = /[/.?&=#:]/
+            let a = at
+            let b = at
+            while (a > 0 && !stop.test(v[a - 1])) a--
+            while (b < v.length && !stop.test(v[b])) b++
+            if (b > a) el.setSelectionRange(a, b)
+          }}
           onKeyDown={onKeyDown}
         />
         {showPretty && (
@@ -501,10 +584,11 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
           {tab.translated ? 'Original' : 'Translate'}
         </button>
       )}
-      {settings?.lab?.voice && (focused || isNewTab || voice.kind !== 'idle') && (
+      {voiceOn && (focused || isNewTab || voice.kind !== 'idle') && (
         <button
           className={`omni-mic ${voice.kind}`}
-          title={voice.kind === 'listening' ? 'Stop listening' : 'Search by voice (on this computer, with Whisper)'}
+          style={voice.kind === 'listening' ? ({ '--level': voice.level } as React.CSSProperties) : undefined}
+          title={voice.kind === 'listening' ? 'Stop listening' : 'Search by voice, on this computer (or hold Ctrl+Space). Say “new tab”, “go back” or “close tab” too.'}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => void voiceSearch()}
         >
@@ -524,3 +608,37 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
     </div>
   )
 }
+
+/** The question Instant answers should look up, or null when it isn't one it answers well. */
+function instantQuestion(value: string): string | null {
+  const t = value.trim()
+  const define = t.match(/^(?:define|meaning of)\s+(.{2,})$|^(.{2,}?)\s+(?:meaning|definition)$/i)
+  if (define) return `What is ${(define[1] ?? define[2]).trim()}?`
+  if (/^(why|how (to|do|can|should|does))\b/i.test(t)) return null
+  const shaped = /^(who|what|when|where|which|how (many|much|tall|old|long|far|big|high|deep))\b.{4,}/i.test(t)
+  return shaped || (/\?$/.test(t) && t.split(/\s+/).length >= 3) ? t : null
+}
+
+/** The "needs the download" note shows once. */
+function instantNoticeShown(): boolean {
+  try {
+    if (localStorage.getItem('alchemy-instant-notice') === '1') return true
+    localStorage.setItem('alchemy-instant-notice', '1')
+  } catch {
+    /* no storage */
+  }
+  return false
+}
+
+/** Things you can say to voice search instead of a search. */
+const VOICE_COMMANDS: [RegExp, string][] = [
+  [/^(open )?(a )?new tab$/i, 'new-tab'],
+  [/^close (this |the )?tab$/i, 'close-tab'],
+  [/^(go )?back$/i, 'back'],
+  [/^(go )?forward$/i, 'forward'],
+  [/^(reload|refresh)( (the |this )?page)?$/i, 'reload'],
+  [/^reopen (the )?(last )?(closed )?tab$/i, 'reopen-tab'],
+  [/^(open )?(a )?new window$/i, 'new-window'],
+  [/^scroll( down)?$/i, 'scroll-down'],
+  [/^scroll up$/i, 'scroll-up']
+]

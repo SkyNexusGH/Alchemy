@@ -10,13 +10,27 @@ import { Favicon, setPageIcon } from '../lib/ui'
 document.title = 'Bookmarks'
 setPageIcon('<path d="M6 3h12v18l-6-4-6 4z"/>')
 
-type Editing = { id?: string; type: 'url' | 'folder'; title: string; url: string; parentId: string; icon?: string }
+type Editing = { id?: string; type: 'url' | 'folder'; title: string; url: string; parentId: string; icon?: string; tags?: string }
 
 export default function Bookmarks(): React.JSX.Element {
   const [all, setAll] = useState<Bookmark[]>([])
   const [folder, setFolder] = useState('bar')
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Editing | null>(null)
+  const [tag, setTag] = useState<string | null>(null)
+  /** What was just deleted, for the Undo bar. */
+  const [deleted, setDeleted] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const remove = (b: Bookmark): void => {
+    void api.invoke('bookmarks:remove', b.id)
+    setDeleted(b.title || b.url || 'Bookmark')
+  }
+  useEffect(() => {
+    if (!deleted) return
+    const t = setTimeout(() => setDeleted(null), 8000)
+    return () => clearTimeout(t)
+  }, [deleted])
+  const tags = useMemo(() => [...new Set(all.flatMap((b) => b.tags ?? []))].sort((a, b) => a.localeCompare(b)), [all])
 
   useEffect(() => {
     api.invoke<Bookmark[]>('bookmarks:list').then(setAll)
@@ -37,9 +51,11 @@ export default function Bookmarks(): React.JSX.Element {
   }, [all])
 
   const q = query.trim().toLowerCase()
-  const items = q
-    ? all.filter((b) => b.type === 'url' && `${b.title} ${b.url}`.toLowerCase().includes(q))
-    : all.filter((b) => b.parentId === folder)
+  const items = tag
+    ? all.filter((b) => b.type === 'url' && b.tags?.includes(tag))
+    : q
+      ? all.filter((b) => b.type === 'url' && `${b.title} ${b.url} ${(b.tags ?? []).join(' ')}`.toLowerCase().includes(q))
+      : all.filter((b) => b.parentId === folder)
   const current = all.find((b) => b.id === folder)
 
   return (
@@ -54,7 +70,35 @@ export default function Bookmarks(): React.JSX.Element {
           <Search size={15} />
           <input className="field" placeholder="Search bookmarks" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
+        <button
+          className="btn small"
+          title="A bookmark file (HTML) exported from Chrome, Edge, Firefox or Safari"
+          onClick={() => void api.invoke<number | null>('bookmarks:importFile').then((n) => n !== null && setNote(`Imported ${n} bookmark${n === 1 ? '' : 's'} into Other bookmarks.`))}
+        >
+          Import file
+        </button>
+        <button
+          className="btn small"
+          title="Save all bookmarks as a file other browsers can import"
+          onClick={() => void api.invoke<string | null>('bookmarks:export').then((p) => p && setNote(`Saved to ${p}`))}
+        >
+          Export
+        </button>
       </div>
+      {note && (
+        <div className="bm-note" onClick={() => setNote('')}>
+          {note}
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div className="chips" style={{ marginBottom: 14 }}>
+          {tags.map((t) => (
+            <button key={t} className={`chip${tag === t ? ' on' : ''}`} onClick={() => setTag(tag === t ? null : t)}>
+              #{t}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
         <nav className="card" style={{ padding: 6 }}>
@@ -80,8 +124,8 @@ export default function Bookmarks(): React.JSX.Element {
 
         <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-            <div style={{ fontWeight: 650, fontSize: 15, flex: 1 }}>{q ? 'Search results' : current?.title}</div>
-            {!q && (
+            <div style={{ fontWeight: 650, fontSize: 15, flex: 1 }}>{tag ? `#${tag}` : q ? 'Search results' : current?.title}</div>
+            {!q && !tag && (
               <>
                 <button className="btn small" onClick={() => setEditing({ type: 'url', title: '', url: '', parentId: folder })}>
                   <Plus size={14} /> Add bookmark
@@ -114,16 +158,23 @@ export default function Bookmarks(): React.JSX.Element {
                     {b.title || b.url}
                   </a>
                 )}
-                <span className="sub">{b.url}</span>
+                <span className="sub">
+                  {(b.tags ?? []).map((t) => (
+                    <span key={t} className="bm-tag">
+                      #{t}
+                    </span>
+                  ))}
+                  {b.url}
+                </span>
                 <span className="actions">
                   <button
                     className="icon-btn"
                     title="Edit"
-                    onClick={() => setEditing({ id: b.id, type: b.type, title: b.title, url: b.url ?? '', parentId: b.parentId!, icon: b.icon ?? '' })}
+                    onClick={() => setEditing({ id: b.id, type: b.type, title: b.title, url: b.url ?? '', parentId: b.parentId!, icon: b.icon ?? '', tags: (b.tags ?? []).join(', ') })}
                   >
                     <Pencil size={14} />
                   </button>
-                  <button className="icon-btn" title="Delete" onClick={() => api.invoke('bookmarks:remove', b.id)}>
+                  <button className="icon-btn" title="Delete" onClick={() => remove(b)}>
                     <Trash2 size={14} />
                   </button>
                 </span>
@@ -134,6 +185,20 @@ export default function Bookmarks(): React.JSX.Element {
       </div>
 
       {editing && <EditDialog editing={editing} folders={folders} onClose={() => setEditing(null)} />}
+      {deleted && (
+        <div className="bm-undo">
+          <span>Deleted “{deleted}”</span>
+          <button
+            className="btn small"
+            onClick={() => {
+              void api.invoke('bookmarks:undo')
+              setDeleted(null)
+            }}
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -151,21 +216,26 @@ function EditDialog({
   const url = e.type === 'url' ? toUrl(e.url) : null
   const valid = e.type === 'folder' ? !!e.title.trim() : !!url
 
+  const tagList = (e.tags ?? '')
+    .split(',')
+    .map((t) => t.trim().replace(/^#/, ''))
+    .filter(Boolean)
   const save = async (): Promise<void> => {
     if (!valid) return
     if (e.id) {
       await api.invoke('bookmarks:update', e.id, {
         title: e.title.trim(),
-        ...(e.type === 'url' ? { url } : { icon: e.icon ?? '' }),
+        ...(e.type === 'url' ? { url, tags: tagList } : { icon: e.icon ?? '' }),
         ...(e.parentId !== editing.parentId ? { parentId: e.parentId } : {})
       })
     } else {
-      await api.invoke('bookmarks:add', {
+      const made = await api.invoke<Bookmark>('bookmarks:add', {
         type: e.type,
         title: e.title.trim() || url,
         url: url ?? undefined,
         parentId: e.parentId
       })
+      if (tagList.length) await api.invoke('bookmarks:update', made.id, { tags: tagList })
     }
     onClose()
   }
@@ -184,7 +254,10 @@ function EditDialog({
         <div className="stack">
           <input className="field" autoFocus placeholder="Name" value={e.title} onChange={(ev) => setE({ ...e, title: ev.target.value })} />
           {e.type === 'url' && (
-            <input className="field" placeholder="Address" value={e.url} onChange={(ev) => setE({ ...e, url: ev.target.value })} />
+            <>
+              <input className="field" placeholder="Address" value={e.url} onChange={(ev) => setE({ ...e, url: ev.target.value })} />
+              <input className="field" placeholder="Tags, separated by commas (like work, recipes)" value={e.tags ?? ''} onChange={(ev) => setE({ ...e, tags: ev.target.value })} />
+            </>
           )}
           {e.type === 'folder' && e.id && (
             <WorkspaceIconPicker value={e.icon ?? ''} name={e.title || 'F'} onChange={(icon) => setE({ ...e, icon })} />

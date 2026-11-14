@@ -72,11 +72,14 @@ export default function Downloads(): React.JSX.Element {
                     : d.status === 'paused'
                       ? 'Paused'
                       : d.status === 'completed'
-                        ? `${formatBytes(d.total)} · ${new Date(d.started).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
+                        ? `${formatBytes(d.total)} · ${new Date(d.started).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}${
+                            d.scan === 'scanning' ? ' · Checking with Microsoft Defender…' : d.scan === 'clean' ? ' · Checked by Microsoft Defender: no threats' : ''
+                          }`
                         : d.status === 'cancelled'
                           ? 'Cancelled'
                           : 'Failed — the download was interrupted'}
                 </div>
+                {d.scan === 'threat' && <div className="dl-threat">⚠ Microsoft Defender found a threat in this file. Don’t open it; delete it from the folder.</div>}
                 {running && (
                   <div className="dl-bar">
                     <div style={{ width: `${pct}%` }} />
@@ -94,6 +97,11 @@ export default function Downloads(): React.JSX.Element {
                     </button>
                   </>
                 )}
+                {running && !/\.(exe|msi|msix|appx|bat|cmd|com|ps1|vbs|vbe|js|jse|wsf|wsh|scr|pif|cpl|hta|jar|reg|lnk|dll|zip|7z|rar|iso|img)$/i.test(d.filename) && (
+                  <button className={`btn small${d.openWhenDone ? ' on' : ''}`} title="Open the file by itself when it finishes" onClick={act(d.id, 'openWhenDone')}>
+                    {d.openWhenDone ? '✓ Opens when done' : 'Open when done'}
+                  </button>
+                )}
                 {d.status === 'progressing' && (
                   <button className="icon-btn" title="Pause" onClick={act(d.id, 'pause')}>
                     <Pause size={16} />
@@ -107,6 +115,11 @@ export default function Downloads(): React.JSX.Element {
                 {running && (
                   <button className="icon-btn" title="Cancel" onClick={act(d.id, 'cancel')}>
                     <CircleX size={16} />
+                  </button>
+                )}
+                {d.status === 'interrupted' && d.resume && (
+                  <button className="btn small" title="Carry on from where it stopped" onClick={act(d.id, 'resume')}>
+                    <Play size={13} /> Resume
                   </button>
                 )}
                 {dead && (

@@ -1,6 +1,6 @@
 import './pages.css'
 import './settings.css'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   allEngines,
   baseColor,
@@ -8,6 +8,8 @@ import {
   type CustomEngine,
   type FilterStatus,
   type UiFont,
+  type AutofillCardInfo,
+  type AutofillAddress,
   type Settings as S,
   type UpdateState,
   type Workspace,
@@ -15,15 +17,17 @@ import {
   type SavedPassword,
   type SiteRestyle,
   type UserScript,
-  ELIXIRS
+  ELIXIRS,
+  type Elixir
 } from '@shared/types'
-import { CompanyBubbles, SavedTiles, TopSites, WeekChart } from './AegisStats'
+import { SavedTiles, TopCompanies, TopSites, WeekChart } from './AegisStats'
 import { api } from '../lib/api'
 import { inkOn } from '../lib/color'
 import {
   Check,
   Copy,
   Eye,
+  Folder,
   Key,
   Keyboard,
   Sparkle,
@@ -64,6 +68,7 @@ setPageIcon('<polygon points="15.7,4.2 19.8,8.3 19.8,15.7 15.7,19.8 8.3,19.8 4.2
 type CategoryId = 'appearance' | 'newtab' | 'workspaces' | 'magic' | 'passwords' | 'lab' | 'performance' | 'privacy' | 'adblock' | 'tabs' | 'downloads' | 'startup' | 'shortcuts' | 'about'
 
 const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
+  { id: 'startup', label: 'General', icon: Rocket },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'newtab', label: 'New Tab & Search', icon: LayoutGrid },
   { id: 'workspaces', label: 'Workspaces', icon: Layers },
@@ -74,9 +79,8 @@ const CATEGORIES: { id: CategoryId; label: string; icon: Icon }[] = [
   { id: 'tabs', label: 'Tabs & sidebar', icon: Sidebar },
   { id: 'performance', label: 'Performance', icon: Gauge },
   { id: 'downloads', label: 'Downloads', icon: Download },
-  { id: 'startup', label: 'Startup & import', icon: Rocket },
   { id: 'lab', label: 'Alchemy Lab', icon: Sparkle },
-  { id: 'shortcuts', label: 'Shortcuts & tips', icon: Keyboard },
+  { id: 'shortcuts', label: 'Help & shortcuts', icon: Keyboard },
   { id: 'about', label: 'About Alchemy', icon: Info }
 ]
 
@@ -90,13 +94,20 @@ interface Row {
   wide?: boolean
   /** A heading inside the page; rows that share one are shown together under it. */
   group?: string
+  /** A small label beside the name, like New. */
+  badge?: string
   control: ReactNode
 }
 
 export default function Settings(): React.JSX.Element {
   const s = useSettings((st) => st.settings)
-  const [category, setCategory] = useState<CategoryId>(() => (location.hash.slice(1) as CategoryId) || 'appearance')
-  const [query, setQuery] = useState('')
+  // The address can open a page (#privacy) or a search (#q=cookies), from Ctrl+K.
+  const fromHash = (): { category?: CategoryId; query?: string } => {
+    const h = decodeURIComponent(location.hash.slice(1))
+    return h.startsWith('q=') ? { query: h.slice(2) } : h ? { category: h as CategoryId } : {}
+  }
+  const [category, setCategory] = useState<CategoryId>(() => fromHash().category ?? 'startup')
+  const [query, setQuery] = useState(() => fromHash().query ?? '')
   const [clearing, setClearing] = useState(false)
 
   useEffect(() => {
@@ -105,8 +116,9 @@ export default function Settings(): React.JSX.Element {
   // Ctrl+K can open a page of Settings while it's already showing.
   useEffect(() => {
     const onHash = (): void => {
-      setQuery('')
-      setCategory(location.hash.slice(1) as CategoryId)
+      const h = fromHash()
+      setQuery(h.query ?? '')
+      if (h.category) setCategory(h.category)
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
@@ -210,6 +222,14 @@ export default function Settings(): React.JSX.Element {
   )
 }
 
+/** One line under a heading, saying what that part of a page is for. */
+const GROUP_NOTES: Record<string, string> = {
+  'Force dark': 'Makes bright websites dark, for every site at once.',
+  Elixirs: 'Ready-made fixes for popular sites, like hiding YouTube Shorts. One tap each.',
+  'MyHue Restyle': 'Your own changes to one site: hide parts of it, change its font, add CSS.',
+  'Custom scripts': 'Small programs you add yourself, for people who write code.'
+}
+
 /** A page's rows in one card, or one card per group, each under its heading. */
 function GroupedRows({ rows }: { rows: Row[] }): React.JSX.Element {
   const groups: { name?: string; rows: Row[] }[] = []
@@ -223,6 +243,7 @@ function GroupedRows({ rows }: { rows: Row[] }): React.JSX.Element {
       {groups.map((g, i) => (
         <section key={g.name ?? i} className="set-section">
           {g.name && <h2 className="set-subhead">{g.name}</h2>}
+          {g.name && GROUP_NOTES[g.name] && <p className="set-subnote">{GROUP_NOTES[g.name]}</p>}
           <div className="set-card">
             {g.rows.map((r) => (
               <SettingRow key={r.label} row={r} />
@@ -243,16 +264,13 @@ const TRANSLATE_LANGUAGES: [string, string][] = [
 ]
 
 /** One downloaded AI model: how much room it takes, and a way to delete it. */
-function ModelSize({ which }: { which: 'ai' | 'voice' }): React.JSX.Element {
-  const [size, setSize] = useState<number | null>(null)
-  const load = (sizes: { ai: number; voice: number }): void => setSize(sizes[which])
-  useEffect(() => {
-    void api.invoke<{ ai: number; voice: number }>('ai:modelSizes').then(load).catch(() => setSize(0))
-  }, [])
+type ModelSizes = { ai: number; smart: number; voice: number }
+
+function ModelSize({ which, size, onChange }: { which: keyof ModelSizes; size: number; onChange: (s: ModelSizes) => void }): React.JSX.Element {
   return (
     <span className="set-model">
-      <span>{size === null ? '' : size ? `${Math.round(size / 1048576)} MB` : 'Not downloaded'}</span>
-      <button className="btn small" disabled={!size} onClick={() => void api.invoke<{ ai: number; voice: number }>('ai:removeModels', which).then(load)}>
+      <span>{size ? `${Math.round(size / 1048576)} MB` : 'Not downloaded'}</span>
+      <button className="btn small" disabled={!size} onClick={() => void api.invoke<ModelSizes>('ai:removeModels', which).then(onChange)}>
         <Trash2 size={14} /> Delete
       </button>
     </span>
@@ -322,13 +340,25 @@ const shortcutRows: Row[] = [
   })),
   {
     category: 'shortcuts',
-    group: 'Just for fun',
-    label: 'Potion game',
-    hint: 'A wizard jumps over potion bottles. It also appears when you’re offline.',
-    keywords: 'offline game play wizard',
+    group: 'Help',
+    label: 'Report a problem or ask a question',
+    hint: 'Opens Alchemy’s page on GitHub, where you can search answers or tell us what went wrong.',
+    keywords: 'help support bug issue problem question contact',
     control: (
-      <button className="btn small" onClick={() => void api.invoke('game:open')}>
-        Play
+      <button className="btn small" onClick={() => api.invoke('tab:navigate', 'https://github.com/SkyNexusGH/Alchemy/issues', { newTab: true })}>
+        Get help
+      </button>
+    )
+  },
+  {
+    category: 'shortcuts',
+    group: 'Help',
+    label: 'What’s new',
+    hint: 'What changed in this version.',
+    keywords: 'release notes changelog version',
+    control: (
+      <button className="btn small" onClick={() => api.invoke('internal:open', 'whatsnew')}>
+        Open
       </button>
     )
   }
@@ -343,8 +373,12 @@ function PasswordList(): React.JSX.Element {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ url: '', username: '', password: '' })
   const [checking, setChecking] = useState(false)
+  const [encrypted, setEncrypted] = useState(true)
+  const [editing, setEditing] = useState<{ id: string; username: string; password: string } | null>(null)
+  const [confirmAll, setConfirmAll] = useState(false)
   const load = (): void => void api.invoke<SavedPassword[]>('passwords:list').then(setList)
   useEffect(load, [])
+  useEffect(() => void api.invoke<boolean>('passwords:encrypted').then(setEncrypted), [])
   if (!list) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
   const q = query.trim().toLowerCase()
   const visible = list
@@ -360,13 +394,15 @@ function PasswordList(): React.JSX.Element {
     if (pw) setShown({ ...shown, [id]: pw })
   }
   const copy = async (id: string): Promise<void> => {
-    const pw = shown[id] ?? (await api.invoke<string | null>('passwords:reveal', id))
-    if (!pw) return
-    await navigator.clipboard.writeText(pw)
-    setNote('Copied.')
+    if (await api.invoke<boolean>('passwords:copy', id)) setNote('Copied. It’s wiped from the clipboard in 30 seconds.')
   }
   return (
     <div className="pw">
+      {!encrypted && (
+        <div className="pw-alert">
+          Windows can’t encrypt passwords on this PC right now, so new ones are kept only until you close Alchemy. Signing in to Windows with your own account usually fixes this.
+        </div>
+      )}
       <div className="row-actions" style={{ flexWrap: 'wrap' }}>
         <input className="field" style={{ flex: 1, minWidth: 180 }} placeholder="Search your passwords" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button className="btn small" onClick={() => setAdding(!adding)}>
@@ -374,7 +410,7 @@ function PasswordList(): React.JSX.Element {
         </button>
         <button
           className="btn small"
-          title="A CSV exported from Chrome, Edge, Brave or Opera"
+          title="A CSV exported from Chrome, Edge, Brave, Opera, Firefox, Bitwarden or 1Password"
           onClick={() =>
             void api.invoke<number>('passwords:import').then((n) => {
               if (n) setNote(`Imported ${n} password${n === 1 ? '' : 's'}.`)
@@ -398,6 +434,30 @@ function PasswordList(): React.JSX.Element {
         >
           {checking ? 'Checking…' : 'Check for breaches'}
         </button>
+        {list.length > 0 &&
+          (confirmAll ? (
+            <>
+              <button
+                className="btn small danger"
+                onClick={() =>
+                  void api.invoke<boolean>('passwords:removeAll').then((ok) => {
+                    setConfirmAll(false)
+                    if (ok) setNote('All saved passwords were deleted.')
+                    load()
+                  })
+                }
+              >
+                Delete all {list.length}
+              </button>
+              <button className="btn small" onClick={() => setConfirmAll(false)}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button className="btn small" title="Asks for Windows Hello first" onClick={() => setConfirmAll(true)}>
+              Delete all…
+            </button>
+          ))}
       </div>
       {note && <div className="set-hint good">{note}</div>}
       {leaked > 0 && <div className="pw-alert">⚠ {leaked} password{leaked === 1 ? ' has' : 's have'} appeared in data breaches. Change {leaked === 1 ? 'it' : 'them'} on the site.</div>}
@@ -422,7 +482,36 @@ function PasswordList(): React.JSX.Element {
         </form>
       )}
       {list.length === 0 && <div className="ag-empty">No saved passwords yet. Alchemy offers to save them when you log in.</div>}
-      {visible.map((p) => (
+      {visible.map((p) =>
+        editing?.id === p.id ? (
+          <form
+            key={p.id}
+            className="pw-add"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void api.invoke<boolean>('passwords:update', editing.id, editing.username, editing.password).then((ok) => {
+                if (ok) {
+                  setEditing(null)
+                  setShown({})
+                  setNote('Saved.')
+                  load()
+                }
+              })
+            }}
+          >
+            <input className="field" disabled value={p.origin.replace(/^https?:\/\//, '')} />
+            <input className="field" placeholder="Username" value={editing.username} onChange={(e) => setEditing({ ...editing, username: e.target.value })} />
+            <input className="field" required placeholder="Password" value={editing.password} onChange={(e) => setEditing({ ...editing, password: e.target.value })} />
+            <span className="row-actions">
+              <button className="btn small primary" type="submit">
+                Save
+              </button>
+              <button className="btn small" type="button" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+            </span>
+          </form>
+        ) : (
         <div key={p.id} className="pw-row">
           <Favicon url={p.origin} size={18} />
           <div className="pw-text">
@@ -441,32 +530,253 @@ function PasswordList(): React.JSX.Element {
           <button className="icon-btn" title="Copy password" onClick={() => void copy(p.id)}>
             <Copy size={14} />
           </button>
+          <button
+            className="icon-btn"
+            title="Edit (asks for Windows Hello)"
+            onClick={async () => {
+              const pw = shown[p.id] ?? (await api.invoke<string | null>('passwords:reveal', p.id))
+              if (pw) setEditing({ id: p.id, username: p.username, password: pw })
+            }}
+          >
+            <Pencil size={14} />
+          </button>
           <button className="icon-btn" title="Delete" onClick={() => void api.invoke('passwords:remove', p.id).then(load)}>
             <Trash2 size={14} />
           </button>
         </div>
+        )
+      )}
+    </div>
+  )
+}
+
+/** #484 The strong passwords Alchemy suggests: length, symbols, no look-alike letters. */
+function GeneratorOptions({ settings }: { settings: S }): React.JSX.Element {
+  const g = settings.pwGenerator ?? { length: 20, symbols: true, readable: true }
+  const [sample, setSample] = useState('')
+  const make = (opts = g): void => void api.invoke<string>('passwords:generate', opts).then(setSample)
+  useEffect(() => make(), [g.length, g.symbols, g.readable])
+  const set = (patch: Partial<typeof g>): void => void saveSettings({ pwGenerator: { ...g, ...patch } })
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div className="range">
+        <input type="range" min={8} max={40} value={g.length} onChange={(e) => set({ length: Number(e.target.value) })} />
+        <span style={{ minWidth: 92 }}>{g.length} characters</span>
+      </div>
+      <div className="row-actions" style={{ flexWrap: 'wrap', gap: 18 }}>
+        <span className="row-actions">
+          <Switch on={g.symbols} onChange={(symbols) => set({ symbols })} /> Symbols like ! and #
+        </span>
+        <span className="row-actions">
+          <Switch on={g.readable} onChange={(readable) => set({ readable })} /> Leave out look-alikes (l, 1, O, 0)
+        </span>
+      </div>
+      <div className="row-actions">
+        <code className="pw-secret" style={{ flex: 1, padding: '6px 10px', borderRadius: 8, background: 'var(--surface)', userSelect: 'all' }}>
+          {sample}
+        </code>
+        <button type="button" className="btn small" onClick={() => make()}>
+          New one
+        </button>
+        <button type="button" className="btn small" onClick={() => void navigator.clipboard.writeText(sample)}>
+          <Copy size={13} /> Copy
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** #508 #509 Saved addresses and cards for forms. */
+function AutofillList(): React.JSX.Element {
+  const [data, setData] = useState<{ addresses: AutofillAddress[]; cards: AutofillCardInfo[]; encrypted: boolean } | null>(null)
+  const [address, setAddress] = useState<AutofillAddress | null>(null)
+  const [card, setCard] = useState<{ id?: string; name: string; number: string; expMonth: string; expYear: string } | null>(null)
+  const [error, setError] = useState('')
+  const load = (): void => void api.invoke<NonNullable<typeof data>>('autofill:list').then(setData)
+  useEffect(load, [])
+  if (!data) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
+  const blank: AutofillAddress = { id: '', name: '', street: '', city: '', postcode: '', country: '', phone: '', email: '' }
+  const field = (key: keyof AutofillAddress, placeholder: string, required = false): React.JSX.Element => (
+    <input className="field" required={required} placeholder={placeholder} value={address?.[key] ?? ''} onChange={(e) => setAddress({ ...address!, [key]: e.target.value })} />
+  )
+  return (
+    <div className="pw">
+      {!data.encrypted && <div className="pw-alert">Windows can’t encrypt on this PC right now, so addresses and cards are kept only until you close Alchemy.</div>}
+      <b className="af-head">Addresses</b>
+      {data.addresses.map((a) => (
+        <div key={a.id} className="pw-row">
+          <div className="pw-text">
+            <b>{a.name || 'Address'}</b>
+            <span>{[a.street, a.city, a.postcode, a.country].filter(Boolean).join(', ')}</span>
+          </div>
+          <button className="icon-btn" title="Edit" onClick={() => setAddress(a)}>
+            <Pencil size={14} />
+          </button>
+          <button className="icon-btn" title="Delete" onClick={() => void api.invoke('autofill:remove', 'address', a.id).then(load)}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       ))}
+      {address ? (
+        <form
+          className="af-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void api.invoke('autofill:saveAddress', address).then(() => {
+              setAddress(null)
+              load()
+            })
+          }}
+        >
+          {field('name', 'Full name', true)}
+          {field('organization', 'Company (optional)')}
+          {field('street', 'Street and number', true)}
+          {field('city', 'Town or city', true)}
+          {field('region', 'County, state or region')}
+          {field('postcode', 'Postcode', true)}
+          {field('country', 'Country', true)}
+          {field('phone', 'Phone')}
+          {field('email', 'Email')}
+          <span className="row-actions">
+            <button className="btn small primary" type="submit">
+              Save address
+            </button>
+            <button className="btn small" type="button" onClick={() => setAddress(null)}>
+              Cancel
+            </button>
+          </span>
+        </form>
+      ) : (
+        <button className="btn small" style={{ justifySelf: 'start' }} onClick={() => setAddress(blank)}>
+          <Plus size={13} /> Add an address
+        </button>
+      )}
+      <b className="af-head">Payment cards</b>
+      {data.cards.map((c) => (
+        <div key={c.id} className="pw-row">
+          <div className="pw-text">
+            <b>
+              {c.brand} •••• {c.last4}
+            </b>
+            <span>
+              {c.name} · expires {c.expMonth}/{c.expYear.slice(-2)}
+            </span>
+          </div>
+          <button className="icon-btn" title="Delete" onClick={() => void api.invoke('autofill:remove', 'card', c.id).then(load)}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      {card ? (
+        <form
+          className="af-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setError('')
+            void api.invoke<string | null>('autofill:saveCard', card).then((err) => {
+              if (err) return setError(err)
+              setCard(null)
+              load()
+            })
+          }}
+        >
+          <input className="field" required placeholder="Name on card" value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} />
+          <input className="field" required inputMode="numeric" autoComplete="off" placeholder="Card number" value={card.number} onChange={(e) => setCard({ ...card, number: e.target.value })} />
+          <input className="field" required placeholder="Month (MM)" maxLength={2} value={card.expMonth} onChange={(e) => setCard({ ...card, expMonth: e.target.value.replace(/\D/g, '') })} />
+          <input className="field" required placeholder="Year (YYYY)" maxLength={4} value={card.expYear} onChange={(e) => setCard({ ...card, expYear: e.target.value.replace(/\D/g, '') })} />
+          {error && <div className="pw-alert">{error}</div>}
+          <span className="row-actions">
+            <button className="btn small primary" type="submit" title="Asks for Windows Hello">
+              Save card
+            </button>
+            <button className="btn small" type="button" onClick={() => setCard(null)}>
+              Cancel
+            </button>
+          </span>
+          <div className="set-hint">The security code is never saved. Filling a card asks for Windows Hello, and only works on secure (https) pages.</div>
+        </form>
+      ) : (
+        <button className="btn small" style={{ justifySelf: 'start' }} onClick={() => setCard({ name: '', number: '', expMonth: '', expYear: '' })}>
+          <Plus size={13} /> Add a card
+        </button>
+      )}
     </div>
   )
 }
 
 function ElixirList({ settings }: { settings: S }): React.JSX.Element {
-  const sites = [...new Set(ELIXIRS.map((e) => e.site))]
+  const [list, setList] = useState<Elixir[]>(ELIXIRS)
+  const [refreshing, setRefreshing] = useState(false)
+  useEffect(() => void api.invoke<Elixir[]>('mods:elixirs').then(setList), [])
+  const sites = [...new Set(list.map((e) => e.site))]
   return (
     <div className="elixirs">
       {sites.map((site) => (
         <div key={site} className="elixir-group">
           <b>{site}</b>
-          {ELIXIRS.filter((e) => e.site === site).map((e) => (
-            <div key={e.id} className="elixir">
-              <div>
-                <span>{e.title}</span>
-                <small>{e.hint}</small>
+          {list
+            .filter((e) => e.site === site)
+            .map((e) => (
+              <div key={e.id} className="elixir">
+                <div>
+                  <span>
+                    {e.title}
+                    {e.broken && settings.elixirs?.[e.id] && <span className="set-badge warn">May need fixing</span>}
+                  </span>
+                  <small>{e.broken && settings.elixirs?.[e.id] ? 'It hasn’t found anything to hide lately; the site may have changed. A fix usually arrives by itself.' : e.hint}</small>
+                </div>
+                <Switch on={!!settings.elixirs?.[e.id]} onChange={(v) => saveSettings({ elixirs: { ...settings.elixirs, [e.id]: v } })} />
               </div>
-              <Switch on={!!settings.elixirs?.[e.id]} onChange={(v) => saveSettings({ elixirs: { ...settings.elixirs, [e.id]: v } })} />
-            </div>
-          ))}
+            ))}
         </div>
+      ))}
+      <div className="row-actions" style={{ marginTop: 6 }}>
+        <button
+          className="btn small"
+          disabled={refreshing}
+          title="Elixir fixes arrive from GitHub by themselves; this checks now"
+          onClick={() => {
+            setRefreshing(true)
+            void api.invoke<Elixir[]>('mods:refreshElixirs').then((l) => {
+              setList(l)
+              setRefreshing(false)
+            })
+          }}
+        >
+          {refreshing ? 'Checking…' : 'Check for fixes'}
+        </button>
+        <button
+          className="btn small"
+          title="Ask for an Elixir for a site you use"
+          onClick={() =>
+            api.invoke('tab:navigate', `https://github.com/SkyNexusGH/Alchemy/issues/new?title=${encodeURIComponent('Elixir request: ')}&body=${encodeURIComponent('Site:\nWhat should it hide or fix?\n')}`, { newTab: true })
+          }
+        >
+          Suggest an Elixir
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** #396 Sites with their own Aegis level. */
+function SiteLevels({ levels, onChange }: { levels: Record<string, 'chill' | 'comfort' | 'extreme'>; onChange: (l: Record<string, 'chill' | 'comfort' | 'extreme'>) => void }): React.JSX.Element {
+  const sites = Object.keys(levels)
+  if (!sites.length) return <div className="ag-empty">Every site uses the level above. Pick a different one for a site from its shield.</div>
+  return (
+    <div className="chips">
+      {sites.map((site) => (
+        <button
+          key={site}
+          className="chip"
+          title="Use the level above again"
+          onClick={() => {
+            const { [site]: _gone, ...rest } = levels
+            onChange(rest)
+          }}
+        >
+          {site}: {levels[site][0].toUpperCase() + levels[site].slice(1)} <X size={12} />
+        </button>
       ))}
     </div>
   )
@@ -474,21 +784,81 @@ function ElixirList({ settings }: { settings: S }): React.JSX.Element {
 
 function RestyleList(): React.JSX.Element {
   const [list, setList] = useState<Record<string, SiteRestyle>>({})
+  const [open, setOpen] = useState<string | null>(null)
+  const [copying, setCopying] = useState<string | null>(null)
+  const [target, setTarget] = useState('')
   const load = (): void => void api.invoke<Record<string, SiteRestyle>>('mods:restyles').then(setList)
   useEffect(load, [])
   const sites = Object.keys(list)
   if (!sites.length) return <div className="ag-empty">You haven’t restyled any sites yet.</div>
   return (
-    <div className="allow-cards">
-      {sites.map((site) => (
-        <div key={site} className="allow-card">
-          <Favicon url={`https://${site}`} size={18} />
-          <span>{site}</span>
-          <button className="icon-btn" title="Remove your changes to this site" onClick={() => void api.invoke('mods:setRestyle', site, null).then(load)}>
-            <X size={13} />
-          </button>
-        </div>
-      ))}
+    <div className="pw">
+      {sites.map((site) => {
+        const r = list[site]
+        return (
+          <div key={site}>
+            <div className="pw-row">
+              <Favicon url={`https://${site}`} size={18} />
+              <div className="pw-text">
+                <b>{site}</b>
+                <span>
+                  {[r.hide.length ? `${r.hide.length} thing${r.hide.length === 1 ? '' : 's'} hidden` : '', r.font ? 'own font' : '', r.css ? 'own CSS' : ''].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+              {r.hide.length > 0 && (
+                <button className="btn small" onClick={() => setOpen(open === site ? null : site)}>
+                  {open === site ? 'Done' : 'Hidden things'}
+                </button>
+              )}
+              <button
+                className="btn small"
+                title="Give another site the same font, colours and CSS"
+                onClick={() => setCopying(copying === site ? null : site)}
+              >
+                Copy to…
+              </button>
+              <button className="icon-btn" title="Remove all your changes to this site" onClick={() => void api.invoke('mods:setRestyle', site, null).then(load)}>
+                <X size={13} />
+              </button>
+            </div>
+            {copying === site && (
+              <form
+                className="row-actions restyle-copy"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void api.invoke<boolean>('mods:copyRestyle', site, target).then((ok) => {
+                    if (!ok) return
+                    setCopying(null)
+                    setTarget('')
+                    load()
+                  })
+                }}
+              >
+                <input className="field" autoFocus placeholder="Another site, like example.org" value={target} onChange={(e) => setTarget(e.target.value)} />
+                <button className="btn small primary" type="submit">
+                  Copy
+                </button>
+              </form>
+            )}
+            {/* #427 Each hidden thing, so one can be brought back without undoing the rest. */}
+            {open === site && (
+              <div className="restyle-hidden">
+                {r.hide.map((sel, i) => (
+                  <div key={`${sel}${i}`} className="restyle-hidden-row">
+                    <code title={sel}>{sel}</code>
+                    <button
+                      className="btn small"
+                      onClick={() => void api.invoke('mods:setRestyle', site, { ...r, hide: r.hide.filter((_, j) => j !== i) }).then(load)}
+                    >
+                      Show again
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -496,31 +866,74 @@ function RestyleList(): React.JSX.Element {
 function ScriptEditor(): React.JSX.Element {
   const [scripts, setScripts] = useState<UserScript[] | null>(null)
   const [open, setOpen] = useState<string | null>(null)
-  useEffect(() => void api.invoke<UserScript[]>('mods:scripts').then(setScripts), [])
+  /** #712 A script waiting for "I trust it" before it's turned on. */
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const [installUrl, setInstallUrl] = useState('')
+  const [note, setNote] = useState('')
+  const load = (): void => void api.invoke<UserScript[]>('mods:scripts').then(setScripts)
+  useEffect(load, [])
   if (!scripts) return <span className="shimmer" style={{ display: 'block', height: 40 }} />
   const save = (next: UserScript[]): void => {
     setScripts(next)
     void api.invoke('mods:saveScripts', next)
   }
   const change = (id: string, patch: Partial<UserScript>): void => setScripts(scripts.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+  const setEnabled = (id: string, enabled: boolean): void => save(scripts.map((x) => (x.id === id ? { ...x, enabled } : x)))
   return (
     <div className="scripts">
       {scripts.map((sc) => (
         <div key={sc.id} className="script">
           <div className="script-head">
             <button className="script-name" onClick={() => setOpen(open === sc.id ? null : sc.id)}>
-              <b>{sc.name || 'Untitled script'}</b>
+              <b>
+                {sc.name || 'Untitled script'}
+                {sc.version && <span className="set-hint"> v{sc.version}</span>}
+              </b>
               <small>{sc.match || 'No sites yet'}</small>
             </button>
-            <Switch on={sc.enabled} onChange={(enabled) => save(scripts.map((x) => (x.id === sc.id ? { ...x, enabled } : x)))} />
+            <Switch on={sc.enabled} onChange={(enabled) => (enabled ? setConfirming(sc.id) : setEnabled(sc.id, false))} />
           </div>
+          {confirming === sc.id && (
+            <div className="script-warn">
+              <b>Only turn on scripts you trust.</b> A script can read and change everything on the sites it runs on ({sc.match || 'none yet'}), including what you type
+              there, like passwords and messages.
+              <div className="row-actions" style={{ marginTop: 8 }}>
+                <button
+                  className="btn small primary"
+                  onClick={() => {
+                    setEnabled(sc.id, true)
+                    setConfirming(null)
+                  }}
+                >
+                  I trust it, turn it on
+                </button>
+                <button className="btn small" onClick={() => setConfirming(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {/* #706 The last error, right by the script. */}
+          {sc.lastError && (
+            <div className="script-error" title={sc.lastError.url}>
+              ⚠ {sc.lastError.message}
+              <span> · {new Date(sc.lastError.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+            </div>
+          )}
           {open === sc.id && (
             <div className="script-body">
               <input className="field" placeholder="Name" value={sc.name} onChange={(e) => change(sc.id, { name: e.target.value })} />
               <input className="field" placeholder="Sites, like youtube.com, *.reddit.com" spellCheck={false} value={sc.match} onChange={(e) => change(sc.id, { match: e.target.value })} />
-              <textarea className="field" rows={9} spellCheck={false} placeholder="document.title = 'Hello'" value={sc.code} onChange={(e) => change(sc.id, { code: e.target.value })} />
+              <CodeEditor value={sc.code} onChange={(code) => change(sc.id, { code })} />
+              <label className="row-actions">
+                <Switch on={!!sc.masked} onChange={(masked) => change(sc.id, { masked })} />
+                <span className="set-hint" style={{ marginTop: 0 }}>
+                  Also run in Masked Mode
+                </span>
+              </label>
+              {sc.sourceUrl && <div className="set-hint">Updates itself from {sc.sourceUrl}</div>}
               <div className="row-actions">
-                <button className="btn small primary" onClick={() => save(scripts)}>
+                <button className="btn small primary" onClick={() => save(scripts.map((x) => (x.id === sc.id ? { ...x, lastError: undefined } : x)))}>
                   Save
                 </button>
                 <button className="btn small" onClick={() => save(scripts.filter((x) => x.id !== sc.id))}>
@@ -531,17 +944,102 @@ function ScriptEditor(): React.JSX.Element {
           )}
         </div>
       ))}
-      <button
-        className="btn small"
-        style={{ justifySelf: 'start' }}
-        onClick={() => {
-          const id = String(Date.now())
-          setScripts([...scripts, { id, name: '', match: '', code: '', enabled: true }])
-          setOpen(id)
-        }}
-      >
-        <Plus size={13} /> New script
-      </button>
+      <div className="row-actions" style={{ flexWrap: 'wrap' }}>
+        <button
+          className="btn small"
+          onClick={() => {
+            const id = String(Date.now())
+            setScripts([...scripts, { id, name: '', match: '', code: '', enabled: false }])
+            setOpen(id)
+          }}
+        >
+          <Plus size={13} /> New script
+        </button>
+        <form
+          className="row-actions"
+          style={{ flex: 1, minWidth: 260 }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            setNote('Installing…')
+            void api.invoke<UserScript | string>('mods:installScript', installUrl).then((r) => {
+              if (typeof r === 'string') return setNote(r)
+              setNote(`Installed “${r.name}”. Read it, then turn it on.`)
+              setInstallUrl('')
+              load()
+              setOpen(r.id)
+            })
+          }}
+        >
+          <input className="field" style={{ flex: 1 }} placeholder="Install from a link (a .user.js address)" value={installUrl} onChange={(e) => setInstallUrl(e.target.value)} />
+          <button className="btn small" type="submit" disabled={!installUrl.trim()}>
+            Install
+          </button>
+        </form>
+        {scripts.some((x) => x.sourceUrl) && (
+          <button className="btn small" onClick={() => void api.invoke<number>('mods:updateScripts').then((n) => (setNote(n ? `${n} script${n === 1 ? '' : 's'} updated.` : 'All up to date.'), load()))}>
+            Check for updates
+          </button>
+        )}
+      </div>
+      {note && <div className="set-hint">{note}</div>}
+    </div>
+  )
+}
+
+const JS_WORDS = /\b(const|let|var|function|return|if|else|for|while|do|break|continue|new|class|extends|import|export|from|async|await|try|catch|finally|throw|typeof|instanceof|in|of|switch|case|default|this|null|undefined|true|false)\b/
+
+/** #705 A code box with line numbers and colours: a plain textarea over a coloured copy of its text. */
+function CodeEditor({ value, onChange }: { value: string; onChange: (v: string) => void }): React.JSX.Element {
+  const back = useRef<HTMLPreElement>(null)
+  const gutter = useRef<HTMLDivElement>(null)
+  const lines = value.split('\n').length
+  const parts = value.split(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*\b)/)
+  return (
+    <div className="code-editor">
+      <div className="code-gutter" ref={gutter} aria-hidden>
+        {Array.from({ length: lines }, (_, i) => (
+          <div key={i}>{i + 1}</div>
+        ))}
+      </div>
+      <div className="code-area">
+        <pre className="code-back" ref={back} aria-hidden>
+          {parts.map((p, i) =>
+            /^(\/\/|\/\*)/.test(p) ? (
+              <span key={i} className="tk-comment">{p}</span>
+            ) : /^['"`]/.test(p) ? (
+              <span key={i} className="tk-string">{p}</span>
+            ) : /^\d/.test(p) ? (
+              <span key={i} className="tk-number">{p}</span>
+            ) : JS_WORDS.test(p) && new RegExp(`^${JS_WORDS.source}$`).test(p) ? (
+              <span key={i} className="tk-word">{p}</span>
+            ) : (
+              p
+            )
+          )}
+          {'\n'}
+        </pre>
+        <textarea
+          className="code-input"
+          spellCheck={false}
+          placeholder="document.title = 'Hello'"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onScroll={(e) => {
+            if (back.current) back.current.scrollTop = e.currentTarget.scrollTop
+            if (back.current) back.current.scrollLeft = e.currentTarget.scrollLeft
+            if (gutter.current) gutter.current.scrollTop = e.currentTarget.scrollTop
+          }}
+          onKeyDown={(e) => {
+            // Tab indents instead of leaving the box.
+            if (e.key !== 'Tab') return
+            e.preventDefault()
+            const el = e.currentTarget
+            const { selectionStart: a, selectionEnd: b } = el
+            onChange(value.slice(0, a) + '  ' + value.slice(b))
+            requestAnimationFrame(() => el.setSelectionRange(a + 2, a + 2))
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -625,7 +1123,10 @@ function SettingRow({ row }: { row: Row }): React.JSX.Element {
   return (
     <div className={`set-row${row.wide ? ' wide' : ''}`}>
       <div className="set-text">
-        <div className="set-label">{row.label}</div>
+        <div className="set-label">
+          {row.label}
+          {row.badge && <span className="set-badge">{row.badge}</span>}
+        </div>
         {row.hint && <div className="set-hint">{row.hint}</div>}
       </div>
       <div className="set-control">{row.control}</div>
@@ -700,7 +1201,18 @@ export function ThemeGrid({ settings }: { settings: S }): React.JSX.Element {
         >
           {!a.customBackground && <Upload size={20} />}
         </span>
-        <span className="theme-name">{a.customBackground ? 'Your image' : 'Upload image'}</span>
+        <span className="theme-name">{a.customBackground ? 'Your image or video' : 'Image or video'}</span>
+      </button>
+      <button
+        type="button"
+        className={`theme-card${a.background === 'folder' ? ' on' : ''}`}
+        title="A different picture from the folder on each new tab"
+        onClick={() => void api.invoke('appearance:pickFolder')}
+      >
+        <span className="theme-thumb custom">
+          <Folder size={20} />
+        </span>
+        <span className="theme-name">{a.wallpaperFolder ? 'Your folder' : 'A folder of pictures'}</span>
       </button>
     </div>
   )
@@ -728,6 +1240,10 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
   // Whether the graphics card is in use right now (the setting applies after a restart).
   const [gpuNow, setGpuNow] = useState<boolean | null>(null)
   const [isDefault, setIsDefault] = useState<boolean | null>(null)
+  const [models, setModels] = useState<ModelSizes | null>(null)
+  useEffect(() => {
+    void api.invoke<ModelSizes>('ai:modelSizes').then(setModels).catch(() => setModels({ ai: 0, smart: 0, voice: 0 }))
+  }, [s?.lab?.ask, s?.lab?.smartAsk, s?.lab?.voice])
 
   useEffect(() => {
     const check = (): void => void api.invoke<{ isDefault: boolean }>('defaultbrowser:status').then((r) => setIsDefault(r.isDefault))
@@ -787,7 +1303,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           onChange={(mode) => saveAppearance({ mode })}
           options={[
             { value: 'light', label: 'Light', icon: Sun },
-            { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
+            { value: 'alchemy', label: 'Alchemy', icon: LogoMark },
             { value: 'dark', label: 'Dark', icon: Moon },
             { value: 'system', label: 'System', icon: Monitor }
           ]}
@@ -825,6 +1341,18 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
             onChange={(e) => saveAppearance({ backgroundDim: Number(e.target.value) })}
           />
           <span>{a.backgroundDim}%</span>
+        </div>
+      )
+    },
+    {
+      category: 'appearance',
+      label: 'Background blur',
+      hint: 'Softens a busy picture so the clock and shortcuts stand out.',
+      keywords: 'wallpaper blur soft',
+      control: (
+        <div className="range">
+          <input type="range" min={0} max={24} value={a.backgroundBlur ?? 0} onChange={(e) => saveAppearance({ backgroundBlur: Number(e.target.value) })} />
+          <span>{a.backgroundBlur ? `${a.backgroundBlur} px` : 'Off'}</span>
         </div>
       )
     },
@@ -961,19 +1489,15 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'newtab',
       label: 'Widgets',
       hint: 'Shown under your shortcuts on the new tab page. Click to turn each one on or off.',
-      keywords: 'widgets weather quote todo to-do news focus timer pomodoro music now playing countdown stats recent',
+      keywords: 'widgets weather todo to-do news focus timer pomodoro countdown recent',
       wide: true,
       control: (
         <div className="chips">
           {(
             [
               ['weather', 'Weather'],
-              ['quote', 'Quote of the day'],
               ['todo', 'To do'],
-              ['focus', 'Focus timer'],
-              ['music', 'Now playing'],
-              ['stats', 'Aegis stats'],
-              ['countdown', 'Countdown'],
+              ['focus', 'Focus timer and countdown'],
               ['recent', 'Pick up where you left off'],
               ['news', 'News']
             ] as const
@@ -1048,9 +1572,39 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
                 ]}
               />
             )
+          },
+          {
+            category: 'newtab' as const,
+            label: 'Clock hours',
+            keywords: '12 24 hour am pm time format',
+            control: (
+              <Segmented
+                value={a.clockHours ?? 'auto'}
+                options={[
+                  { value: 'auto', label: 'Like Windows' },
+                  { value: '12', label: '12 hour' },
+                  { value: '24', label: '24 hour' }
+                ]}
+                onChange={(clockHours) => saveAppearance({ clockHours })}
+              />
+            )
+          },
+          {
+            category: 'newtab' as const,
+            label: 'Your name in the greeting',
+            hint: 'Good morning, you. Leave empty for no name.',
+            keywords: 'greeting name good morning',
+            control: <input className="field" style={{ width: 200 }} placeholder="Your name" value={a.greetingName ?? ''} onChange={(e) => saveAppearance({ greetingName: e.target.value.slice(0, 30) })} />
           }
         ]
       : []),
+    {
+      category: 'newtab',
+      label: 'Minimal mode',
+      hint: 'Just the clock and the search box: no shortcuts, widgets or reminders.',
+      keywords: 'minimal clean simple empty focus',
+      control: <Switch on={!!a.minimal} onChange={(minimal) => saveAppearance({ minimal })} />
+    },
     {
       category: 'newtab',
       label: 'Show the search box',
@@ -1116,7 +1670,7 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'lab',
       group: 'Experiments',
       label: 'Ask the page and Ask all my tabs',
-      hint: 'A tiny AI on your PC (about 90 MB, downloaded when you first use it) answers questions with words quoted from your pages. Nothing you read is sent anywhere.',
+      hint: 'A tiny AI on your PC (about 90 MB, downloaded from Hugging Face when you first use it) answers questions with words quoted from your pages. What leaves your PC: nothing.',
       keywords: 'ai ask question answer page tabs on device private local model',
       control: <Switch on={!!s.lab?.ask} onChange={(ask) => set({ lab: { ...s.lab, ask } })} />
     },
@@ -1125,8 +1679,23 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           {
             category: 'lab' as const,
             group: 'Experiments',
+            label: 'Smarter answers',
+            badge: 'New',
+            hint: 'A bigger model (about 480 MB more) writes short answers instead of quoting, understands other languages and can summarise a page. Fastest with a graphics card. What leaves your PC: nothing.',
+            keywords: 'ai smart model qwen summarise summary languages multilingual gpu',
+            control: <Switch on={!!s.lab?.smartAsk} onChange={(smartAsk) => set({ lab: { ...s.lab, smartAsk } })} />
+          }
+        ]
+      : []),
+    // Instant answers can't work before the Ask download, so it only shows once that's there.
+    ...(s.lab?.ask && (models?.ai ?? 0) > 0
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Experiments',
             label: 'Instant answers in the address bar',
-            hint: 'Questions get an answer as you type. Your question goes to Wikipedia to fetch the text (only if Search suggestions is on); the answer is worked out on your PC. Needs the Ask download.',
+            badge: 'Changed',
+            hint: 'Questions like “who”, “when” or “define …” get an answer as you type. What leaves your PC: your question goes to Wikipedia to fetch the text; the answer is worked out on your PC.',
             keywords: 'ai instant answers address bar omnibox wikipedia',
             control: <Switch on={!!s.lab?.instantAnswers} onChange={(instantAnswers) => set({ lab: { ...s.lab, instantAnswers } })} />
           }
@@ -1136,47 +1705,104 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'lab',
       group: 'Experiments',
       label: 'Voice search',
-      hint: 'Adds a microphone to the address bar. A speech model on your PC (downloaded when you first use it) turns what you say into a search. Your voice isn’t sent anywhere.',
-      keywords: 'ai voice speech microphone mic whisper talk dictate',
+      hint: 'Adds a microphone to the address bar, or hold Ctrl+Space anywhere. Say a search, or “new tab”, “go back”, “close tab”. A speech model on your PC turns it into text. What leaves your PC: nothing, your voice included.',
+      keywords: 'ai voice speech microphone mic whisper talk dictate push to talk commands',
       control: <Switch on={!!s.lab?.voice} onChange={(voice) => set({ lab: { ...s.lab, voice } })} />
     },
+    ...(s.lab?.voice
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Experiments',
+            label: 'Voice model',
+            badge: 'New',
+            hint: 'Smaller downloads faster and answers sooner; bigger hears you better.',
+            keywords: 'whisper tiny base small size',
+            control: (
+              <Segmented
+                value={s.lab?.voiceModel ?? 'small'}
+                options={[
+                  { value: 'tiny', label: 'Tiny · 40 MB' },
+                  { value: 'base', label: 'Base · 80 MB' },
+                  { value: 'small', label: 'Small · 250 MB' }
+                ]}
+                onChange={(voiceModel) => set({ lab: { ...s.lab, voiceModel } })}
+              />
+            )
+          },
+          {
+            category: 'lab' as const,
+            group: 'Experiments',
+            label: 'Language you speak',
+            badge: 'New',
+            keywords: 'voice language speech',
+            control: (
+              <Select
+                value={s.lab?.voiceLanguage ?? ''}
+                width={210}
+                onChange={(voiceLanguage) => set({ lab: { ...s.lab, voiceLanguage } })}
+                options={[{ value: '', label: 'Same as Alchemy' }, ...TRANSLATE_LANGUAGES.map(([value, label]) => ({ value: value.split('-')[0], label }))]}
+              />
+            )
+          }
+        ]
+      : []),
     {
-      category: 'lab',
-      group: 'Experiments',
+      category: 'newtab',
       label: 'Search inside your tabs',
       hint: 'Ctrl+K also searches the words on your open pages, not just their titles. Kept in memory only.',
       keywords: 'tab search content text ctrl k palette',
       control: <Switch on={s.lab?.tabSearch !== false} onChange={(tabSearch) => set({ lab: { ...s.lab, tabSearch } })} />
     },
     {
-      category: 'lab',
-      group: 'Experiments',
+      category: 'newtab',
       label: 'Search everywhere',
       hint: 'Adds an option to run a search in several engines, side by side. Pick the engines in New Tab & Search.',
       keywords: 'multi engines side by side',
       control: <Switch on={s.lab?.searchEverywhere !== false} onChange={(searchEverywhere) => set({ lab: { ...s.lab, searchEverywhere } })} />
     },
-    ...(s.lab?.ask
+    {
+      category: 'lab',
+      group: 'Experiments',
+      label: 'In Masked Mode and Alchemy Tor',
+      hint: 'Ask, Instant answers and Voice search are always off there, so nothing about your private browsing is read, even on your own PC.',
+      keywords: 'masked private incognito tor ai off',
+      control: <span className="good">Always off</span>
+    },
+    // Anything still on disk is listed, whatever the switches say, so it can be deleted.
+    ...(models && (s.lab?.ask || models.ai > 0)
       ? [
           {
             category: 'lab' as const,
             group: 'Downloaded AI models',
             label: 'Ask and Instant answers',
-            hint: 'Kept on this PC. If you delete it, it downloads again the next time you use Ask.',
+            hint: s.lab?.ask ? 'Kept on this PC. If you delete it, it downloads again the next time you use Ask.' : 'Ask is off. Delete the model to free the space.',
             keywords: 'ai model delete remove space storage disk',
-            control: <ModelSize which="ai" />
+            control: <ModelSize which="ai" size={models.ai} onChange={setModels} />
           }
         ]
       : []),
-    ...(s.lab?.voice
+    ...(models && (s.lab?.smartAsk || models.smart > 0)
+      ? [
+          {
+            category: 'lab' as const,
+            group: 'Downloaded AI models',
+            label: 'Smarter answers model',
+            hint: s.lab?.smartAsk && s.lab?.ask ? 'Kept on this PC. It downloads again if you delete it and use Ask.' : 'Smarter answers is off. Delete the model to free the space.',
+            keywords: 'ai model qwen delete remove space storage disk',
+            control: <ModelSize which="smart" size={models.smart} onChange={setModels} />
+          }
+        ]
+      : []),
+    ...(models && (s.lab?.voice || models.voice > 0)
       ? [
           {
             category: 'lab' as const,
             group: 'Downloaded AI models',
             label: 'Voice search model',
-            hint: 'Kept on this PC. If you delete it, it downloads again the next time you use the microphone.',
+            hint: s.lab?.voice ? 'Kept on this PC. If you delete it, it downloads again the next time you use the microphone.' : 'Voice search is off. Delete the model to free the space.',
             keywords: 'ai model whisper voice delete remove space storage disk',
-            control: <ModelSize which="voice" />
+            control: <ModelSize which="voice" size={models.voice} onChange={setModels} />
           }
         ]
       : []),
@@ -1210,6 +1836,59 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
 
     ...shortcutRows,
 
+    {
+      category: 'passwords',
+      group: 'Strong passwords',
+      label: 'Suggested passwords',
+      hint: 'On sign-up forms, the password box offers a strong password Alchemy makes up, and saves it once you sign up.',
+      keywords: 'generator generate strong random password length symbols',
+      wide: true,
+      control: <GeneratorOptions settings={s} />
+    },
+    ...((s.pwNever ?? []).length
+      ? [
+          {
+            category: 'passwords' as const,
+            group: 'Strong passwords',
+            label: 'Never save passwords on',
+            hint: '✕ lets Alchemy offer to save passwords there again.',
+            wide: true,
+            control: (
+              <div className="chips">
+                {s.pwNever!.map((o) => (
+                  <button key={o} className="chip" onClick={() => set({ pwNever: s.pwNever!.filter((x) => x !== o) })}>
+                    {o.replace(/^https?:\/\//, '')} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )
+          }
+        ]
+      : []),
+    {
+      category: 'passwords',
+      group: 'Addresses and cards',
+      label: 'Fill addresses and cards',
+      hint: 'Offers your saved details on checkout and sign-up forms. Kept encrypted on this PC; nothing is uploaded.',
+      keywords: 'autofill address card payment checkout credit debit',
+      control: <Switch on={s.autofill !== false} onChange={(autofill) => set({ autofill })} />
+    },
+    {
+      category: 'passwords',
+      group: 'Addresses and cards',
+      label: 'Your details',
+      wide: true,
+      keywords: 'autofill address card payment',
+      control: <AutofillList />
+    },
+    {
+      category: 'passwords',
+      group: 'Lock',
+      label: 'Lock Alchemy with Windows Hello',
+      hint: 'Asks for your face, fingerprint or PIN when Alchemy opens, and again after your PC was locked or asleep.',
+      keywords: 'lock windows hello pin fingerprint face password protect',
+      control: <Switch on={!!s.lockWithHello} onChange={(lockWithHello) => set({ lockWithHello })} />
+    },
     // ---- site magic ----
     {
       category: 'magic',
@@ -1219,6 +1898,56 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       keywords: 'dark mode night invert force',
       control: <Switch on={!!s.forceDark} onChange={(v) => set({ forceDark: v })} />
     },
+    ...(s.forceDark
+      ? [
+          {
+            category: 'magic' as const,
+            group: 'Force dark',
+            label: 'When',
+            keywords: 'schedule night sunset windows theme',
+            control: (
+              <Segmented
+                value={s.forceDarkWhen ?? 'always'}
+                options={[
+                  { value: 'always', label: 'Always' },
+                  { value: 'night', label: 'At night (7 pm to 7 am)' },
+                  { value: 'system', label: 'When Windows is dark' }
+                ]}
+                onChange={(forceDarkWhen) => set({ forceDarkWhen })}
+              />
+            )
+          },
+          {
+            category: 'magic' as const,
+            group: 'Force dark',
+            label: 'Brightness and contrast',
+            keywords: 'dark brightness contrast dim',
+            wide: true,
+            control: (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div className="range">
+                  <span style={{ minWidth: 80 }}>Brightness</span>
+                  <input type="range" min={60} max={130} value={s.forceDarkBrightness ?? 100} onChange={(e) => set({ forceDarkBrightness: Number(e.target.value) })} />
+                  <span>{s.forceDarkBrightness ?? 100}%</span>
+                </div>
+                <div className="range">
+                  <span style={{ minWidth: 80 }}>Contrast</span>
+                  <input type="range" min={70} max={140} value={s.forceDarkContrast ?? 100} onChange={(e) => set({ forceDarkContrast: Number(e.target.value) })} />
+                  <span>{s.forceDarkContrast ?? 100}%</span>
+                </div>
+              </div>
+            )
+          },
+          {
+            category: 'magic' as const,
+            group: 'Force dark',
+            label: 'Dim photos a little',
+            hint: 'Bright pictures are easier on the eyes in a dark room.',
+            keywords: 'images photos dim dark',
+            control: <Switch on={!!s.forceDarkDimImages} onChange={(forceDarkDimImages) => set({ forceDarkDimImages })} />
+          }
+        ]
+      : []),
     ...((s.forceDarkOff ?? []).length
       ? [
           {
@@ -1257,30 +1986,19 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       wide: true,
       control: <RestyleList />
     },
+    ...(s.developer
+      ? [
     {
-      category: 'magic',
+      category: 'magic' as const,
       group: 'Custom scripts',
       label: 'Your scripts',
-      hint: 'Small JavaScript programs that run on the sites you choose, like Tampermonkey. Only add scripts you trust: a script can read everything on the sites it runs on. They never run in Masked Mode.',
+      hint: 'Small JavaScript programs that run on the sites you choose, like Tampermonkey. Only add scripts you trust: a script can read everything on the sites it runs on. They don’t run in Masked Mode unless you allow it for that script, and ones installed from a link update themselves.',
       keywords: 'scripts javascript userscript tampermonkey greasemonkey custom code',
       wide: true,
       control: <ScriptEditor />
-    },
-    {
-      category: 'magic',
-      group: 'Translate',
-      label: 'Translate pages into',
-      hint: 'The language Translate uses. Its button shows in the address bar on foreign pages, and Ctrl+K can translate any page. Page text is sent to Google Translate.',
-      keywords: 'translate language foreign google',
-      control: (
-        <Select
-          value={s.translateTo ?? ''}
-          width={210}
-          onChange={(translateTo) => set({ translateTo })}
-          options={[{ value: '', label: 'Same as Alchemy' }, ...TRANSLATE_LANGUAGES.map(([value, label]) => ({ value, label }))]}
-        />
-      )
-    },
+    }
+        ]
+      : []),
 
     // ---- Aegis blocker (ad blocking) ----
     {
@@ -1302,13 +2020,6 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           <Switch on={s.adblock} onChange={(v) => set({ adblock: v })} />
         </div>
       )
-    },
-    {
-      category: 'adblock',
-      group: 'Blocker',
-      label: 'Hide cookie banners',
-      hint: 'Removes “accept cookies” popups using uBlock’s annoyance lists.',
-      control: <Switch on={s.blockCookieBanners} onChange={(v) => set({ blockCookieBanners: v })} />
     },
     {
       category: 'adblock',
@@ -1343,11 +2054,11 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       label: 'Protection level',
       hint:
         s.aegisLevel === 'chill'
-          ? 'Chill: blocks ads only. Sites behave most like they would without a blocker.'
+          ? 'Chill blocks ads only, so sites behave most like they would without a blocker. Trackers and cookie banners get through.'
           : s.aegisLevel === 'extreme'
-            ? 'Extreme: blocks ads, trackers, cookie banners and other annoyances. A few sites may need Aegis turned off.'
-            : 'Comfort: blocks ads and trackers. The best balance for most people.',
-      keywords: 'level chill comfort extreme strict relaxed',
+            ? 'Extreme blocks ads, trackers, cookie banners and annoyances like pop-ups, chat bubbles and “use our app” prompts. A few sites may break; turn Aegis off for them from the shield.'
+            : 'Comfort blocks ads, trackers and cookie banners. Almost every site works. The best balance for most people.',
+      keywords: 'level chill comfort extreme strict relaxed cookie banners popups annoyances per site masked',
       control: (
         <Segmented
           value={s.aegisLevel ?? 'comfort'}
@@ -1359,6 +2070,31 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           onChange={(aegisLevel) => set({ aegisLevel })}
         />
       )
+    },
+    {
+      category: 'adblock',
+      group: 'Blocker',
+      label: 'Different levels for different sites',
+      hint: 'The shield on a site lets you pick its own level. Masked Mode and Alchemy Tor always use Extreme. Known malware and phishing pages are stopped at every level, with a warning.',
+      keywords: 'per site level masked extreme malware phishing scam',
+      wide: true,
+      control: <SiteLevels levels={s.aegisSiteLevels ?? {}} onChange={(aegisSiteLevels) => set({ aegisSiteLevels })} />
+    },
+    {
+      category: 'adblock',
+      group: 'Blocker',
+      label: 'Protect sidebar sites too',
+      hint: 'Blocks ads and trackers in WhatsApp, Discord and the other sites in your sidebar.',
+      keywords: 'sidebar panels messengers',
+      control: <Switch on={s.aegisPanels !== false} onChange={(aegisPanels) => set({ aegisPanels })} />
+    },
+    {
+      category: 'adblock',
+      group: 'Blocker',
+      label: 'Stop videos playing by themselves',
+      hint: 'Videos and sound wait until you click on the page. Applies to tabs opened from now on.',
+      keywords: 'autoplay video sound play automatically',
+      control: <Switch on={!!s.blockAutoplay} onChange={(blockAutoplay) => set({ blockAutoplay })} />
     },
     ...(stats
       ? [
@@ -1387,9 +2123,9 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
             group: 'Your stats',
             label: 'Who tried to track you',
             hint: 'Companies whose ads and trackers Aegis blocked the most.',
-            keywords: 'companies trackers google meta amazon bubbles',
+            keywords: 'companies trackers google meta amazon',
             wide: true,
-            control: <CompanyBubbles stats={stats} />
+            control: <TopCompanies stats={stats} />
           },
           {
             category: 'adblock' as const,
@@ -1439,9 +2175,30 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       category: 'privacy',
       group: 'Tracking',
       label: 'Fingerprinting protection',
-      hint: 'Adds invisible noise to canvas, audio and graphics readouts so sites can’t identify your device.',
+      hint: 'Sites can recognise your PC without cookies, from tiny differences in how it draws pictures, plays sound and what screen it has. Alchemy adds invisible noise to those readings, so each site sees a slightly different PC. What might break: a few sites that check you’re human or draw charts. Turn it off for one site from its shield.',
+      keywords: 'fingerprint canvas audio webgl device identify',
       control: <Switch on={s.fingerprintProtection} onChange={(v) => set({ fingerprintProtection: v })} />
     },
+    ...((s.fingerprintOff ?? []).length
+      ? [
+          {
+            category: 'privacy' as const,
+            group: 'Tracking',
+            label: 'Fingerprint protection is off on',
+            hint: '✕ turns it back on there.',
+            wide: true,
+            control: (
+              <div className="chips">
+                {s.fingerprintOff!.map((site) => (
+                  <button key={site} className="chip" onClick={() => set({ fingerprintOff: s.fingerprintOff!.filter((x) => x !== site) })}>
+                    {site} <X size={12} />
+                  </button>
+                ))}
+              </div>
+            )
+          }
+        ]
+      : []),
     {
       category: 'privacy',
       group: 'Tracking',
@@ -1460,31 +2217,27 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     },
     {
       category: 'privacy',
+      group: 'Tracking',
+      label: 'Also send Do Not Track',
+      hint: 'The older request not to be tracked. Few sites honour it, and it makes your browser a little easier to tell apart.',
+      keywords: 'dnt do not track',
+      control: <Switch on={!!s.sendDnt} onChange={(sendDnt) => set({ sendDnt })} />
+    },
+    {
+      category: 'privacy',
+      group: 'Tracking',
+      label: 'Stop video calls revealing your IP address',
+      hint: 'Video and voice calls in pages may only use the same connection as everything else, so a VPN or proxy keeps hiding you. A few calling sites may connect more slowly. Always on in Masked Mode and Tor.',
+      keywords: 'webrtc ip leak vpn video call',
+      control: <Switch on={!!s.webrtcStrict} onChange={(webrtcStrict) => set({ webrtcStrict })} />
+    },
+    {
+      category: 'privacy',
       group: 'Hide your IP',
       label: 'Hide my IP in Masked Mode',
       hint: 'New Masked Mode windows go through Tor, so sites can’t see your real IP address. Slower, and some sites block Tor.',
       keywords: 'tor vpn ip hide proxy incognito private masked anonymous',
       control: <Switch on={s.maskedUsesTor} onChange={(v) => set({ maskedUsesTor: v })} />
-    },
-    {
-      category: 'privacy',
-      group: 'Hide your IP',
-      label: 'Alchemy Tor',
-      hint: 'A Masked Mode window that goes through the Tor network, so sites can’t see your real IP address. Slower than normal browsing.',
-      keywords: 'tor onion vpn anonymous ip hide proxy',
-      control: (
-        <button className="btn small" onClick={() => api.invoke('window:newTor')}>
-          Open Alchemy Tor
-        </button>
-      )
-    },
-    {
-      category: 'privacy',
-      group: 'Hide your IP',
-      label: 'Always use Tor bridges',
-      hint: 'Connect through Snowflake bridges, for networks that block Tor. Alchemy switches to them by itself when Tor can’t connect.',
-      keywords: 'tor bridges snowflake censorship blocked',
-      control: <Switch on={s.torBridges} onChange={(v) => set({ torBridges: v })} />
     },
     {
       category: 'privacy',
@@ -1637,26 +2390,6 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
       wide: true,
       control: <AwakeSites sites={perf.awakeSites} onChange={(awakeSites) => setPerf({ awakeSites })} />
     },
-    {
-      category: 'performance',
-      label: 'Use graphics acceleration',
-      hint:
-        gpuNow !== null && gpuNow !== perf.hardwareAcceleration
-          ? 'Restart Alchemy to apply this change.'
-          : 'Draws pages with your graphics card. Turn off if videos flicker or pages show glitches.',
-      keywords: 'hardware acceleration gpu graphics card flicker',
-      control: (
-        <div className="row-actions">
-          {gpuNow !== null && gpuNow !== perf.hardwareAcceleration && (
-            <button className="btn small" onClick={() => api.invoke('app:restart')}>
-              Restart now
-            </button>
-          )}
-          <Switch on={perf.hardwareAcceleration} onChange={(hardwareAcceleration) => setPerf({ hardwareAcceleration })} />
-        </div>
-      )
-    },
-
     // ---- tabs & sidebar ----
     {
       category: 'tabs',
@@ -1671,6 +2404,53 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
             { value: 'vertical', label: 'Vertical' }
           ]}
           onChange={(tabLayout) => set({ tabLayout })}
+        />
+      )
+    },
+    {
+      category: 'tabs',
+      label: 'New tabs open',
+      hint: 'Where Ctrl+T and the + button put a new tab.',
+      keywords: 'new tab position next end ctrl t',
+      control: (
+        <Segmented
+          value={s.newTabPosition ?? 'end'}
+          options={[
+            { value: 'end', label: 'At the end' },
+            { value: 'next', label: 'Next to this tab' }
+          ]}
+          onChange={(newTabPosition) => set({ newTabPosition })}
+        />
+      )
+    },
+    {
+      category: 'tabs',
+      label: 'After closing a tab, go to',
+      keywords: 'close tab next previous last used recent',
+      control: (
+        <Segmented
+          value={s.afterClose ?? 'recent'}
+          options={[
+            { value: 'recent', label: 'The tab used before' },
+            { value: 'beside', label: 'The tab beside it' }
+          ]}
+          onChange={(afterClose) => set({ afterClose })}
+        />
+      )
+    },
+    {
+      category: 'tabs',
+      label: 'Ctrl+Tab goes through tabs',
+      hint: 'With last used first, holding Ctrl shows pictures of your tabs; a quick tap just switches back.',
+      keywords: 'ctrl tab switcher order recent pictures',
+      control: (
+        <Segmented
+          value={s.ctrlTabOrder ?? 'recent'}
+          options={[
+            { value: 'recent', label: 'Last used first' },
+            { value: 'strip', label: 'Left to right' }
+          ]}
+          onChange={(ctrlTabOrder) => set({ ctrlTabOrder })}
         />
       )
     },
@@ -1750,10 +2530,22 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
     {
       category: 'tabs',
       label: 'Pop out videos automatically',
-      hint: 'When you switch away from a tab playing a video, it keeps playing in a floating window, and goes back when you return.',
+      hint: 'When you switch away from a tab playing a video, it keeps playing in a floating window, and goes back when you return. Short clips, ads and silent videos stay put.',
       keywords: 'picture in picture pip auto float',
       control: <Switch on={s.autoPopout} onChange={(v) => set({ autoPopout: v })} />
     },
+    ...(s.autoPopout
+      ? [
+          {
+            category: 'tabs' as const,
+            label: 'Only on these sites',
+            hint: 'Leave empty to pop out videos on any site.',
+            keywords: 'pop out sites youtube twitch',
+            wide: true,
+            control: <AwakeSites sites={s.popoutSites ?? []} onChange={(popoutSites) => set({ popoutSites })} />
+          }
+        ]
+      : []),
     {
       category: 'tabs',
       label: 'Unload closed sidebar panels',
@@ -1860,6 +2652,49 @@ function useSettingRows(s: S | null, onClear: () => void): Row[] {
           Open setup
         </button>
       )
+    },
+    {
+      category: 'startup',
+      group: 'Language',
+      label: 'Translate pages into',
+      hint: 'The language Translate uses. Its button shows in the address bar on foreign pages, and Ctrl+K can translate any page. Page text is sent to Google Translate.',
+      keywords: 'translate language foreign google',
+      control: (
+        <Select
+          value={s.translateTo ?? ''}
+          width={210}
+          onChange={(translateTo) => set({ translateTo })}
+          options={[{ value: '', label: 'Same as Alchemy' }, ...TRANSLATE_LANGUAGES.map(([value, label]) => ({ value, label }))]}
+        />
+      )
+    },
+    {
+      category: 'startup',
+      group: 'Advanced',
+      label: 'Use graphics acceleration',
+      hint:
+        gpuNow !== null && gpuNow !== perf.hardwareAcceleration
+          ? 'Restart Alchemy to apply this change.'
+          : 'Draws pages with your graphics card. Turn off if videos flicker or pages show glitches.',
+      keywords: 'hardware acceleration gpu graphics card flicker',
+      control: (
+        <div className="row-actions">
+          {gpuNow !== null && gpuNow !== perf.hardwareAcceleration && (
+            <button className="btn small" onClick={() => api.invoke('app:restart')}>
+              Restart now
+            </button>
+          )}
+          <Switch on={perf.hardwareAcceleration} onChange={(hardwareAcceleration) => setPerf({ hardwareAcceleration })} />
+        </div>
+      )
+    },
+    {
+      category: 'startup',
+      group: 'Advanced',
+      label: 'Developer options',
+      hint: 'Shows Inspect in the page menu, custom scripts in Site magic and memory use in tab cards.',
+      keywords: 'developer devtools inspect scripts advanced debug',
+      control: <Switch on={!!s.developer} onChange={(developer) => set({ developer })} />
     }
   ]
 }
@@ -1897,6 +2732,9 @@ function WorkspacesSection({ settings }: { settings: S }): React.JSX.Element {
                 <button className="btn small" onClick={() => setEditing(w)}>
                   <Pencil size={13} /> Edit
                 </button>
+                <button className="btn small" title="Copy its look and options into a new workspace" onClick={() => api.invoke('workspace:duplicate', w.id)}>
+                  Duplicate
+                </button>
                 {settings.workspaces.length > 1 && (
                   <button className="icon-btn" title="Delete" onClick={() => api.invoke('workspace:delete', w.id)}>
                     <Trash2 size={15} />
@@ -1917,6 +2755,12 @@ function WorkspacesSection({ settings }: { settings: S }): React.JSX.Element {
 
 function WorkspaceDialog({ ws, onClose }: { ws: Workspace; onClose: () => void }): React.JSX.Element {
   const [w, setW] = useState(ws)
+  const settings = useSettings((st) => st.settings)
+  const [folders, setFolders] = useState<{ id: string; title: string }[]>([])
+  useEffect(() => {
+    void api.invoke<{ id: string; type: string; title: string }[]>('bookmarks:list').then((all) => setFolders(all.filter((b) => b.type === 'folder' && b.id !== 'bar' && b.id !== 'root' && b.id !== 'other')))
+  }, [])
+  const panels = settings?.panels ?? []
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form
@@ -1935,6 +2779,47 @@ function WorkspaceDialog({ ws, onClose }: { ws: Workspace; onClose: () => void }
           <WorkspaceIconPicker value={w.icon} name={w.name} onChange={(icon) => setW({ ...w, icon })} />
           <div className="set-hint">Color</div>
           <AccentPicker value={w.accent} allowDefault onChange={(accent) => setW({ ...w, accent })} size={24} />
+          <div className="set-hint">Opens with (when it has no tabs)</div>
+          <input className="field" placeholder="The new tab page, or a site like mail.google.com" value={w.homeUrl ?? ''} onChange={(e) => setW({ ...w, homeUrl: e.target.value })} />
+          <div className="set-hint">Search engine</div>
+          <Select
+            value={w.searchEngine ?? ''}
+            width={260}
+            onChange={(searchEngine) => setW({ ...w, searchEngine })}
+            options={[{ value: '', label: 'Same as the browser' }, ...(settings ? allEngines(settings) : []).map((e) => ({ value: e.id, label: e.name }))]}
+          />
+          <div className="set-hint">Bookmarks bar shows</div>
+          <Select
+            value={w.barFolder ?? ''}
+            width={260}
+            onChange={(barFolder) => setW({ ...w, barFolder })}
+            options={[{ value: '', label: 'The Bookmarks bar folder' }, ...folders.map((f) => ({ value: f.id, label: f.title || 'Folder' }))]}
+          />
+          {panels.length > 0 && (
+            <>
+              <div className="set-hint">Sidebar sites shown here</div>
+              <div className="chips">
+                {panels.map((p) => {
+                  const on = !w.panels || w.panels.includes(p.id)
+                  return (
+                    <button
+                      type="button"
+                      key={p.id}
+                      className={`chip${on ? ' on' : ''}`}
+                      onClick={() => {
+                        const current = w.panels ?? panels.map((x) => x.id)
+                        const next = on ? current.filter((id) => id !== p.id) : [...current, p.id]
+                        setW({ ...w, panels: next.length === panels.length ? undefined : next })
+                      }}
+                    >
+                      {on ? '✓ ' : ''}
+                      {p.title}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
         <div className="buttons">
           <button type="button" className="btn" onClick={onClose}>

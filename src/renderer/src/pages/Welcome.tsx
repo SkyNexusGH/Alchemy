@@ -10,8 +10,6 @@ import {
   Monitor,
   Logo as LogoMark,
   Moon,
-  Palette,
-  Rocket,
   Search,
   Shield,
   Sidebar,
@@ -36,44 +34,46 @@ interface Step {
   body?: (s: Settings) => ReactNode
 }
 
+const ON = { adblock: true, blockCookieBanners: true, httpsUpgrade: true, sendGpc: true } as const
+
+/** The first-run privacy choice is the Aegis level (#429). */
 const PRIVACY_LEVELS = [
   {
-    id: 'balanced',
-    title: 'Balanced',
-    text: 'Blocks ads, trackers, cookie banners and cross-site cookies. Recommended.',
-    patch: { adblock: true, blockCookieBanners: true, blockThirdPartyCookies: true, fingerprintProtection: true, httpsUpgrade: true, sendGpc: true }
+    id: 'chill',
+    title: 'Chill',
+    text: 'Blocks ads only. Every site and login works as usual.',
+    patch: { ...ON, aegisLevel: 'chill', blockThirdPartyCookies: false, fingerprintProtection: false }
   },
   {
-    id: 'relaxed',
-    title: 'Relaxed',
-    text: 'Blocks ads and trackers, but leaves cookies alone so every login works.',
-    patch: { adblock: true, blockCookieBanners: true, blockThirdPartyCookies: false, fingerprintProtection: false, httpsUpgrade: true, sendGpc: true }
+    id: 'comfort',
+    title: 'Comfort (recommended)',
+    text: 'Blocks ads, trackers and cookie banners, and keeps cookies to the site you’re on.',
+    patch: { ...ON, aegisLevel: 'comfort', blockThirdPartyCookies: true, fingerprintProtection: true }
+  },
+  {
+    id: 'extreme',
+    title: 'Extreme',
+    text: 'Also blocks annoyances like pop-ups and chat widgets. A few sites may need Aegis turned off.',
+    patch: { ...ON, aegisLevel: 'extreme', blockThirdPartyCookies: true, fingerprintProtection: true }
   },
   {
     id: 'off',
     title: 'Off',
-    text: 'No blocking at all. You can turn things on later in Settings.',
+    text: 'No blocking at all. You can turn it on later in Settings.',
     patch: { adblock: false, blockCookieBanners: false, blockThirdPartyCookies: false, fingerprintProtection: false, httpsUpgrade: false, sendGpc: false }
   }
 ] as const
 
 function privacyLevel(s: Settings): string {
-  if (!s.adblock) return 'off'
-  return s.blockThirdPartyCookies ? 'balanced' : 'relaxed'
+  return s.adblock ? (s.aegisLevel ?? 'comfort') : 'off'
 }
 
 const STEPS: Step[] = [
   {
-    id: 'welcome',
+    id: 'look',
     icon: Sparkle,
     title: 'Welcome to Alchemy',
-    text: 'A fast, private browser that’s yours to shape. Let’s set it up in a minute.'
-  },
-  {
-    id: 'look',
-    icon: Palette,
-    title: 'Pick your look',
-    text: 'Choose a theme and a mode: light, the Alchemy navy, or true black. You can change this any time.',
+    text: 'A fast, private browser that’s yours to shape. Start with a look and an accent color; you can change both any time.',
     body: (s) => (
       <>
         <div className="wz-center">
@@ -82,25 +82,17 @@ const STEPS: Step[] = [
             onChange={(mode) => saveAppearance({ mode })}
             options={[
               { value: 'light', label: 'Light', icon: Sun },
-              { value: 'ovyra', label: 'Alchemy', icon: LogoMark },
+              { value: 'alchemy', label: 'Alchemy', icon: LogoMark },
               { value: 'dark', label: 'Dark', icon: Moon },
               { value: 'system', label: 'System', icon: Monitor }
             ]}
           />
         </div>
         <ThemeGrid settings={s} />
+        <div className="wz-center">
+          <AccentPicker value={s.appearance.accent} onChange={(accent) => accent && saveAppearance({ accent })} size={28} />
+        </div>
       </>
-    )
-  },
-  {
-    id: 'accent',
-    icon: Palette,
-    title: 'Your accent color',
-    text: 'Used for the active tab, highlights and buttons. Each theme comes with one; make it yours.',
-    body: (s) => (
-      <div className="wz-center">
-        <AccentPicker value={s.appearance.accent} onChange={(accent) => accent && saveAppearance({ accent })} size={34} />
-      </div>
     )
   },
   {
@@ -122,8 +114,8 @@ const STEPS: Step[] = [
   {
     id: 'privacy',
     icon: Shield,
-    title: 'How private?',
-    text: 'Alchemy blocks ads and trackers with the same lists as uBlock Origin. Pick how strict to be.',
+    title: 'How strict should Aegis be?',
+    text: 'Aegis, Alchemy’s blocker, uses the same lists as uBlock Origin. You can change the level for any site later.',
     body: (s) => (
       <div className="wz-options column">
         {PRIVACY_LEVELS.map((l) => (
@@ -166,18 +158,12 @@ const STEPS: Step[] = [
     id: 'import',
     icon: Upload,
     title: 'Bring your stuff over',
-    text: 'Copy bookmarks, history and your Opera speed dial from browsers on this PC. Nothing is uploaded.',
+    text: 'Copy bookmarks, history and your Opera speed dial from browsers on this PC. Nothing is uploaded. Then you’re set: press Ctrl+K any time to search tabs and commands.',
     body: () => (
       <div className="wz-center">
         <ImportButtons />
       </div>
     )
-  },
-  {
-    id: 'done',
-    icon: Rocket,
-    title: 'You’re all set',
-    text: 'Press Ctrl+K any time to search tabs and commands. Right-click the sidebar to make it yours.'
   }
 ]
 
@@ -211,9 +197,9 @@ export default function Welcome(): React.JSX.Element {
     <div className="wizard">
       {bg && <div className="wz-bg" style={{ backgroundImage: `url("${bg}")` }} />}
       <div className="wz-card" key={step.id}>
-        {step.id === 'welcome' || step.id === 'done' ? (
+        {index === 0 ? (
           <div className="wz-hero">
-            <BrandLogo size={step.id === 'welcome' ? 104 : 80} />
+            <BrandLogo size={72} />
           </div>
         ) : (
           <div className="wz-icon">
@@ -231,7 +217,7 @@ export default function Welcome(): React.JSX.Element {
             ))}
           </div>
           <div className="wz-buttons">
-            {index > 0 && !last && (
+            {index > 0 && (
               <button className="btn ghost" onClick={() => setIndex(index - 1)}>
                 <ArrowLeft size={15} /> Back
               </button>

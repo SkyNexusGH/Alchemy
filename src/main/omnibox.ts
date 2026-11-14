@@ -26,6 +26,14 @@ export function looksLikeUrl(input: string): boolean {
 export function localSuggestions(text: string): LocalSuggestions {
   const q = text.trim()
   if (!q) return { items: [], inline: null }
+  // #108 "@bookmarks words" (or "@b words") searches only your bookmarks.
+  const scoped = q.match(/^@(?:bookmarks|b)\s+(.*)$/i)
+  if (scoped) {
+    return {
+      items: searchBookmarks(scoped[1], 8).map((b) => ({ kind: 'bookmark' as const, title: b.title, value: b.url!, detail: stripUrl(b.url!), favicon: b.favicon })),
+      inline: null
+    }
+  }
   const items: Suggestion[] = []
   const seen = new Set<string>()
   const push = (s: Suggestion): void => {
@@ -57,7 +65,7 @@ export async function remoteSuggestions(text: string, engine?: SearchEngineId): 
   inflight?.abort()
   const controller = new AbortController()
   inflight = controller
-  suggestSession ??= session.fromPartition('ovyra-suggest', { cache: false })
+  suggestSession ??= session.fromPartition('alchemy-suggest', { cache: false })
   try {
     const res = await suggestSession.fetch(endpoint.replace('%s', encodeURIComponent(q)), {
       signal: controller.signal,

@@ -2,7 +2,7 @@ import { PANEL_PRESETS, type Appearance, type CustomEngine, type Performance, ty
 import { JsonStore } from './store'
 
 const DEFAULT_APPEARANCE: Appearance = {
-  mode: 'ovyra',
+  mode: 'alchemy',
   background: 'default',
   customBackground: null,
   accent: '#ec4856',
@@ -55,7 +55,7 @@ const DEFAULTS: Settings = {
   downloadDir: null,
   askWhereToSave: false,
   speedDial: DEFAULT_SPEED_DIAL,
-  widgets: { weather: true, quote: true, todo: false, news: false, focus: false, stats: true, music: true, countdown: false, recent: true },
+  widgets: { weather: false, todo: false, news: false, focus: false, recent: false },
   weatherPlace: null,
   tempUnit: 'C',
   todos: [],
@@ -85,14 +85,32 @@ const DEFAULTS: Settings = {
   splitBlockCounts: false,
   aegisLevel: 'comfort',
   multiEngines: ['google', 'bing', 'duckduckgo'],
-  lab: { ask: false, instantAnswers: false, voice: false, tabSearch: true, searchEverywhere: true },
+  lab: { ask: false, instantAnswers: false, voice: false, tabSearch: true, searchEverywhere: true, smartAsk: false, voiceModel: 'small', voiceLanguage: '' },
   passwordManager: true,
   forceDark: false,
   forceDarkOff: [],
+  forceDarkWhen: 'always',
+  forceDarkBrightness: 100,
+  forceDarkContrast: 100,
+  forceDarkDimImages: false,
   elixirs: {},
   pasteProtection: true,
   fingerprintProfiles: true,
   batterySaver: 'auto',
+  developer: false,
+  aegisSiteLevels: {},
+  aegisPanels: true,
+  blockAutoplay: false,
+  webrtcStrict: false,
+  sendDnt: false,
+  fingerprintOff: [],
+  pwNever: [],
+  autofill: true,
+  pwGenerator: { length: 20, symbols: true, readable: true },
+  lockWithHello: false,
+  newTabPosition: 'end',
+  afterClose: 'recent',
+  ctrlTabOrder: 'recent',
   performance: DEFAULT_PERFORMANCE
 }
 
@@ -114,7 +132,13 @@ function migrate(s: Settings & Record<string, unknown>): void {
     electric: '#322eef'
   }
   s.appearance = { ...DEFAULT_APPEARANCE, ...(s.appearance ?? {}) }
-  s.widgets = { ...DEFAULTS.widgets, ...(s.widgets ?? {}) }
+  {
+    // Quote, Now playing and Aegis stats were retired; Countdown joined the focus timer.
+    const old = (s.widgets ?? {}) as Record<string, boolean>
+    s.widgets = { ...DEFAULTS.widgets, ...old }
+    if (old.countdown) s.widgets.focus = true
+    for (const k of ['quote', 'music', 'stats', 'countdown']) delete (s.widgets as Record<string, boolean>)[k]
+  }
   s.lab = { ...DEFAULTS.lab, ...(s.lab ?? {}) }
   s.performance = { ...DEFAULT_PERFORMANCE, ...(s.performance ?? {}) }
   s.customEngines ??= DEFAULT_ENGINES
@@ -136,8 +160,14 @@ function migrate(s: Settings & Record<string, unknown>): void {
   if (s.speedDial.length && s.speedDial.every((d) => OLD_DIAL.includes(d.id))) s.speedDial = DEFAULT_SPEED_DIAL
   // v2: "dark" used to be the navy look, which is now its own mode, Alchemy; dark is true black.
   if ((s.version ?? 1) < 2) {
-    if (s.appearance.mode === 'dark') s.appearance.mode = 'ovyra'
+    if (s.appearance.mode === 'dark') s.appearance.mode = 'alchemy'
     s.version = 2
+  }
+  // v3: the navy mode and its plain theme lost their old Ovyra names.
+  if ((s.version ?? 1) < 3) {
+    if ((s.appearance.mode as string) === 'ovyra') s.appearance.mode = 'alchemy'
+    if (s.appearance.background === 'plain-ovyra') s.appearance.background = 'plain-alchemy'
+    s.version = 3
   }
 }
 

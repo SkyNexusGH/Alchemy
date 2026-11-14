@@ -42,7 +42,10 @@ const card = (() => {
 export function BookmarksBar(): React.JSX.Element {
   const bookmarks = useShell((s) => s.bookmarks)
   const style = useSettings((s) => s.settings?.appearance.bookmarkStyle ?? 'classic')
-  const items = bookmarks.filter((b) => b.parentId === 'bar')
+  // Each workspace can show its own folder on the bar.
+  const workspaceId = useShell((s) => s.win.workspaceId)
+  const folder = useSettings((s) => s.settings?.workspaces.find((w) => w.id === workspaceId)?.barFolder ?? 'bar')
+  const items = bookmarks.filter((b) => b.parentId === folder)
   // Icons only and Dock show just the site icons; names appear in the hover card.
   const iconsOnly = style === 'icons' || style === 'dock'
 

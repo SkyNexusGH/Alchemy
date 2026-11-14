@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { getHostname, parse } from 'tldts-experimental'
 import { getSettings } from '../settings'
-import { getBlocker, isTracker } from './engine'
+import { getBlocker, isDangerous, isTracker, levelFor } from './engine'
 import { countBlocked, shieldsEnabled, siteOf, siteProtected } from './shields'
 
 // Ghostery's cosmetic-filter preload hides ad placeholders and runs uBO scriptlets in every frame.
@@ -64,13 +64,46 @@ function isThirdParty(url: string, top: string | null): boolean {
   return !!top && /^https?:/.test(top) && siteOf(url) !== siteOf(top)
 }
 
+// ---- which sessions are which -------------------------------------------------------
+
+/** Masked Mode and Tor sessions: Aegis runs at Extreme there (#428). */
+const maskedSessions = new WeakSet<Session>()
+/** The sidebar sites' session, which has its own switch (#419). */
+const panelSessions = new WeakSet<Session>()
+
+export const isMaskedSession = (s: Session | undefined): boolean => !!s && maskedSessions.has(s)
+
+/** Whether Aegis blocks in this session at all. */
+function blocksIn(session: Session | undefined): boolean {
+  return !(session && panelSessions.has(session) && getSettings().aegisPanels === false)
+}
+
+const levelOf = (session: Session | undefined, top: string | null): ReturnType<typeof levelFor> => levelFor(top, isMaskedSession(session))
+
+// ---- known dangerous pages (#421) -----------------------------------------------------
+
+/** Sites you chose to open anyway this session. */
+const allowedDanger = new Set<string>()
+
+export function allowDangerousSite(url: string): void {
+  allowedDanger.add(siteOf(url))
+}
+
+/** A page on the malware or phishing lists goes to a warning instead. */
+function dangerousPage(url: string, session: Session | undefined): boolean {
+  if (!/^https?:/.test(url) || allowedDanger.has(siteOf(url)) || !getSettings().adblock || !blocksIn(session)) return false
+  return isDangerous(url)
+}
+
 function onBeforeRequest(
+  session: Session | undefined,
   details: Electron.OnBeforeRequestListenerDetails,
   callback: (response: Electron.CallbackResponse) => void
 ): void {
   const { url, resourceType, webContentsId } = details
 
   if (resourceType === 'mainFrame') {
+    if (dangerousPage(url, session)) return callback({ redirectURL: `alchemy://error/?c=danger&u=${encodeURIComponent(url)}` })
     if (getSettings().httpsUpgrade && url.startsWith('http://') && siteProtected(url)) {
       const host = getHostname(url) ?? ''
       if (upgradable(host)) {
@@ -83,9 +116,10 @@ function onBeforeRequest(
     return callback({})
   }
 
-  const blocker = getBlocker()
   const top = topUrl(webContentsId) ?? details.referrer
-  if (!blocker || !top || !shieldsEnabled(top)) return callback({})
+  if (!top || !shieldsEnabled(top) || !blocksIn(session)) return callback({})
+  const blocker = getBlocker(levelOf(session, top))
+  if (!blocker) return callback({})
 
   const request = Request.fromRawDetails({
     requestId: `${details.id}`,
@@ -150,6 +184,7 @@ function onBeforeSendHeaders(
   if (top && !siteProtected(top)) return callback({ requestHeaders: headers })
 
   if (settings.sendGpc) headers['Sec-GPC'] = '1'
+  if (settings.sendDnt) headers.DNT = '1'
   if (settings.blockThirdPartyCookies && details.resourceType !== 'mainFrame' && isThirdParty(details.url, top)) {
     for (const name of Object.keys(headers)) if (name.toLowerCase() === 'cookie') delete headers[name]
   }
@@ -157,6 +192,7 @@ function onBeforeSendHeaders(
 }
 
 function onHeadersReceived(
+  session: Session | undefined,
   details: Electron.OnHeadersReceivedListenerDetails,
   callback: (response: Electron.HeadersReceivedResponse) => void
 ): void {
@@ -166,7 +202,7 @@ function onHeadersReceived(
   let changed = false
 
   // Filters can add a Content-Security-Policy (e.g. to stop a page's inline miners or popups).
-  const blocker = getBlocker()
+  const blocker = top && blocksIn(session) ? getBlocker(levelOf(session, top)) : null
   if (blocker && isFrame && top && shieldsEnabled(top)) {
     const csp = blocker.getCSPDirectives(
       Request.fromRawDetails({
@@ -216,21 +252,23 @@ function seedFor(url: string): number {
   return h
 }
 
-export function protectSession(session: Session): void {
+export function protectSession(session: Session, opts: { masked?: boolean; panels?: boolean } = {}): void {
+  if (opts.masked) maskedSessions.add(session)
+  if (opts.panels) panelSessions.add(session)
   session.registerPreloadScript({ type: 'frame', filePath: COSMETIC_PRELOAD })
   session.registerPreloadScript({ type: 'frame', filePath: FRAME_PRELOAD })
-  session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, onBeforeRequest)
+  session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (d, cb) => onBeforeRequest(session, d, cb))
   session.webRequest.onBeforeSendHeaders({ urls: ['<all_urls>'] }, onBeforeSendHeaders)
-  session.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, onHeadersReceived)
+  session.webRequest.onHeadersReceived({ urls: ['<all_urls>'] }, (d, cb) => onHeadersReceived(session, d, cb))
 }
 
 export function registerPrivacyIpc(): void {
   // Element hiding (styles) arrives here once the page has loaded. Scriptlets are NOT
-  // injected here: they already ran at document start via 'ovyra:frame' below, which is
+  // injected here: they already ran at document start via 'alchemy:frame' below, which is
   // the only way they can beat sites like YouTube that read their data immediately.
   ipcMain.handle('@ghostery/adblocker/inject-cosmetic-filters', (event, url: string, msg) => {
-    const blocker = getBlocker()
     const top = event.sender.getURL() || url
+    const blocker = blocksIn(event.sender.session) ? getBlocker(levelOf(event.sender.session, top)) : null
     if (!blocker || !shieldsEnabled(top)) return
     const { hostname, domain } = parse(url)
     const firstRun = msg === undefined
@@ -251,27 +289,29 @@ export function registerPrivacyIpc(): void {
     if (active !== false && styles.length) void event.sender.insertCSS(styles, { cssOrigin: 'user' })
   })
   ipcMain.handle('@ghostery/adblocker/is-mutation-observer-enabled', (event) => {
-    const blocker = getBlocker()
+    const blocker = blocksIn(event.sender.session) ? getBlocker(levelOf(event.sender.session, event.sender.getURL())) : null
     return !!blocker && shieldsEnabled(event.sender.getURL()) && blocker.config.enableMutationObserver
   })
   // Asked synchronously by every frame before page scripts run.
   // A page tried to change the clipboard behind your back; tell whoever's looking at it.
-  ipcMain.on('ovyra:clipboard-blocked', (event) => {
+  ipcMain.on('alchemy:clipboard-blocked', (event) => {
     for (const fn of clipboardListeners) fn(event.sender.id)
   })
-  ipcMain.on('ovyra:frame', (event, frameUrl: string) => {
+  ipcMain.on('alchemy:frame', (event, frameUrl: string) => {
     // While a new page starts, the tab still reports the old address; its own frame knows better.
     const top = event.senderFrame === event.sender.mainFrame && frameUrl ? frameUrl : event.sender.getURL()
     const settings = getSettings()
     const on = /^https?:/.test(top) && siteProtected(top)
+    // #447 Fingerprint protection can be off for one site that breaks with it.
+    const farble = on && settings.fingerprintProtection && !(settings.fingerprintOff ?? []).includes(siteOf(top))
     event.returnValue = {
-      farble: on && settings.fingerprintProtection,
+      farble,
       gpc: on && settings.sendGpc,
       seed: seedFor(top),
       clipboard: on && settings.pasteProtection,
-      profile: on && settings.fingerprintProtection && settings.fingerprintProfiles,
+      profile: farble && settings.fingerprintProfiles,
       popout: settings.videoPopout,
-      scriptlets: scriptletsFor(frameUrl || top, top)
+      scriptlets: blocksIn(event.sender.session) ? scriptletsFor(frameUrl || top, top, levelOf(event.sender.session, top)) : []
     }
   })
 }
@@ -280,8 +320,8 @@ export function registerPrivacyIpc(): void {
  * uBlock-style scriptlets for a frame (e.g. YouTube's ad-stripping json-prune rules).
  * They must run before the page's own scripts, so the frame asks for them synchronously.
  */
-function scriptletsFor(url: string, top: string): string[] {
-  const blocker = getBlocker()
+function scriptletsFor(url: string, top: string, level: ReturnType<typeof levelFor>): string[] {
+  const blocker = getBlocker(level)
   if (!blocker || !/^https?:/.test(url) || !shieldsEnabled(top)) return []
   const { hostname, domain } = parse(url)
   const { active, scripts } = blocker.getCosmeticsFilters({

@@ -20,7 +20,7 @@ interface LivePanel {
 }
 
 /** Desktop sites are built for wide windows; a slightly smaller zoom fits them in a sidebar. */
-const PANEL_ZOOM = 0.8
+const PANEL_ZOOM = 1
 
 /**
  * Sidebar sites load their mobile version by default: the sidebar is phone-sized, so that's
@@ -67,7 +67,7 @@ function panelSessionFor(): Session {
   if (!panelSession) {
     panelSession = session.fromPartition('persist:panels')
     // Messengers are useless without notifications, so those are allowed up front.
-    setupBrowsingSession(panelSession, { incognito: false, autoAllow: ['notifications'] })
+    setupBrowsingSession(panelSession, { incognito: false, autoAllow: ['notifications'], panels: true })
   }
   return panelSession
 }
@@ -274,7 +274,7 @@ async function iconFor(id: string, url: string): Promise<string | null> {
   if (meta.data.favicons[id]) return meta.data.favicons[id]
   try {
     // A separate, cookie-less session: fetching an icon shouldn't identify the user to the site.
-    iconSession ??= session.fromPartition('ovyra-icons', { cache: false })
+    iconSession ??= session.fromPartition('alchemy-icons', { cache: false })
     const icon = (await fetchIcon(new URL('/favicon.ico', url).toString())) ?? (await fetchIcon(await iconFromPage(url)))
     if (!icon) return null
     meta.data.favicons[id] = icon

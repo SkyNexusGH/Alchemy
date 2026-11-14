@@ -722,20 +722,6 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
   border-radius: 2px;
   background: var(--accent-fg);
 }
-.rail-clock {
-  display: grid;
-  justify-items: center;
-  flex-shrink: 0;
-  padding: 6px 0 2px;
-  color: var(--text-2);
-  font-size: 12px;
-  line-height: 1.15;
-  font-variant-numeric: tabular-nums;
-}
-.rail-clock b {
-  color: var(--text);
-  font-weight: 650;
-}
 .rail-divider {
   width: 22px;
   height: 1px;
@@ -997,7 +983,9 @@ html[data-compact='true'] .shell.sidebar-hidden:not(.peek) {
 .omni-mic.listening {
   background: var(--danger);
   color: #fff;
-  animation: mic-pulse 1.2s ease-in-out infinite;
+  /* The live level meter: the ring grows with your voice. */
+  box-shadow: 0 0 0 calc(var(--level, 0) * 7px) color-mix(in srgb, var(--danger) 30%, transparent);
+  transition: box-shadow 80ms linear;
 }
 .omni-mic.downloading,
 .omni-mic.transcribing {
@@ -1510,7 +1498,7 @@ browser-action-list::part(badge) {
 }
 .content.split {
   display: flex;
-  gap: 8px;
+  gap: 0;
   background: transparent;
   box-shadow: none;
 }
@@ -1764,6 +1752,67 @@ browser-action-list::part(badge) {
 .ask-input .field {
   width: 100%;
 }
+.ask-download {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 10px;
+}
+.ask-download span {
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ask-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ask-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms;
+}
+.ask-selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 6px 8px;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.ask-selection span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ask-unsure {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 650;
+  vertical-align: middle;
+}
+.ask-summary {
+  white-space: pre-line;
+  font-weight: 520;
+}
+.ask-more {
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
 .ask-private {
   display: flex;
   align-items: center;
@@ -1772,4 +1821,153 @@ browser-action-list::part(badge) {
   padding: 2px 8px 8px;
   color: var(--text-3);
   font-size: 11px;
+}
+
+/* Group names on the dot, and naming a group in place. */
+.island-handle.named,
+.island-handle.renaming {
+  width: auto;
+  gap: 5px;
+  padding: 0 8px 0 6px;
+}
+.island-name {
+  max-width: 110px;
+  overflow: hidden;
+  color: var(--ic);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.island-name-input {
+  width: 110px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--ic);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11.5px;
+}
+.island-color-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* A tab that is recording: camera, microphone or screen. */
+.rec-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--bar, var(--surface));
+  animation: rec-pulse 1.6s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Narrow tabs only show their close button on the tab you're on (or on hover), so a
+   background tab isn't closed by a slightly missed click. */
+.tabstrip:not(.vertical) .tab {
+  container-type: inline-size;
+}
+@container (max-width: 96px) {
+  .tab:not(.active):not(:hover) .tab-close {
+    display: none;
+  }
+}
+
+.content.split.vertical {
+  flex-direction: column;
+}
+.split-pane {
+  min-width: 0;
+  min-height: 0;
+}
+/* The line between split pages: drag it to resize. Same width as the main process' gap. */
+.split-handle {
+  position: relative;
+  flex: 0 0 8px;
+  display: grid;
+  place-items: center;
+  cursor: col-resize;
+}
+.content.split.vertical .split-handle {
+  cursor: row-resize;
+}
+.split-handle::before {
+  content: '';
+  width: 2px;
+  height: 36px;
+  border-radius: 2px;
+  background: var(--border-2);
+  transition: background 120ms;
+}
+.content.split.vertical .split-handle::before {
+  width: 36px;
+  height: 2px;
+}
+.split-handle:hover::before {
+  background: var(--accent-fg);
+}
+
+.toast-action.quiet {
+  background: transparent;
+  color: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--border-2);
+}
+
+.bm-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface);
+}
+.bm-tabs button {
+  padding: 3px 9px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 650;
+}
+.bm-tabs button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.later-row {
+  display: flex;
+  align-items: center;
+}
+.later-row .bm-node {
+  flex: 1;
+  min-width: 0;
+}
+.later-row.read {
+  opacity: 0.55;
+}
+.later-row .icon-btn {
+  opacity: 0;
+}
+.later-row:hover .icon-btn {
+  opacity: 1;
+}
+.later-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px 8px 4px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }

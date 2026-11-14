@@ -1,4 +1,5 @@
 import { app, net, protocol, type Session } from 'electron'
+import { getSettings } from './settings'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { INTERNAL_PAGES } from '@shared/types'
@@ -16,6 +17,9 @@ export function registerSchemePrivileges(): void {
     }
   ])
 }
+
+/** The pictures (and short videos) a wallpaper folder may hold. */
+export const WALLPAPER = /\.(jpe?g|png|webp|avif|gif|mp4|webm)$/i
 
 export function userAssetsDir(): string {
   return join(app.getPath('userData'), 'assets')
@@ -36,6 +40,13 @@ export function serveRendererBundle(ses: Session): void {
       const name = decodeURIComponent(url.pathname.slice(1))
       if (!/^[\w.-]+$/.test(name)) return new Response('Forbidden', { status: 403 })
       return net.fetch(pathToFileURL(join(userAssetsDir(), name)).toString())
+    }
+    // alchemy://wallpaper/<file>: a picture from the folder picked in Settings (#175).
+    if (url.host === 'wallpaper') {
+      const name = decodeURIComponent(url.pathname.slice(1))
+      const dir = getSettings().appearance.wallpaperFolder
+      if (!dir || name.includes('/') || name.includes('\\') || !WALLPAPER.test(name)) return new Response('Forbidden', { status: 403 })
+      return net.fetch(pathToFileURL(join(dir, name)).toString())
     }
     if (!HOSTS.has(url.host)) return new Response('Not found', { status: 404 })
     const path = decodeURIComponent(url.pathname)

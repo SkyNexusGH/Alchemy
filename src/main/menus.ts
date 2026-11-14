@@ -8,6 +8,8 @@ import { extensionMenuItems, listExtensions } from './extensions'
 import { blockStats } from './privacy/shields'
 import { searchUrl } from './omnibox'
 import { showMenu } from './popup'
+import { addLater } from './later'
+import { toggleReader } from './reader'
 import { getSettings } from './settings'
 import type { Tab } from './tab'
 import { updateState } from './updater'
@@ -29,16 +31,19 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
   const selection = p.selectionText.trim()
 
   if (p.linkURL) {
+    const one = (url: string): { tabs: { url: string; title: string; favicon: null; pinned: false }[]; active: number } => ({ tabs: [{ url, title: '', favicon: null, pinned: false }], active: 0 })
+    const newWindow: Item = { label: 'New window', click: () => BrowserWin.open({ ...one(p.linkURL), incognito: bw.incognito, tor: bw.tor }) }
+    // With "Hide my IP in Masked Mode" on, Masked Mode is Alchemy Tor, so offer only that.
+    const masked: Item | null = bw.incognito || getSettings().maskedUsesTor ? null : { label: 'Open link in Masked Mode', click: () => BrowserWin.open({ ...one(p.linkURL), incognito: true }) }
+    const tor: Item | null = bw.tor ? null : { label: 'Alchemy Tor', click: () => BrowserWin.open({ ...one(p.linkURL), tor: true }) }
     items.push(
       { label: 'Open link in new tab', click: () => bw.newTab(p.linkURL, { foreground: false, opener: tab }) },
-      { label: 'Open link in new window', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: bw.incognito, tor: bw.tor }) },
-      // With "Hide my IP in Masked Mode" on, Masked Mode is Alchemy Tor, so offer only that.
-      ...(bw.incognito || getSettings().maskedUsesTor
-        ? []
-        : [{ label: 'Open link in Masked Mode', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, incognito: true }) }]),
-      ...(bw.tor
-        ? []
-        : [{ label: 'Open link in Alchemy Tor', click: () => BrowserWin.open({ tabs: [{ url: p.linkURL, title: '', favicon: null, pinned: false }], active: 0, tor: true }) }]),
+      {
+        label: bw.split?.includes(tab.id) ? 'Open link on the other side' : 'Open link in split view',
+        click: () => bw.openInOtherPane(tab, p.linkURL)
+      },
+      ...(masked ? [masked] : []),
+      { label: 'Open link in', submenu: [newWindow, ...(tor ? [tor] : [])] },
       { label: 'Copy link address', click: () => clipboard.writeText(p.linkURL) },
       SEP
     )
@@ -57,7 +62,15 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
   }
 
   if (!p.isEditable && /^https?:/.test(p.pageURL)) {
-    items.push({ label: 'MyHue Restyle this site…', click: () => bw.openRestyle() })
+    items.push(
+      { label: 'Reader view', click: () => void toggleReader(wc), ...hint('F9') },
+      {
+        label: 'Save to Later list',
+        enabled: !bw.incognito,
+        click: () => addLater(tab.pageUrl(), tab.title, tab.favicon) && bw.send('toast', { text: 'Saved to your Later list', action: { label: 'Show', cmd: 'later' } })
+      },
+      { label: 'MyHue Restyle this site…', click: () => bw.openRestyle() }
+    )
     if (getSettings().lab?.ask && !bw.incognito) items.push({ label: 'Ask this page…', click: () => bw.send('ask:toggle') })
     items.push(SEP)
   }
@@ -107,8 +120,8 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
 
   // Items added by extensions (chrome.contextMenus) go just above "Inspect".
   const extra = extensionMenuItems(wc, p)
-  const all: (Item | Electron.MenuItem)[] = [...items, ...(extra.length ? [SEP, ...extra] : []), SEP]
-  all.push({
+  const all: (Item | Electron.MenuItem)[] = [...items, ...(extra.length ? [SEP, ...extra] : [])]
+  if (getSettings().developer) all.push(SEP, {
     label: 'Inspect',
     click: () => {
       bw.openDevTools(tab)
@@ -122,14 +135,33 @@ export function pageContextMenu(bw: BrowserWin, tab: Tab, p: Electron.ContextMen
 }
 
 /** Group colors, as a submenu with dots. */
-function colorItems(pick: (color: string) => void, current?: string): Item[] {
-  return ISLAND_COLORS.map((color, i) => ({
-    label: ISLAND_COLOR_NAMES[i],
-    color,
-    type: current ? ('radio' as const) : ('normal' as const),
-    checked: color === current,
-    click: () => pick(color)
-  }))
+function colorItems(pick: (color: string) => void, current?: string, custom?: () => void): Item[] {
+  return [
+    ...ISLAND_COLORS.map((color, i) => ({
+      label: ISLAND_COLOR_NAMES[i],
+      color,
+      type: current ? ('radio' as const) : ('normal' as const),
+      checked: color === current,
+      click: () => pick(color)
+    })),
+    ...(custom ? [SEP, { label: 'Any color…', click: custom }] : [])
+  ]
+}
+
+/** Other windows a tab can move to (same kind: normal, Masked or Tor). */
+function moveItems(bw: BrowserWin, tab: Tab): Item[] {
+  const others = [...BrowserWin.all].filter((w) => w !== bw && w.incognito === bw.incognito && w.tor === bw.tor)
+  return [
+    { label: 'Move to new window', enabled: bw.tabs.length > 1, click: () => bw.moveTabToWindow(tab, null) },
+    ...(others.length
+      ? [
+          {
+            label: 'Move to window',
+            submenu: others.map((w, i) => ({ label: `${w.active?.title || 'Window'}${others.length > 1 ? ` (${i + 1})` : ''}`.slice(0, 60), click: () => bw.moveTabToWindow(tab, w) }))
+          }
+        ]
+      : [])
+  ]
 }
 
 /** Several tabs picked with Ctrl/Shift+click: act on all of them. */
@@ -181,8 +213,18 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number, s
       : tab.id === bw.activeId
         ? { label: 'Split view with next tab', click: () => bw.splitWith(tab) }
         : { label: 'Split view with current tab', click: () => bw.active && bw.splitWith(bw.active, tab) },
+    ...(bw.split?.includes(tab.id)
+      ? [
+          { label: 'Swap sides', click: () => bw.swapSplit() },
+          { label: bw.splitVertical ? 'Split side by side' : 'Split top and bottom', click: () => bw.toggleSplitDirection() }
+        ]
+      : []),
     { label: tab.pinned ? 'Unpin' : 'Pin', click: () => bw.setPinned(tab, !tab.pinned) },
-    { label: tab.muted ? 'Unmute site' : 'Mute site', click: () => tab.setMuted(!tab.muted) },
+    { label: tab.muted ? 'Unmute tab' : 'Mute tab', click: () => tab.setMuted(!tab.muted) },
+    ...(/^https?:/.test(tab.pageUrl())
+      ? [{ label: tab.muted ? `Unmute ${hostOf(tab.pageUrl())}` : `Mute ${hostOf(tab.pageUrl())}`, click: () => bw.muteSite(tab, !tab.muted) }]
+      : []),
+    { label: 'Mute other tabs', click: () => bw.muteOthers(tab) },
     {
       label: 'Put tab to sleep',
       enabled: !tab.sleeping && tab.id !== bw.activeId,
@@ -211,6 +253,7 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number, s
             }))
           }
         ]),
+    ...moveItems(bw, tab),
     SEP,
     ...(island
       ? [
@@ -219,8 +262,21 @@ export function tabContextMenu(bw: BrowserWin, tab: Tab, x: number, y: number, s
           { label: 'Ungroup', click: () => bw.ungroup(tab.islandId!) },
           { label: 'Close group', click: () => bw.closeIsland(tab.islandId!) }
         ]
-      : [{ label: 'Add to new tab group', enabled: !tab.pinned, submenu: colorItems((color) => bw.createIsland([tab], color)) }]),
+      : [
+          { label: 'Add to new tab group', enabled: !tab.pinned, submenu: colorItems((color) => bw.createIsland([tab], color)) },
+          ...(bw.islands.size
+            ? [
+                {
+                  label: 'Add to group',
+                  submenu: [...bw.islands.entries()]
+                    .filter(([id]) => bw.tabs.some((t) => t.islandId === id && t.workspaceId === tab.workspaceId))
+                    .map(([id, g], i) => ({ label: g.name || `Group ${i + 1}`, color: g.color, click: () => bw.joinGroup(tab, id) }))
+                }
+              ]
+            : [])
+        ]),
     SEP,
+    { label: 'Select all tabs', click: () => bw.send('tabs:select-all') },
     { label: 'Close', click: () => bw.closeTab(tab), ...hint('Ctrl+W') },
     { label: 'Close other tabs', enabled: bw.tabs.length > 1, click: () => bw.closeOthers(tab) },
     { label: 'Close tabs to the right', enabled: index < bw.tabs.length - 1, click: () => bw.closeToRight(tab) },
@@ -238,8 +294,10 @@ export function islandMenu(bw: BrowserWin, id: number, x: number, y: number): vo
     bw,
     [
       { label: island.collapsed ? 'Expand group' : 'Collapse group', click: () => bw.toggleIsland(id) },
-      { label: 'Group color', submenu: colorItems((color) => bw.setIslandColor(id, color), island.color) },
+      { label: island.name ? 'Rename group…' : 'Name group…', click: () => bw.send('island:rename', id) },
+      { label: 'Group color', submenu: colorItems((color) => bw.setIslandColor(id, color), island.color, () => bw.send('island:custom-color', id, island.color)) },
       { label: 'New tab in group', click: () => bw.newTabInIsland(id) },
+      { label: 'Put group to sleep', click: () => bw.sleepIsland(id) },
       SEP,
       { label: 'Ungroup', click: () => bw.ungroup(id) },
       { label: 'Close group', click: () => bw.closeIsland(id) }

@@ -6,11 +6,11 @@ import type { Tab } from './tab'
  * Alchemy's floating video player. Instead of Chromium's picture-in-picture window, the
  * whole tab moves into a small window that keeps putting itself back on top, so a video
  * stays visible over borderless-fullscreen games. Inside the page, the video (marked by
- * the video toolbar with data-ovyra-float) is stretched over everything else.
+ * the video toolbar with data-alchemy-float) is stretched over everything else.
  */
 
 const VIDEO_CSS = `
-  [data-ovyra-float] {
+  [data-alchemy-float] {
     position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
     max-width: none !important; max-height: none !important; margin: 0 !important; transform: none !important;
     z-index: 2147483646 !important; object-fit: contain !important; background: #000 !important;
@@ -18,7 +18,7 @@ const VIDEO_CSS = `
   html, body { overflow: hidden !important; background: #000 !important; }
   /* The video may sit inside its own stacking context, under site headers: hide the rest. */
   body * { visibility: hidden !important; }
-  body [data-ovyra-float] { visibility: visible !important; }
+  body [data-alchemy-float] { visibility: visible !important; }
 `
 
 // The strip along the top: drag to move, see-through level, click-through, back to the tab,
@@ -35,11 +35,19 @@ const barHtml = (opacity: number, clickThrough: boolean): string => `<!doctype h
   a.on { background: #ec4856; }
   span { margin-right: auto; padding-left: 4px; opacity: .8; }
 </style><span>Alchemy</span>
-<a href="https://float.ovyra/opacity" title="How see-through the player is">${Math.round(opacity * 100)}%</a>
-<a href="https://float.ovyra/through" class="${clickThrough ? 'on' : ''}" title="Clicks go through the video to what's behind it (this strip stays clickable)">Click-through</a>
-<a href="https://float.ovyra/back">Back to tab</a><a href="https://float.ovyra/close">✕</a>`
+<a href="https://float.alchemy/opacity" title="How see-through the player is">${Math.round(opacity * 100)}%</a>
+<a href="https://float.alchemy/through" class="${clickThrough ? 'on' : ''}" title="Clicks go through the video to what's behind it (this strip stays clickable)">Click-through</a>
+<a href="https://float.alchemy/back">Back to tab</a><a href="https://float.alchemy/close">✕</a>`
 
-const OPACITIES = [1, 0.85, 0.65, 0.45]
+// #580 Finer steps: each click makes it a little more see-through, then back to solid.
+const floatSheet = (css: string): string => `(() => {
+  let s = window.__alchemyFloat
+  if (!s) s = window.__alchemyFloat = new CSSStyleSheet()
+  if (!document.adoptedStyleSheets.includes(s)) document.adoptedStyleSheets = [...document.adoptedStyleSheets, s]
+  s.replaceSync(${JSON.stringify(css)})
+})()`
+
+const OPACITIES = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3]
 
 /** Remembered between pop-outs and restarts: where the player was, and how it looked. */
 const prefs = new JsonStore<{ bounds: Rectangle | null; opacity: number; clickThrough: boolean }>('float', {
@@ -78,17 +86,24 @@ export function isFloating(tab: Tab | null | undefined): boolean {
   return !!tab && floating.has(tab.id)
 }
 
-/** Marks the largest playing video in the tab for floating; false if nothing is playing. */
-export async function markPlayingVideo(tab: Tab): Promise<boolean> {
+/**
+ * Marks the largest playing video in the tab for floating; false if nothing is playing.
+ * For the automatic pop-out (#587), short clips, ads and silent background videos don't count.
+ */
+export async function markPlayingVideo(tab: Tab, opts: { auto?: boolean } = {}): Promise<boolean> {
   const wc = tab.wc
   if (!wc || wc.isDestroyed()) return false
   return wc
     .executeJavaScript(
       `(() => {
+        const auto = ${opts.auto ? 'true' : 'false'}
         const vs = [...document.querySelectorAll('video')].filter((v) => !v.paused && v.readyState >= 2 && v.offsetWidth > 160)
+          .filter((v) => !auto || (!v.muted && v.volume > 0 && (v.duration === Infinity || !(v.duration < 60))))
         vs.sort((a, b) => b.offsetWidth * b.offsetHeight - a.offsetWidth * a.offsetHeight)
         if (!vs[0]) return false
-        vs[0].setAttribute('data-ovyra-float', '')
+        vs[0].setAttribute('data-alchemy-float', '')
+        // Its shape, so the player can keep it while you resize.
+        vs[0].setAttribute('data-alchemy-ratio', String((vs[0].videoWidth || 16) / (vs[0].videoHeight || 9)))
         return true
       })()`
     )
@@ -154,6 +169,17 @@ export function floatTab(tab: Tab, onBack: () => void): void {
   }
   fit()
   win.on('resize', fit)
+  // #577 Resizing from any edge or corner keeps the video's shape (the top strip aside).
+  void tab.wc
+    ?.executeJavaScript(`Number(document.querySelector('[data-alchemy-float]')?.getAttribute('data-alchemy-ratio')) || 0`)
+    .then((ratio: number) => {
+      if (ratio > 0.3 && ratio < 4 && !win.isDestroyed()) {
+        win.setAspectRatio(ratio)
+        const b = win.getBounds()
+        win.setBounds({ ...b, height: Math.round(b.width / ratio) })
+      }
+    })
+    .catch(() => {})
   // Remember where it was put, screen included, for next time.
   const remember = (): void => {
     if (win.isDestroyed()) return
@@ -184,9 +210,9 @@ export function floatTab(tab: Tab, onBack: () => void): void {
   tab.wc?.once('destroyed', () => {
     if (floating.get(tab.id) === entry) unfloatTab(tab)
   })
-  void tab.wc?.insertCSS(VIDEO_CSS).then((key) => {
-    if (floating.get(tab.id) === entry) entry.css = key
-  })
+  // A stylesheet of our own (Electron can't take insertCSS back out), emptied again on the way back.
+  void tab.wc?.executeJavaScriptInIsolatedWorld(1002, [{ code: floatSheet(VIDEO_CSS) }]).catch(() => {})
+  entry.css = 'sheet'
   win.showInactive()
 }
 
@@ -237,10 +263,10 @@ export function unfloatTab(tab: Tab, opts: { pause?: boolean; closing?: boolean 
   tab.view?.setBorderRadius(0)
   const wc = tab.wc
   if (wc && !wc.isDestroyed()) {
-    if (entry.css) void wc.removeInsertedCSS(entry.css).catch(() => {})
+    if (entry.css) void wc.executeJavaScriptInIsolatedWorld(1002, [{ code: floatSheet('') }]).catch(() => {})
     void wc
       .executeJavaScript(
-        `(() => { const v = document.querySelector('[data-ovyra-float]'); if (!v) return; ${opts.pause ? 'v.pause();' : ''} v.removeAttribute('data-ovyra-float') })()`
+        `(() => { const v = document.querySelector('[data-alchemy-float]'); if (!v) return; ${opts.pause ? 'v.pause();' : ''} v.removeAttribute('data-alchemy-float') })()`
       )
       .catch(() => {})
   }

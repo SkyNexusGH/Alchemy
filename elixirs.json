@@ -1,0 +1,243 @@
+[
+  {
+    "id": "yt-no-shorts",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No Shorts",
+    "hint": "Hides Shorts from the home page, search and the menu.",
+    "css": "ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer, ytd-rich-section-renderer:has([is-shorts]), ytd-guide-entry-renderer:has(a[title=\"Shorts\"]), ytd-mini-guide-entry-renderer[aria-label=\"Shorts\"], ytm-reel-shelf-renderer { display: none !important; }"
+  },
+  {
+    "id": "yt-no-endcards",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No end screens",
+    "hint": "Removes the video cards that cover the last seconds of a video.",
+    "css": ".ytp-ce-element, .ytp-endscreen-content { display: none !important; }"
+  },
+  {
+    "id": "yt-no-comments",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No comments",
+    "hint": "Hides the comments under videos.",
+    "css": "ytd-comments#comments { display: none !important; }"
+  },
+  {
+    "id": "reddit-no-promoted",
+    "site": "Reddit",
+    "sites": [
+      "reddit.com"
+    ],
+    "title": "No promoted posts",
+    "hint": "Hides ads made to look like posts.",
+    "css": "shreddit-ad-post, shreddit-comments-page-ad, .promotedlink, [data-promoted=\"true\"] { display: none !important; }"
+  },
+  {
+    "id": "x-no-promoted",
+    "site": "X",
+    "sites": [
+      "x.com",
+      "twitter.com"
+    ],
+    "title": "No promoted posts",
+    "hint": "Hides ads in the timeline.",
+    "css": "article:has([data-testid=\"placementTracking\"]), div[data-testid=\"cellInnerDiv\"]:has([data-testid=\"placementTracking\"]) { display: none !important; }"
+  },
+  {
+    "id": "x-no-trends",
+    "site": "X",
+    "sites": [
+      "x.com",
+      "twitter.com"
+    ],
+    "title": "No trends",
+    "hint": "Hides the trending list on the side.",
+    "css": "[data-testid=\"sidebarColumn\"] section:has([data-testid=\"trend\"]) { display: none !important; }"
+  },
+  {
+    "id": "ig-no-reels",
+    "site": "Instagram",
+    "sites": [
+      "instagram.com"
+    ],
+    "title": "No Reels button",
+    "hint": "Removes the shortcut to Reels from the menu.",
+    "css": "a[href=\"/reels/\"] { display: none !important; }"
+  },
+  {
+    "id": "twitch-no-recommended",
+    "site": "Twitch",
+    "sites": [
+      "twitch.tv"
+    ],
+    "title": "No recommended channels",
+    "hint": "Keeps only the channels you follow in the side list.",
+    "css": ".side-nav-section[aria-label*=\"Recommended\" i], .side-nav-section[aria-label*=\"Viewers Also\" i] { display: none !important; }"
+  },
+  {
+    "id": "amazon-no-sponsored",
+    "site": "Amazon",
+    "sites": [
+      "amazon.com",
+      "amazon.co.uk",
+      "amazon.de",
+      "amazon.fr",
+      "amazon.ca"
+    ],
+    "title": "No sponsored results",
+    "hint": "Hides paid placements in search results.",
+    "css": "[data-component-type=\"sp-sponsored-result\"], .AdHolder, [cel_widget_id*=\"sponsored\" i] { display: none !important; }"
+  },
+  {
+    "id": "wiki-no-banners",
+    "site": "Wikipedia",
+    "sites": [
+      "wikipedia.org"
+    ],
+    "title": "No banners",
+    "hint": "Hides donation and notice banners.",
+    "css": "#centralNotice, #siteNotice, .frb { display: none !important; }"
+  },
+  {
+    "id": "yt-no-related",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No suggestions beside videos",
+    "hint": "Hides the list of other videos next to the one you’re watching.",
+    "css": "ytd-watch-flexy #secondary #related, ytd-watch-next-secondary-results-renderer { display: none !important; }"
+  },
+  {
+    "id": "yt-no-home-feed",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No home page feed",
+    "hint": "The home page shows just the search box, so you go for what you came for.",
+    "css": "ytd-browse[page-subtype=\"home\"] ytd-rich-grid-renderer { display: none !important; }"
+  },
+  {
+    "id": "yt-no-autoplay-overlay",
+    "site": "YouTube",
+    "sites": [
+      "youtube.com"
+    ],
+    "title": "No “Up next” countdown",
+    "hint": "Hides the countdown to the next video at the end of one.",
+    "css": ".ytp-autonav-endscreen-countdown-overlay, .ytp-upnext { display: none !important; }"
+  },
+  {
+    "id": "google-no-ai",
+    "site": "Google",
+    "sites": [
+      "google.com",
+      "google.co.uk",
+      "google.pl",
+      "google.de",
+      "google.fr",
+      "google.ca"
+    ],
+    "title": "No AI Overview",
+    "hint": "Hides the AI summary above search results.",
+    "css": "#Odp5De, [data-mcpr], .YzCcne, div[jsname=\"dEwkXc\"] { display: none !important; }"
+  },
+  {
+    "id": "google-no-paa",
+    "site": "Google",
+    "sites": [
+      "google.com",
+      "google.co.uk",
+      "google.pl",
+      "google.de",
+      "google.fr",
+      "google.ca"
+    ],
+    "title": "No “People also ask”",
+    "hint": "Hides the box of related questions in results.",
+    "css": "[jsname=\"Cpkphb\"], div.related-question-pair, [data-initq] { display: none !important; }"
+  },
+  {
+    "id": "fb-no-reels",
+    "site": "Facebook",
+    "sites": [
+      "facebook.com"
+    ],
+    "title": "No Reels",
+    "hint": "Hides Reels and short videos from the feed.",
+    "css": "[aria-label=\"Reels\"], [aria-label*=\"Reels and short videos\" i] { display: none !important; }"
+  },
+  {
+    "id": "fb-no-sponsored",
+    "site": "Facebook",
+    "sites": [
+      "facebook.com"
+    ],
+    "title": "No sponsored side ads",
+    "hint": "Hides the Sponsored column on the right.",
+    "css": "[data-pagelet=\"RightRail\"] > div > div:first-child:has(a[href*=\"/ads/\"]) { display: none !important; }"
+  },
+  {
+    "id": "twitch-no-chat",
+    "site": "Twitch",
+    "sites": [
+      "twitch.tv"
+    ],
+    "title": "No chat",
+    "hint": "Hides the chat next to streams, so the video gets the room.",
+    "css": ".channel-root__right-column, .right-column { display: none !important; }"
+  },
+  {
+    "id": "x-no-who-to-follow",
+    "site": "X",
+    "sites": [
+      "x.com",
+      "twitter.com"
+    ],
+    "title": "No “Who to follow”",
+    "hint": "Hides account suggestions.",
+    "css": "aside[aria-label=\"Who to follow\"], [data-testid=\"sidebarColumn\"] section:has(a[href*=\"/i/connect_people\"]) { display: none !important; }"
+  },
+  {
+    "id": "reddit-no-trending",
+    "site": "Reddit",
+    "sites": [
+      "reddit.com"
+    ],
+    "title": "No trending searches",
+    "hint": "Hides trending topics in the search box.",
+    "css": "faceplate-tracker[noun=\"trending\"], #reddit-trending-searches-partial-container { display: none !important; }"
+  },
+  {
+    "id": "amazon-no-video-ads",
+    "site": "Amazon",
+    "sites": [
+      "amazon.com",
+      "amazon.co.uk",
+      "amazon.de",
+      "amazon.fr",
+      "amazon.ca"
+    ],
+    "title": "No video ads in results",
+    "hint": "Hides the brand videos between search results.",
+    "css": "[cel_widget_id*=\"VIDEO\" i], .sbv-video-single-product { display: none !important; }"
+  },
+  {
+    "id": "wiki-wide",
+    "site": "Wikipedia",
+    "sites": [
+      "wikipedia.org"
+    ],
+    "title": "Full-width articles",
+    "hint": "Uses the whole window instead of a narrow column.",
+    "css": ".mw-page-container { max-width: none !important; } .vector-feature-limited-width-clientpref-1 .mw-body { max-width: none !important; }"
+  }
+]

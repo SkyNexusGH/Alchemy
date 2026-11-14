@@ -92,9 +92,17 @@ export function queryVisits(text: string, limit = 300, before = Infinity): Histo
     const v = store.data.visits[i]
     if (v.time >= before) continue
     if (q && !v.url.toLowerCase().includes(q) && !v.title.toLowerCase().includes(q)) continue
-    out.push(v)
+    // #336 Every row gets an icon: the page's own, else one from the same site.
+    out.push(v.favicon ? v : { ...v, favicon: faviconForSite(v.url) })
   }
   return out
+}
+
+/** #101 Forgets a page completely (every visit), so it stops being suggested. */
+export function forgetUrl(url: string): void {
+  store.data.visits = store.data.visits.filter((v) => v.url !== url)
+  delete store.data.urls[url]
+  store.save()
 }
 
 export function deleteVisit(url: string, time: number): void {
@@ -179,6 +187,31 @@ export function topSites(limit: number): UrlInfo[] {
     if (!cur || score > cur.score) byHost.set(host, { info, score })
   }
   return [...byHost.values()].sort((a, b) => b.score - a.score).slice(0, limit).map((s) => s.info)
+}
+
+/** #297 Your most visited sites: this week (by visits in the last 7 days) or of all time. */
+export function mostVisited(range: 'week' | 'all', limit = 30): { url: string; title: string; favicon: string | null; visits: number }[] {
+  const byHost = new Map<string, { url: string; title: string; favicon: string | null; visits: number }>()
+  const add = (url: string, title: string, favicon: string | null, n: number): void => {
+    const host = stripUrl(url).split('/')[0]
+    const cur = byHost.get(host)
+    if (cur) {
+      cur.visits += n
+      if (!cur.favicon && favicon) cur.favicon = favicon
+    } else byHost.set(host, { url: `https://${host}/`, title: title || host, favicon, visits: n })
+  }
+  if (range === 'week') {
+    const since = Date.now() - 7 * 86_400_000
+    for (let i = store.data.visits.length - 1; i >= 0; i--) {
+      const v = store.data.visits[i]
+      if (v.time < since) break
+      add(v.url, '', v.favicon, 1)
+    }
+  } else for (const u of Object.values(store.data.urls)) add(u.url, '', u.favicon, u.visits)
+  return [...byHost.values()]
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, limit)
+    .map((s) => ({ ...s, title: stripUrl(s.url).split('/')[0], favicon: s.favicon ?? faviconForSite(s.url) }))
 }
 
 export function stripUrl(url: string): string {

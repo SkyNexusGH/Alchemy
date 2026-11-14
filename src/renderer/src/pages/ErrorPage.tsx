@@ -19,6 +19,13 @@ setPageIcon('<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>')
 
 function describe(): { icon: typeof CloudOff; title: string; text: string; art: ErrorArtKind } {
   const n = Number(code)
+  if (code === 'danger')
+    return {
+      art: 'unsafe',
+      icon: ShieldAlert,
+      title: 'Aegis stopped a dangerous page',
+      text: `${host} is on a list of sites known for malware, phishing or scams. It could try to steal your passwords or card details, or install something harmful.`
+    }
   if (code === 'crashed')
     return { art: 'crashed', icon: Frown, title: 'This page crashed', text: 'Something went wrong while showing this page. Reloading usually fixes it.' }
   if (n === -106)
@@ -59,7 +66,7 @@ function GamePage(): React.JSX.Element {
 
 function Failure(): React.JSX.Element {
   const { title, text, art } = describe()
-  const secure = Number(code) <= -200 && Number(code) > -300
+  const secure = (Number(code) <= -200 && Number(code) > -300) || code === 'danger'
   const offline = Number(code) === -106
   // Back online: try the page again by itself.
   useEffect(() => {
@@ -75,7 +82,7 @@ function Failure(): React.JSX.Element {
         <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 750, letterSpacing: '-0.02em' }}>{title}</h1>
         <p style={{ margin: 0, color: 'var(--text-2)', lineHeight: 1.6, fontSize: 14 }}>{text}</p>
         <p style={{ margin: '16px 0 28px', color: 'var(--text-3)', fontSize: 12, fontFamily: 'ui-monospace, Consolas, monospace' }}>
-          {detail || code}
+          {code === 'danger' ? '' : detail || code}
         </p>
         {!secure && (
           <button className="btn primary" onClick={() => api.invoke('page:navigate', url)}>
@@ -83,8 +90,13 @@ function Failure(): React.JSX.Element {
           </button>
         )}
         {secure && (
-          <button className="btn primary" onClick={() => history.back()}>
+          <button className="btn primary" onClick={() => (history.length > 1 ? history.back() : api.invoke('page:navigate', 'alchemy://newtab/'))}>
             Go back to safety
+          </button>
+        )}
+        {code === 'danger' && (
+          <button className="btn ghost" style={{ marginLeft: 8 }} onClick={() => api.invoke('aegis:allowDanger', url)}>
+            Open anyway
           </button>
         )}
         {offline && <OfflineGame />}

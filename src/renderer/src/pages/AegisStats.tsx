@@ -57,30 +57,29 @@ export function SavedTiles({ stats }: { stats: AegisStats }): React.JSX.Element 
   )
 }
 
-/** Bubbles sized by how often each company's requests were blocked. */
-export function CompanyBubbles({ stats }: { stats: AegisStats }): React.JSX.Element {
+/** The companies whose requests were blocked most, as a ranked list. */
+export function TopCompanies({ stats }: { stats: AegisStats }): React.JSX.Element {
   const list = Object.entries(stats.companies)
     .filter(([name]) => name !== 'Other')
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
   if (!list.length) return <div className="ag-empty">Nothing yet. Companies show up here as Aegis blocks their trackers and ads.</div>
+  return <RankedBars list={list} />
+}
+
+function RankedBars({ list }: { list: [string, number][] }): React.JSX.Element {
   const max = list[0][1]
   return (
-    <div className="ag-bubbles">
-      {list.map(([name, n], i) => {
-        const size = 46 + Math.sqrt(n / max) * 70
-        return (
-          <div
-            key={name}
-            className="ag-bubble"
-            title={`${name}: ${n.toLocaleString()} blocked`}
-            style={{ width: size, height: size, '--h': `${(i * 47) % 360}` } as React.CSSProperties}
-          >
-            <b>{name}</b>
-            <span>{n.toLocaleString()}</span>
-          </div>
-        )
-      })}
+    <div className="ag-sites">
+      {list.map(([name, n]) => (
+        <div key={name} className="ag-site">
+          <span className="ag-site-name">{name}</span>
+          <span className="ag-bar">
+            <i style={{ width: `${(n / max) * 100}%` }} />
+          </span>
+          <span className="ag-site-n">{n.toLocaleString()}</span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -91,18 +90,5 @@ export function TopSites({ stats }: { stats: AegisStats }): React.JSX.Element {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
   if (!list.length) return <div className="ag-empty">Nothing yet.</div>
-  const max = list[0][1]
-  return (
-    <div className="ag-sites">
-      {list.map(([site, n]) => (
-        <div key={site} className="ag-site">
-          <span className="ag-site-name">{site}</span>
-          <span className="ag-bar">
-            <i style={{ width: `${(n / max) * 100}%` }} />
-          </span>
-          <span className="ag-site-n">{n.toLocaleString()}</span>
-        </div>
-      ))}
-    </div>
-  )
+  return <RankedBars list={list} />
 }

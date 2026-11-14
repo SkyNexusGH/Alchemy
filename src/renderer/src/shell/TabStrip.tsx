@@ -41,7 +41,7 @@ const hoverCard = (() => {
       window.clearTimeout(showTimer)
       window.clearTimeout(hideTimer)
       if (open) show(id, el)
-      else showTimer = window.setTimeout(() => show(id, el), 550)
+      else showTimer = window.setTimeout(() => show(id, el), el.offsetWidth < 120 ? 120 : 550)
     },
     leave(): void {
       window.clearTimeout(showTimer)
@@ -90,6 +90,24 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
   const [selected, setSelected] = useState<number[]>([])
   const live = selected.filter((id) => tabs.some((t) => t.id === id))
   useEffect(() => api.on('tabs:clear-selection', () => setSelected([])), [])
+  useEffect(() => api.on('tabs:select-all', () => setSelected(useShell.getState().win.tabs.map((t) => t.id))), [])
+  // Naming a group happens right on its dot.
+  const [renaming, setRenaming] = useState<number | null>(null)
+  useEffect(() => api.on('island:rename', (id: number) => setRenaming(id)), [])
+  // "Any color…" opens the system color picker.
+  const colorInput = useRef<HTMLInputElement>(null)
+  const colorFor = useRef<number | null>(null)
+  useEffect(
+    () =>
+      api.on('island:custom-color', (id: number, current: string) => {
+        colorFor.current = id
+        if (colorInput.current) {
+          colorInput.current.value = current
+          colorInput.current.click()
+        }
+      }),
+    []
+  )
   const drag = useRef<{ id: number; startX: number; grab: number; x: number; started: boolean } | null>(null)
 
   // FLIP: when tabs open, close or reorder, slide the others to their new place.
@@ -150,6 +168,20 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
       d.started = true
       setDragId(d.id)
     }
+    // Pulled well away from the strip: near the left or right edge of the window it splits
+    // the view with the tab you're on; anywhere else it becomes its own window.
+    const strip = scroller.current!.getBoundingClientRect()
+    const away = vertical ? e.clientX - strip.right : e.clientY - strip.bottom
+    if (away > 48 && tabs.length > 1) {
+      drag.current = null
+      setDragId(null)
+      const el = els.current.get(tab.id)
+      if (el) el.style.transform = ''
+      const edge = !vertical && (e.clientX < window.innerWidth * 0.2 || e.clientX > window.innerWidth * 0.8)
+      if (edge && tab.id !== activeId) void api.invoke('split:with', tab.id)
+      else void api.invoke('tab:detach', tab.id, e.screenX, e.screenY)
+      return
+    }
     placeDragged()
 
     // Where would the dragged tab's center land among its group (pinned or not)?
@@ -166,10 +198,14 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
     if (target !== tabs.findIndex((t) => t.id === tab.id)) api.invoke('tab:move', tab.id, target)
   }
 
-  function onPointerUp(tab: TabState): void {
+  function onPointerUp(tab: TabState, e?: React.PointerEvent): void {
     const d = drag.current
     if (!d || d.id !== tab.id) return
     drag.current = null
+    if (d.started && e) {
+      const handle = document.elementsFromPoint(e.clientX, e.clientY).find((n) => n instanceof HTMLElement && n.dataset.island) as HTMLElement | undefined
+      if (handle) void api.invoke('island:join', tab.id, Number(handle.dataset.island))
+    }
     const el = els.current.get(tab.id)
     if (el && d.started) {
       const from = el.style.transform
@@ -188,6 +224,24 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
         if (!vertical && scroller.current) scroller.current.scrollLeft += e.deltaY + e.deltaX
       }}
       onDoubleClick={(e) => e.target === e.currentTarget && e.preventDefault()}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('text/uri-list') || e.dataTransfer.types.includes('text/plain')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }
+      }}
+      onDrop={(e) => {
+        const text = e.dataTransfer.getData('text/uri-list').split('\n')[0] || e.dataTransfer.getData('text/plain')
+        if (!text.trim()) return
+        e.preventDefault()
+        // It opens where it was dropped.
+        let index = 0
+        for (const t of tabs) {
+          const r = els.current.get(t.id)?.getBoundingClientRect()
+          if (r && (vertical ? r.top + r.height / 2 : r.left + r.width / 2) < (vertical ? e.clientY : e.clientX)) index++
+        }
+        void api.invoke('tab:drop', text, index)
+      }}
     >
       {tabs.map((tab, i) => {
         const island = tab.islandId !== null ? islands.get(tab.islandId) : undefined
@@ -199,6 +253,13 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
           <Fragment key={tab.id}>
             {startsIsland && (
               <IslandHandle
+                id={island.id}
+                name={island.name}
+                renaming={renaming === island.id}
+                onRenamed={(name) => {
+                  setRenaming(null)
+                  if (name !== null) void api.invoke('island:rename', island.id, name)
+                }}
                 color={island.color}
                 collapsed={island.collapsed}
                 count={tabs.filter((t) => t.islandId === tab.islandId).length}
@@ -220,7 +281,7 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
                 }}
                 onPointerDown={(e) => onPointerDown(e, tab)}
                 onPointerMove={(e) => onPointerMove(e, tab)}
-                onPointerUp={() => onPointerUp(tab)}
+                onPointerUp={(e) => onPointerUp(tab, e)}
               />
             )}
           </Fragment>
@@ -229,28 +290,63 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
       <button className="icon-btn new-tab" title="New tab (Ctrl+T)" onClick={() => api.invoke('tab:new')}>
         <Plus size={17} />
       </button>
+      <input
+        ref={colorInput}
+        type="color"
+        className="island-color-input"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => colorFor.current !== null && void api.invoke('island:color', colorFor.current, e.target.value)}
+      />
     </div>
   )
 }
 
 function IslandHandle({
+  id,
+  name,
+  renaming,
+  onRenamed,
   color,
   collapsed,
   count,
   onClick,
   onMenu
 }: {
+  id: number
+  name?: string
+  renaming: boolean
+  onRenamed: (name: string | null) => void
   color: string
   collapsed: boolean
   count: number
   onClick: () => void
   onMenu: (x: number, y: number) => void
 }): React.JSX.Element {
+  if (renaming)
+    return (
+      <span className="island-handle renaming" style={{ '--ic': color } as React.CSSProperties}>
+        <span className="island-dot" />
+        <input
+          className="island-name-input"
+          autoFocus
+          defaultValue={name ?? ''}
+          placeholder="Group name"
+          maxLength={24}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onRenamed(e.currentTarget.value)
+            if (e.key === 'Escape') onRenamed(null)
+          }}
+          onBlur={(e) => onRenamed(e.currentTarget.value)}
+        />
+      </span>
+    )
   return (
     <button
-      className={`island-handle${collapsed ? ' collapsed' : ''}`}
+      className={`island-handle${collapsed ? ' collapsed' : ''}${name ? ' named' : ''}`}
+      data-island={id}
       style={{ '--ic': color } as React.CSSProperties}
-      title={collapsed ? `Expand group (${count} tabs)` : 'Collapse group (right-click for more)'}
+      title={`${name ? `${name}: ` : ''}${collapsed ? `expand group (${count} tabs)` : 'collapse group'}. Right-click to name or recolor it; drop a tab here to add it.`}
       onClick={onClick}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -258,6 +354,7 @@ function IslandHandle({
       }}
     >
       <span className="island-dot" />
+      {name && <span className="island-name">{name}</span>}
       {collapsed && <span className="island-count">{count}</span>}
     </button>
   )
@@ -273,7 +370,7 @@ interface TabProps {
   ref: React.Ref<HTMLDivElement>
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void
-  onPointerUp: () => void
+  onPointerUp: (e?: React.PointerEvent<HTMLDivElement>) => void
 }
 
 /** Folds the tab away, then closes it. */
@@ -311,7 +408,7 @@ const Tab = memo(function Tab({ tab, active, dragging, selected, selection, isla
         e.preventDefault()
         api.invoke('tab:menu', tab.id, e.clientX, e.clientY, selection)
       }}
-      onPointerCancel={handlers.onPointerUp}
+      onPointerCancel={() => handlers.onPointerUp()}
       {...handlers}
       onPointerDown={(e) => {
         hoverCard.hide()
@@ -320,6 +417,7 @@ const Tab = memo(function Tab({ tab, active, dragging, selected, selection, isla
     >
       <span className="tab-icon">
         {tab.loading ? <span className="spinner" /> : <Favicon src={tab.favicon} url={tab.displayUrl} size={16} />}
+        {tab.recording && <span className="rec-dot" title="Using your camera, microphone or screen" />}
         {tab.sleeping && !tab.pinned && (
           <span className="sleep-badge">
             <Moon size={8} strokeWidth={3} />

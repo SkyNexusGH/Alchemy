@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 import type { Tab } from './tab'
 
 /**
@@ -15,11 +17,36 @@ export async function pageText(tab: Tab): Promise<string> {
   const fresh = hit && hit.url === url && Date.now() - hit.at < CACHE_MS
   const wc = tab.wc
   if (fresh || !wc || wc.isDestroyed() || wc.isLoading()) return hit?.url === url ? hit.text : ''
-  const js = `(document.body ? document.body.innerText : '').slice(0, ${MAX_CHARS})`
+  const js = `document.contentType === 'application/pdf' ? '%PDF%' : (document.body ? document.body.innerText : '').slice(0, ${MAX_CHARS})`
   const timeout = new Promise<string>((r) => setTimeout(() => r(''), 1500))
-  const text = await Promise.race([wc.executeJavaScript(js, true).catch(() => '') as Promise<string>, timeout])
+  let text = await Promise.race([wc.executeJavaScript(js, true).catch(() => '') as Promise<string>, timeout])
+  // The PDF viewer has no text of its own to read, so the file itself is read.
+  if (text === '%PDF%') text = await pdfText(tab, url)
   if (text) cache.set(tab, { at: Date.now(), url, text })
   return text || (hit?.url === url ? hit.text : '')
+}
+
+/** The text of a PDF, read with pdf.js (fetched again from the tab's own session, so logins work). */
+async function pdfText(tab: Tab, url: string): Promise<string> {
+  try {
+    const res = await tab.wc!.session.fetch(url)
+    const data = new Uint8Array(await res.arrayBuffer())
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(createRequire(__filename).resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).href
+    const task = pdfjs.getDocument({ data, useSystemFonts: true })
+    const doc = await task.promise
+    let out = ''
+    for (let i = 1; i <= Math.min(doc.numPages, 300) && out.length < MAX_CHARS; i++) {
+      const page = await doc.getPage(i)
+      const content = await page.getTextContent()
+      out += content.items.map((it) => ('str' in it ? it.str : '')).join(' ') + '\n\n'
+    }
+    void task.destroy()
+    return out.slice(0, MAX_CHARS)
+  } catch (err) {
+    console.error('[pagetext] could not read the PDF', err)
+    return ''
+  }
 }
 
 /** Pages for Ask: the tab you're on, or every tab, as plain text. */

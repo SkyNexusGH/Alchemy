@@ -65,6 +65,17 @@ export function Toasts(): React.JSX.Element {
               {t.action.label}
             </button>
           )}
+          {t.action2 && (
+            <button
+              className="toast-action quiet"
+              onClick={() => {
+                void api.invoke('palette:run', t.action2!.cmd, t.action2!.arg)
+                dismiss(t.key)
+              }}
+            >
+              {t.action2.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

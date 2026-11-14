@@ -35,6 +35,12 @@ export interface Weather {
   code: number
   rainLater: number
   unit: 'C' | 'F'
+  /** The next 12 hours (#158). */
+  hours: { time: string; temp: number; code: number; rain: number }[]
+  /** The next 7 days. */
+  days: { date: string; high: number; low: number; code: number; rain: number }[]
+  /** A heads-up for storms, strong wind, heavy rain or snow today or tomorrow (#159). */
+  alert: string | null
 }
 
 const weatherCache = new Map<string, { at: number; data: Weather }>()
@@ -47,25 +53,70 @@ export async function weather(lat: number, lon: number, unit: 'C' | 'F'): Promis
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      `&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-      `&forecast_days=1&timezone=auto${unit === 'F' ? '&temperature_unit=fahrenheit' : ''}`
+      `&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code,precipitation_probability` +
+      `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,wind_gusts_10m_max,precipitation_sum,snowfall_sum` +
+      `&forecast_days=7&timezone=auto${unit === 'F' ? '&temperature_unit=fahrenheit' : ''}`
     const d = (await (await fetch(url)).json()) as {
-      current: { temperature_2m: number; weather_code: number }
-      daily: { temperature_2m_max: number[]; temperature_2m_min: number[]; precipitation_probability_max: number[] }
+      current: { temperature_2m: number; weather_code: number; time: string }
+      hourly: { time: string[]; temperature_2m: number[]; weather_code: number[]; precipitation_probability: number[] }
+      daily: {
+        time: string[]
+        temperature_2m_max: number[]
+        temperature_2m_min: number[]
+        precipitation_probability_max: number[]
+        weather_code: number[]
+        wind_gusts_10m_max: number[]
+        precipitation_sum: number[]
+        snowfall_sum: number[]
+      }
     }
+    const nowHour = d.hourly.time.findIndex((t) => t >= d.current.time.slice(0, 13))
+    const from = nowHour === -1 ? 0 : nowHour
+    const hours = d.hourly.time.slice(from + 1, from + 13).map((time, i) => ({
+      time,
+      temp: Math.round(d.hourly.temperature_2m[from + 1 + i]),
+      code: d.hourly.weather_code[from + 1 + i],
+      rain: d.hourly.precipitation_probability[from + 1 + i] ?? 0
+    }))
+    const days = d.daily.time.map((date, i) => ({
+      date,
+      high: Math.round(d.daily.temperature_2m_max[i]),
+      low: Math.round(d.daily.temperature_2m_min[i]),
+      code: d.daily.weather_code[i],
+      rain: d.daily.precipitation_probability_max[i] ?? 0
+    }))
     const data: Weather = {
       temp: Math.round(d.current.temperature_2m),
       code: d.current.weather_code,
       high: Math.round(d.daily.temperature_2m_max[0]),
       low: Math.round(d.daily.temperature_2m_min[0]),
       rainLater: d.daily.precipitation_probability_max[0] ?? 0,
-      unit
+      unit,
+      hours,
+      days,
+      alert: weatherAlert(d.daily)
     }
     weatherCache.set(key, { at: Date.now(), data })
     return data
   } catch {
     return hit?.data ?? null
   }
+}
+
+/**
+ * A heads-up worked out from the forecast (Open-Meteo has no official warnings): thunderstorms,
+ * strong gusts, heavy rain or heavy snow today or tomorrow.
+ */
+function weatherAlert(daily: { weather_code: number[]; wind_gusts_10m_max: number[]; precipitation_sum: number[]; snowfall_sum: number[] }): string | null {
+  for (const [i, when] of [[0, 'today'], [1, 'tomorrow']] as const) {
+    const code = daily.weather_code[i]
+    if (code >= 95) return `Thunderstorms likely ${when}`
+    if ((daily.wind_gusts_10m_max[i] ?? 0) >= 70) return `Strong wind ${when}: gusts up to ${Math.round(daily.wind_gusts_10m_max[i])} km/h`
+    if ((daily.snowfall_sum[i] ?? 0) >= 5) return `Heavy snow ${when}: about ${Math.round(daily.snowfall_sum[i])} cm`
+    if ((daily.precipitation_sum[i] ?? 0) >= 20) return `Heavy rain ${when}: about ${Math.round(daily.precipitation_sum[i])} mm`
+    if (code === 66 || code === 67) return `Freezing rain ${when}`
+  }
+  return null
 }
 
 // ---- news (RSS / Atom feeds the user picked) -------------------------------------------

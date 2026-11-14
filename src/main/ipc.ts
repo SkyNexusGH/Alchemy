@@ -1,15 +1,17 @@
 import { app, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, session, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { totalmem } from 'node:os'
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { toUrl } from '@shared/url'
-import { ELIXIRS } from '@shared/types'
-import type { ColorMode, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, SiteRestyle, UserScript, TabAudio, Workspace, ToastData } from '@shared/types'
+import type { AutofillAddress, InternalPage, OverlayPayload, PanelItem, Rect, SearchEngineId, Settings, ShieldsInfo, SiteRestyle, UserScript, TabAudio, Workspace, ToastData } from '@shared/types'
 import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
+import { addLater, laterItems, removeLater, setLaterRead } from './later'
+import { toggleReader } from './reader'
+import { allowDangerousSite } from './privacy/network'
 import { destroyPanel, hidePanel, panelStates, panelPreview, presetIcons, setPanelDesktop, reloadPanel, showPanel, togglePanel } from './panels'
 import { stepZoom, tabsByContents } from './tab'
 import { checkForUpdates, installUpdate, updateState } from './updater'
@@ -24,14 +26,15 @@ import { localSuggestions, remoteSuggestions, resolveInput, searchUrl } from './
 import { clearPermissionDecisions, listPermissionDecisions, setPermissionDecision } from './permissions'
 import { filterStatus, updateFilters } from './privacy/engine'
 import { blockStats, setSiteShields, shieldExceptions, shieldsEnabled, siteOf } from './privacy/shields'
-import { isInternalUrl, userAssetsDir } from './protocol'
+import { isInternalUrl, userAssetsDir, WALLPAPER } from './protocol'
 import { getSettings, onSettingsChanged, updateSettings } from './settings'
 import { newTorIdentity, retryTor, torStatus } from './tor'
 import { baseLang, restorePage, translatePage } from './translate'
 import { batterySaverActive } from './battery'
-import { addPassword, checkAllBreaches, importPasswordsCsv, listPasswords, removePassword, revealPassword, savePending } from './passwords'
+import { listAutofill, removeAutofill, saveAddress, saveCard } from './autofill'
+import { addPassword, checkAllBreaches, copyPassword, generatePassword, importPasswordsCsv, listPasswords, loadPasswords, neverSaveFor, passwordsEncrypted, removeAllPasswords, removePassword, revealPassword, savePending, updatePassword } from './passwords'
 import { aiDocs, searchTabs, webSnippets } from './pagetext'
-import { allRestyles, listScripts, pickAndHide, restyleFor, saveScripts, setRestyle, undoLastHide } from './sitemods'
+import { allRestyles, copyRestyle, elixirList, installScript, listScripts, pickAndHide, restyleFor, saveScripts, setRestyle, undoLastHide, updateElixirs, updateScripts } from './sitemods'
 import { findPlaces, focusState, news, startFocus, stopFocus, weather } from './widgets'
 
 /** Fresh Tor circuits and cookies, then the Tor window's tabs reload through them. */
@@ -42,8 +45,6 @@ async function newIdentity(bw: BrowserWin): Promise<boolean> {
   return ok
 }
 
-/** The tab the Now playing widget paused, so its play button can resume it. */
-let pausedByWidget: number | null = null
 import { BrowserWin } from './window'
 
 interface Ctx {
@@ -91,11 +92,11 @@ async function translateTab(bw: BrowserWin, tab: NonNullable<BrowserWin['active'
 const GAME_URL = 'alchemy://error/?game=1'
 
 // The AI models are kept in the browser's cache for Alchemy's own window (see aiWorker.ts).
-const modelsScript = (remove?: 'ai' | 'voice'): string => `(async () => {
+const modelsScript = (remove?: 'ai' | 'smart' | 'voice'): string => `(async () => {
   const cache = await caches.open('transformers-cache')
-  const sizes = { ai: 0, voice: 0 }
+  const sizes = { ai: 0, smart: 0, voice: 0 }
   for (const req of await cache.keys()) {
-    const kind = req.url.includes('whisper') ? 'voice' : 'ai'
+    const kind = req.url.includes('whisper') ? 'voice' : req.url.includes('Qwen') ? 'smart' : 'ai'
     if (kind === ${JSON.stringify(remove ?? '')}) { await cache.delete(req); continue }
     const res = await cache.match(req)
     sizes[kind] += Number(res?.headers.get('content-length') ?? 0)
@@ -112,7 +113,17 @@ export function registerIpc(): void {
   // ---- window UI ----
   shell('window:state', ({ bw }) => bw?.state())
   shell('layout:content', ({ bw }, rect: Rect) => bw?.setContentRect(rect))
-  shell('tab:new', ({ bw }) => bw?.newTab())
+  shell('tab:new', ({ bw }) => bw?.userNewTab())
+  // A page started or stopped using the camera, microphone or screen.
+  ipcMain.on('alchemy:capture', (event, on: boolean) => {
+    const bw = BrowserWin.fromWebContents(event.sender)
+    const tab = bw?.tabs.find((t) => t.wc === event.sender)
+    const frame = event.senderFrame?.frameTreeNodeId
+    if (!bw || !tab || frame === undefined) return
+    if (on) tab.capturing.add(frame)
+    else tab.capturing.delete(frame)
+    bw.tabChanged()
+  })
   shell('tab:activate', ({ bw }, id: number) => {
     const tab = bw?.tab(id)
     if (tab) bw!.activate(tab)
@@ -164,9 +175,54 @@ export function registerIpc(): void {
     if (tab) tabContextMenu(bw!, tab, x, y, tabs)
   })
   shell('island:menu', ({ bw }, id: number, x: number, y: number) => bw && islandMenu(bw, id, x, y))
+  shell('island:rename', ({ bw }, id: number, name: string) => bw?.renameIsland(id, String(name ?? '')))
+  shell('island:color', ({ bw }, id: number, color: string) => /^#[0-9a-f]{6}$/i.test(color) && bw?.setIslandColor(id, color))
+  shell('island:join', ({ bw }, tabId: number, id: number) => {
+    const tab = bw?.tab(tabId)
+    if (tab) bw!.joinGroup(tab, id)
+  })
+  // A tab dragged off the strip: into the window under the pointer, or a new one there.
+  shell('tab:detach', ({ bw }, id: number, x: number, y: number) => {
+    const tab = bw?.tab(id)
+    if (!tab || !bw) return
+    const target = BrowserWin.windowAt(x, y, bw)
+    if (target || bw.tabs.length > 1) bw.moveTabToWindow(tab, target, { x, y })
+  })
+  // Text or a link dropped on the tab strip opens as a new tab there.
+  shell('tab:drop', ({ bw }, text: string, index: number) => {
+    const url = resolveInput(String(text ?? '').trim())
+    if (bw && url) bw.newTab(url, { index })
+  })
+  shell('split:ratio', ({ bw }, ratio: number) => bw?.setSplitRatio(Number(ratio) || 0.5))
+  shell('split:swap', ({ bw }) => bw?.swapSplit())
+  shell('split:direction', ({ bw }) => bw?.toggleSplitDirection())
+  // A tab dropped on the edge of the page starts a split view with it.
+  shell('split:with', ({ bw }, id: number) => {
+    const tab = bw?.tab(id)
+    if (tab && bw!.active && tab !== bw!.active) bw!.splitWith(bw!.active, tab)
+  })
   shell('tab:navigate', ({ bw }, input: string, opts?: { newTab?: boolean; background?: boolean; engine?: string }) =>
     bw?.navigate(input, opts)
   )
+  // #308 Right-click Back or Forward: the pages you can go back (or forward) to.
+  shell('nav:menu', ({ bw }, dir: 'back' | 'forward', x: number, y: number) => {
+    const nav = bw?.active?.wc?.navigationHistory
+    if (!bw || !nav) return
+    const entries = nav.getAllEntries()
+    const at = nav.getActiveIndex()
+    const list = dir === 'back' ? entries.slice(Math.max(0, at - 12), at).map((e, i, arr) => ({ e, index: at - arr.length + i })).reverse() : entries.slice(at + 1, at + 13).map((e, i) => ({ e, index: at + 1 + i }))
+    if (!list.length) return
+    showMenu(
+      bw,
+      [
+        ...list.map(({ e, index }) => ({ label: (e.title || e.url).slice(0, 70), click: () => nav.goToIndex(index) })),
+        { type: 'separator' as const },
+        { label: 'Show full history', click: () => bw.openInternal('history') }
+      ],
+      x,
+      y
+    )
+  })
   shell('nav', ({ bw }, action: 'back' | 'forward' | 'reload' | 'hardReload' | 'stop') => {
     const tab = bw?.active
     const wc = tab?.wc
@@ -205,7 +261,7 @@ export function registerIpc(): void {
     bw?.tabChanged()
   })
   shell('bookmark:toggleActive', ({ bw }) => bw?.toggleBookmarkActive())
-  handle('internal:open', ({ bw }, page: InternalPage) => bw?.openInternal(page))
+  handle('internal:open', ({ bw }, page: InternalPage, section?: string) => bw?.openInternal(page, typeof section === 'string' ? section : undefined))
 
   // ---- any internal page ----
   handle('settings:get', () => getSettings())
@@ -213,7 +269,9 @@ export function registerIpc(): void {
 
   handle('history:query', (_c, text: string, before?: number) => history.queryVisits(text ?? '', 300, before ?? Infinity))
   handle('history:delete', (_c, url: string, time: number) => history.deleteVisit(url, time))
+  shell('history:forget', (_c, url: string) => history.forgetUrl(String(url)))
   handle('history:top', (_c, n: number) => history.topSites(n))
+  handle('history:mostVisited', (_c, range: 'week' | 'all') => history.mostVisited(range === 'all' ? 'all' : 'week'))
   handle('history:favicons', (_c, urls: string[]) =>
     Object.fromEntries(urls.map((u) => [u, history.faviconForSite(u)]))
   )
@@ -226,6 +284,33 @@ export function registerIpc(): void {
     bookmarks.updateBookmark(id, patch)
   )
   handle('bookmarks:remove', (_c, id: string) => bookmarks.removeBookmark(id))
+  handle('bookmarks:undo', () => bookmarks.undoRemove())
+  handle('later:list', () => laterItems())
+  shell('later:open', ({ bw }, url: string, newTab = false) => {
+    setLaterRead(url, true)
+    bw?.navigate(url, { newTab })
+  })
+  handle('later:read', (_c, url: string, read: boolean) => setLaterRead(url, read))
+  handle('later:remove', (_c, url?: string) => removeLater(url))
+  handle('bookmarks:export', async ({ bw }) => {
+    const { canceled, filePath } = await dialog.showSaveDialog(bw!.win, {
+      title: 'Export bookmarks',
+      defaultPath: join(app.getPath('documents'), `Alchemy bookmarks ${new Date().toISOString().slice(0, 10)}.html`),
+      filters: [{ name: 'Bookmark file', extensions: ['html'] }]
+    })
+    if (canceled || !filePath) return null
+    writeFileSync(filePath, bookmarks.exportHtml(), 'utf8')
+    return filePath
+  })
+  handle('bookmarks:importFile', async ({ bw }) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(bw!.win, {
+      title: 'Import bookmarks from a file',
+      filters: [{ name: 'Bookmark file (HTML)', extensions: ['html', 'htm'] }],
+      properties: ['openFile']
+    })
+    if (canceled || !filePaths[0]) return null
+    return bookmarks.importHtml(readFileSync(filePaths[0], 'utf8'))
+  })
 
   handle('downloads:list', () => listDownloads())
   handle('downloads:action', (_c, id: string, action: string) => downloadAction(id, action, session.defaultSession))
@@ -249,7 +334,7 @@ export function registerIpc(): void {
     const opts: Electron.OpenDialogOptions = {
       title: 'Choose a background image',
       properties: ['openFile'],
-      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'] }]
+      filters: [{ name: 'Images or short videos', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'mp4', 'webm'] }]
     }
     const res = owner ? await dialog.showOpenDialog(owner, opts) : await dialog.showOpenDialog(opts)
     if (res.canceled || !res.filePaths[0]) return null
@@ -262,6 +347,27 @@ export function registerIpc(): void {
     const appearance = { ...getSettings().appearance, background: 'custom', customBackground: name }
     updateSettings({ appearance })
     return name
+  })
+  // #175 A folder of your own pictures, a different one each new tab.
+  handle('appearance:pickFolder', async ({ sender }) => {
+    const owner = BrowserWin.fromWebContents(sender)?.win
+    const opts: Electron.OpenDialogOptions = { title: 'Choose a folder of pictures', properties: ['openDirectory'] }
+    const res = owner ? await dialog.showOpenDialog(owner, opts) : await dialog.showOpenDialog(opts)
+    if (res.canceled || !res.filePaths[0]) return null
+    const count = readdirSync(res.filePaths[0]).filter((f) => WALLPAPER.test(f)).length
+    if (!count) return 0
+    updateSettings({ appearance: { ...getSettings().appearance, background: 'folder', wallpaperFolder: res.filePaths[0] } })
+    return count
+  })
+  handle('appearance:nextWallpaper', () => {
+    const dir = getSettings().appearance.wallpaperFolder
+    if (!dir) return null
+    try {
+      const files = readdirSync(dir).filter((f) => WALLPAPER.test(f))
+      return files.length ? files[Math.floor(Math.random() * files.length)] : null
+    } catch {
+      return null
+    }
   })
 
   handle('dialog:pickFolder', async ({ sender }) => {
@@ -290,7 +396,7 @@ export function registerIpc(): void {
   })
   handle('app:restart', () => restartApp())
   // The video toolbar's Pop out button (top frames only; videos in frames use Chromium's own).
-  ipcMain.on('ovyra:float', (event, on: boolean) => {
+  ipcMain.on('alchemy:float', (event, on: boolean) => {
     const tab = tabsByContents.get(event.sender.id)
     const bw = tab && BrowserWin.fromWebContents(event.sender)
     if (!tab || !bw || event.senderFrame !== event.sender.mainFrame) return
@@ -299,7 +405,7 @@ export function registerIpc(): void {
   })
   // The video toolbar's screenshot button: a PNG of the frame (or of the screen, for videos
   // from other sites), saved to PicturesAlchemy and copied.
-  ipcMain.handle('ovyra:video-shot', async (event, data: string | null, title: string, rect: Rect | null) => {
+  ipcMain.handle('alchemy:video-shot', async (event, data: string | null, title: string, rect: Rect | null) => {
     if (!tabsByContents.has(event.sender.id)) return null
     let image = data?.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(data) : null
     if (!image && rect) {
@@ -335,7 +441,8 @@ export function registerIpc(): void {
   handle('defaultbrowser:open', () => openDefaultAppsSettings())
   handle('defaultbrowser:dismiss', (_c, forever: boolean) => {
     defaultPromptHidden = true
-    if (forever) updateSettings({ askDefaultBrowser: false })
+    const n = (getSettings().defaultPromptDismissals ?? 0) + 1
+    updateSettings({ defaultPromptDismissals: n, ...(forever || n >= 2 ? { askDefaultBrowser: false } : {}) })
   })
   handle('app:info', () => ({
     version: app.getVersion(),
@@ -349,6 +456,18 @@ export function registerIpc(): void {
   // ---- new tab widgets ----
   handle('widgets:places', (_c, q: string) => findPlaces(q).catch(() => []))
   // "weather paris" in the address bar: the first matching place's weather.
+  // #104 Currency: today's European Central Bank rates (only the two currency codes are sent).
+  handle('omnibox:currency', async ({ bw }, amount: number, from: string, to: string) => {
+    if (bw?.incognito || !/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) return null
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`)
+      const data = (await res.json()) as { rates?: Record<string, number>; date?: string }
+      const rate = data.rates?.[to]
+      return rate ? { value: amount * rate, rate, date: data.date ?? '' } : null
+    } catch {
+      return null
+    }
+  })
   handle('omnibox:weather', async ({ bw }, q: string) => {
     if (bw?.incognito) return null
     const place = (await findPlaces(q).catch(() => []))[0]
@@ -363,33 +482,6 @@ export function registerIpc(): void {
   handle('widgets:focus', () => focusState())
   handle('widgets:focusStart', (_c, minutes: number) => startFocus(Math.max(1, Math.min(180, minutes))))
   handle('widgets:focusStop', () => stopFocus())
-  // Now playing: the tab making sound (or the one the widget last paused), in any window.
-  handle('widgets:nowPlaying', () => {
-    for (const w of BrowserWin.all) {
-      if (w.incognito) continue
-      const t = w.tabs.find((t) => t.audible) ?? (pausedByWidget !== null ? w.tab(pausedByWidget) : undefined)
-      if (t) return { tabId: t.id, title: t.title, url: t.pageUrl(), favicon: t.favicon, playing: t.audible }
-    }
-    return null
-  })
-  handle('widgets:media', async (_c, tabId: number, action: 'play' | 'pause' | 'show') => {
-    for (const w of BrowserWin.all) {
-      const t = w.tab(tabId)
-      if (!t) continue
-      if (action === 'show') {
-        w.activate(t)
-        w.win.focus()
-        return
-      }
-      const js =
-        action === 'pause'
-          ? `document.querySelectorAll('video,audio').forEach(m => { if (!m.paused) { m.dataset.alchemyPaused = '1'; m.pause() } })`
-          : `(() => { const m = document.querySelector('[data-alchemy-paused]') || document.querySelector('video,audio'); if (m) { delete m.dataset.alchemyPaused; m.play() } })()`
-      await t.wc?.executeJavaScript(js).catch(() => {})
-      pausedByWidget = action === 'pause' ? tabId : null
-      return
-    }
-  })
 
   // ---- privacy ----
   handle('shields:info', ({ bw }, tabId: number): ShieldsInfo | null => {
@@ -408,8 +500,25 @@ export function registerIpc(): void {
       totalBlocked: stats.blocked,
       totalAds: stats.ads,
       totalTrackers: stats.trackers,
-      since: stats.since
+      since: stats.since,
+      siteLevel: getSettings().aegisSiteLevels?.[siteOf(url)],
+      fingerprintOff: (getSettings().fingerprintOff ?? []).includes(siteOf(url))
     }
+  })
+  // #396 One site's own Aegis level ('' goes back to the global one); the page reloads.
+  handle('shields:siteLevel', ({ bw }, site: string, level: '' | 'chill' | 'comfort' | 'extreme') => {
+    const levels = { ...(getSettings().aegisSiteLevels ?? {}) }
+    if (level) levels[site] = level
+    else delete levels[site]
+    updateSettings({ aegisSiteLevels: levels })
+    // Give the other level's engine a moment to load before the reload.
+    setTimeout(() => bw?.active?.reload(), 600)
+  })
+  // #447 Fingerprint protection off (or back on) for one site.
+  handle('shields:fingerprint', ({ bw }, site: string, on: boolean) => {
+    const list = (getSettings().fingerprintOff ?? []).filter((s) => s !== site)
+    updateSettings({ fingerprintOff: on ? list : [...list, site] })
+    bw?.active?.reload()
   })
   handle('shields:set', (_c, site: string, enabled: boolean) => {
     setSiteShields(site, enabled)
@@ -432,8 +541,13 @@ export function registerIpc(): void {
     const url = bw?.active?.pageUrl() ?? ''
     if (!/^https?:/.test(url)) return null
     const site = siteOf(url)
-    return { site, restyle: restyleFor(site), elixirs: ELIXIRS.filter((e) => e.sites.includes(site)).map((e) => e.id) }
+    return { site, restyle: restyleFor(site), elixirs: elixirList().filter((e) => e.sites.includes(site)) }
   })
+  handle('mods:elixirs', () => elixirList())
+  handle('mods:refreshElixirs', async () => (await updateElixirs(true), elixirList()))
+  handle('mods:copyRestyle', (_c, from: string, to: string) => copyRestyle(from, to))
+  handle('mods:installScript', (_c, url: string) => installScript(String(url ?? '').trim()))
+  handle('mods:updateScripts', () => updateScripts())
   handle('mods:restyles', () => allRestyles())
   handle('mods:setRestyle', (_c, site: string, r: SiteRestyle | null) => setRestyle(site, r))
   handle('mods:scripts', () => listScripts())
@@ -447,12 +561,23 @@ export function registerIpc(): void {
     bw!.hideOverlay()
     wc.focus()
     const hidden = await pickAndHide(wc)
-    if (hidden) bw!.send('toast', { text: 'Hidden on this site', action: { label: 'Undo', cmd: 'restyle-undo' } } satisfies ToastData)
+    if (hidden) bw!.send('toast', { text: hidden === 1 ? 'Hidden on this site' : `${hidden} things hidden on this site`, action: { label: 'Undo', cmd: 'restyle-undo' } } satisfies ToastData)
   })
   // ---- on-device AI: the text it reads comes from here, the thinking happens in the shell ----
-  shell('ai:docs', ({ bw }, scope: 'page' | 'tabs') => {
-    if (!bw) return []
+  // AI features stay off in Masked Mode and Alchemy Tor.
+  shell('ai:docs', async ({ bw }, scope: 'page' | 'tabs' | 'selection') => {
+    if (!bw || bw.incognito) return []
+    if (scope === 'selection') {
+      const tab = bw.active
+      const text = ((await tab?.wc?.executeJavaScript('String(getSelection() || "")', true).catch(() => '')) as string) ?? ''
+      return tab && text.trim().length > 20 ? [{ id: tab.id, title: tab.title, url: tab.pageUrl(), text: text.trim() }] : []
+    }
     return aiDocs(scope === 'page' ? (bw.active ? [bw.active] : []) : bw.visible())
+  })
+  // How much is selected on the page, so Ask can offer to ask about just that.
+  shell('ai:selection', async ({ bw }) => {
+    const text = ((await bw?.active?.wc?.executeJavaScript('String(getSelection() || "")', true).catch(() => '')) as string) ?? ''
+    return text.trim().length > 20 ? text.trim().slice(0, 120) : ''
   })
   // "Show me where": bring up the tab and find the words on it.
   shell('ai:show', ({ bw }, tabId: number, words: string) => {
@@ -466,28 +591,47 @@ export function registerIpc(): void {
     const lab = getSettings().lab
     return bw?.incognito || !lab?.ask || !lab.instantAnswers ? [] : webSnippets(q)
   })
-  handle('ai:modelSizes', ({ bw }) => bw?.win.webContents.executeJavaScript(modelsScript()) ?? { ai: 0, voice: 0 })
-  handle('ai:removeModels', ({ bw }, which: 'ai' | 'voice') => {
+  handle('ai:modelSizes', ({ bw }) => bw?.win.webContents.executeJavaScript(modelsScript()) ?? { ai: 0, smart: 0, voice: 0 })
+  handle('ai:removeModels', ({ bw }, which: 'ai' | 'smart' | 'voice') => {
     broadcast('ai:models-removed', which)
-    return bw?.win.webContents.executeJavaScript(modelsScript(which)) ?? { ai: 0, voice: 0 }
+    return bw?.win.webContents.executeJavaScript(modelsScript(which)) ?? { ai: 0, smart: 0, voice: 0 }
   })
   handle('game:open', ({ bw }) => void bw?.newTab(GAME_URL))
-  shell('ask:toggle', ({ bw }) => getSettings().lab?.ask && bw?.send('ask:toggle'))
+  shell('ask:toggle', ({ bw }) => getSettings().lab?.ask && !bw?.incognito && bw?.send('ask:toggle'))
   shell('search:everywhere', ({ bw }, q: string) => bw?.searchEverywhere(q))
   // Ctrl+K: search the words inside your open tabs (kept in memory only).
   shell('tabs:searchContent', ({ bw }, q: string) => (bw && getSettings().lab?.tabSearch !== false ? searchTabs(bw.visible().filter((t) => t !== bw.active), q) : []))
   // ---- passwords ----
-  handle('passwords:list', () => listPasswords())
+  handle('passwords:list', async () => (await loadPasswords(), listPasswords()))
+  handle('passwords:encrypted', async () => (await loadPasswords(), passwordsEncrypted()))
   handle('passwords:reveal', (_c, id: string) => revealPassword(id))
   handle('passwords:remove', (_c, id: string) => removePassword(id))
   handle('passwords:add', (_c, url: string, username: string, password: string) => addPassword(url, username, password))
   handle('passwords:import', () => importPasswordsCsv())
   handle('passwords:checkBreaches', () => checkAllBreaches())
+  handle('passwords:update', (_c, id: string, username: string, password: string) => updatePassword(id, String(username ?? ''), String(password ?? '')))
+  handle('passwords:removeAll', () => removeAllPasswords())
+  handle('autofill:list', () => listAutofill())
+  handle('autofill:saveAddress', (_c, a: AutofillAddress) => saveAddress(a))
+  handle('autofill:saveCard', (_c, c: { id?: string; name: string; number: string; expMonth: string; expYear: string }) => saveCard(c))
+  handle('autofill:remove', (_c, kind: 'address' | 'card', id: string) => removeAutofill(kind, id))
+  handle('passwords:copy', (_c, id: string) => copyPassword(id))
+  handle('passwords:generate', (_c, opts?: { length: number; symbols: boolean; readable: boolean }) => generatePassword(opts))
   handle('permissions:list', () => listPermissionDecisions())
   handle('permissions:set', (_c, origin: string, permission: string, allowed: boolean | null) => setPermissionDecision(origin, permission, allowed))
   handle('battery:state', () => batterySaverActive())
-  handle('tor:retry', (_c, bridges?: boolean) => retryTor(bridges))
+  // Choosing bridges (or not) on the connection screen is remembered for next time.
+  handle('tor:retry', (_c, bridges?: boolean) => {
+    if (typeof bridges === 'boolean') updateSettings({ torBridges: bridges })
+    return retryTor(bridges)
+  })
   // New identity, then reload the Tor window's tabs so they come back through new circuits.
+  // #421 "Open anyway" on the dangerous page warning.
+  handle('aegis:allowDanger', ({ bw, sender }, url: string) => {
+    allowDangerousSite(url)
+    const tab = bw?.tabs.find((t) => t.wc === sender)
+    tab?.load(url)
+  })
   handle('tor:newIdentity', ({ bw }) => (bw ? newIdentity(bw) : false))
   handle('window:newTor', () => void BrowserWin.open({ tor: true }))
 
@@ -504,13 +648,32 @@ export function registerIpc(): void {
   handle('workspace:save', ({ bw }, ws: Workspace) => {
     const list = getSettings().workspaces
     const exists = list.some((w) => w.id === ws.id)
-    const clean: Workspace = { id: ws.id || randomUUID(), name: ws.name.trim() || 'Workspace', icon: ws.icon, accent: ws.accent ?? null }
+    const clean: Workspace = {
+      id: ws.id || randomUUID(),
+      name: ws.name.trim() || 'Workspace',
+      icon: ws.icon,
+      accent: ws.accent ?? null,
+      homeUrl: ws.homeUrl?.trim() || undefined,
+      searchEngine: ws.searchEngine || undefined,
+      barFolder: ws.barFolder || undefined,
+      panels: Array.isArray(ws.panels) ? ws.panels : undefined
+    }
     updateSettings({ workspaces: exists ? list.map((w) => (w.id === ws.id ? clean : w)) : [...list, clean] })
     if (!exists) bw?.switchWorkspace(clean.id)
     for (const w of BrowserWin.all) w.contextChanged()
     return clean
   })
   handle('workspace:delete', ({ bw }, id: string) => bw && deleteWorkspace(bw, id))
+  // #67 A copy of a workspace's look and options (not its tabs), ready to rename.
+  handle('workspace:duplicate', (_c, id: string) => {
+    const list = getSettings().workspaces
+    const ws = list.find((w) => w.id === id)
+    if (!ws) return
+    const copy: Workspace = { ...ws, id: randomUUID(), name: `${ws.name} copy` }
+    const at = list.indexOf(ws) + 1
+    updateSettings({ workspaces: [...list.slice(0, at), copy, ...list.slice(at)] })
+    return copy
+  })
 
   // ---- command palette, split view ----
   shell('palette:open', ({ bw }) => bw?.openPalette())
@@ -552,6 +715,7 @@ export function registerIpc(): void {
       { label: 'Reload', enabled: !!state?.loaded, click: () => reloadPanel(id) },
       { label: 'Unload (free memory)', enabled: !!state?.loaded, click: () => destroyPanel(id) },
       { label: 'Use desktop version', type: 'checkbox', checked: !!state?.desktop, click: () => setPanelDesktop(id, !state?.desktop) },
+      { label: 'Name, icon and color…', click: () => bw.send('panel:edit', id) },
       { type: 'separator' },
       { label: 'Remove from sidebar', click: () => removePanel(id) }
     ], x, y)
@@ -563,6 +727,33 @@ export function registerIpc(): void {
     if (bw) showPanel(bw, id)
   })
   handle('panels:remove', (_c, id: string) => removePanel(id))
+  handle('panels:edit', (_c, id: string, patch: { title?: string; color?: string; badge?: string }) => {
+    updateSettings({
+      panels: getSettings().panels.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              title: patch.title?.trim().slice(0, 40) || p.title,
+              color: /^#[0-9a-f]{6}$/i.test(patch.color ?? '') ? patch.color! : p.color,
+              badge: patch.badge?.trim().slice(0, 4) || undefined
+            }
+          : p
+      )
+    })
+  })
+  // #240 One + in the sidebar: it asks what to add.
+  shell('rail:addMenu', ({ bw }, x: number, y: number) => {
+    if (!bw) return
+    showMenu(
+      bw,
+      [
+        ...(bw.incognito ? [] : [{ label: 'New workspace…', click: () => bw.send('rail:add', 'workspace') }]),
+        ...(bw.tor ? [] : [{ label: 'Messenger or site in the sidebar…', click: () => bw.send('rail:add', 'panel') }])
+      ],
+      x,
+      y
+    )
+  })
   shell('panels:presetIcons', () => presetIcons())
   handle('window:newPrivate', () => void BrowserWin.open({ incognito: true }))
 
@@ -588,17 +779,29 @@ export function registerIpc(): void {
     const wc = bw.active?.wc
     const s = getSettings()
     const commands: Record<string, () => void> = {
-      'new-tab': () => bw.newTab(),
+      'new-tab': () => bw.userNewTab(),
       'new-window': () => BrowserWin.open(),
       'new-private': () => BrowserWin.open({ incognito: true }),
       'new-tor': () => BrowserWin.open({ tor: true }),
       'search-everywhere': () => arg && bw.searchEverywhere(arg),
       'pw-save': () => arg && savePending(arg),
-      ask: () => s.lab?.ask && bw.send('ask:toggle'),
+      'pw-never': () => arg && neverSaveFor(arg),
+      ask: () => s.lab?.ask && !bw.incognito && bw.send('ask:toggle'),
+      back: () => wc?.navigationHistory.goBack(),
+      forward: () => wc?.navigationHistory.goForward(),
+      reload: () => bw.active?.reload(),
+      'scroll-down': () => void wc?.executeJavaScript('scrollBy({ top: innerHeight * 0.8, behavior: "smooth" })').catch(() => {}),
+      'scroll-up': () => void wc?.executeJavaScript('scrollBy({ top: -innerHeight * 0.8, behavior: "smooth" })').catch(() => {}),
       restyle: () => bw.openRestyle(),
       'restyle-undo': () => wc && undoLastHide(wc),
       'force-dark': () => updateSettings({ forceDark: !s.forceDark }),
       'reopen-tab': () => bw.reopenClosed(),
+      reader: () => wc && void toggleReader(wc).then((r) => r === 'none' && bw.send('toast', { text: 'Reader view couldn’t find an article on this page' })),
+      'later-add': () => {
+        const t = bw.active
+        if (t && !bw.incognito && addLater(t.pageUrl(), t.title, t.favicon)) bw.send('toast', { text: 'Saved to your Later list', action: { label: 'Show', cmd: 'later' } })
+      },
+      later: () => bw.send('later:show'),
       'tor-identity': () => void newIdentity(bw),
       'reopen-tabs': () => {
         for (let i = 0; i < Math.min(50, Number(arg) || 1); i++) bw.reopenClosed()
@@ -607,6 +810,9 @@ export function registerIpc(): void {
       'pin-tab': () => bw.active && bw.setPinned(bw.active, !bw.active.pinned),
       'duplicate-tab': () => bw.active && bw.duplicate(bw.active),
       'split-view': () => (bw.split ? bw.unsplit() : bw.active && bw.splitWith(bw.active)),
+      'split-swap': () => bw.swapSplit(),
+      'split-direction': () => bw.toggleSplitDirection(),
+      'mute-others': () => bw.active && bw.muteOthers(bw.active),
       history: () => bw.openInternal('history'),
       bookmarks: () => bw.openInternal('bookmarks'),
       downloads: () => bw.openInternal('downloads'),
@@ -639,10 +845,7 @@ export function registerIpc(): void {
       print: () => wc?.print(),
       fullscreen: () => bw.toggleFullscreen(),
       devtools: () => bw.active && bw.toggleDevTools(bw.active),
-      mode: () => arg && updateSettings({ appearance: { ...s.appearance, mode: arg as ColorMode } }),
       'install-update': () => installUpdate(),
-      exit: () => app.quit(),
-      restart: () => restartApp(),
       'color-picker': () => void bw.pickColor(),
       'toggle-adblock': () => updateSettings({ adblock: !s.adblock }),
       'site-shields': () => {
@@ -672,19 +875,25 @@ export function registerIpc(): void {
     const ws = list.find((w) => w.id === id)
     if (!ws || list.length < 2) return
     const count = [...BrowserWin.all].reduce((n, w) => n + w.tabs.filter((t) => t.workspaceId === id).length, 0)
+    const rest = list.filter((w) => w.id !== id)
+    // #78 With tabs in it, they can move to another workspace instead of closing.
+    const target = rest.find((w) => w.id === bw.workspaceId) ?? rest[0]
+    const tabs = `${count} tab${count === 1 ? '' : 's'}`
     const { response } = await dialog.showMessageBox(bw.win, {
       type: 'warning',
       message: `Delete the “${ws.name}” workspace?`,
-      detail: count ? `Its ${count} tab${count === 1 ? '' : 's'} will be closed.` : undefined,
-      buttons: ['Delete', 'Cancel'],
-      defaultId: 1,
-      cancelId: 1,
+      detail: count ? `It has ${tabs}. Move them to “${target.name}”, or close them?` : undefined,
+      buttons: count ? [`Move ${tabs} to ${target.name}`, `Close ${tabs}`, 'Cancel'] : ['Delete', 'Cancel'],
+      defaultId: count ? 0 : 1,
+      cancelId: count ? 2 : 1,
       noLink: true
     })
-    if (response !== 0) return
-    const rest = list.filter((w) => w.id !== id)
+    if (count ? response === 2 : response !== 0) return
+    if (count && response === 0) {
+      for (const w of BrowserWin.all) for (const t of w.tabs.filter((x) => x.workspaceId === id)) w.moveToWorkspace(t, target.id)
+    }
     updateSettings({ workspaces: rest })
-    for (const w of BrowserWin.all) w.workspaceRemoved(id, rest[0].id)
+    for (const w of BrowserWin.all) w.workspaceRemoved(id, target.id)
   }
 
   onSettingsChanged((s) => {

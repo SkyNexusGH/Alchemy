@@ -19,6 +19,15 @@ export default function NewTab(): React.JSX.Element {
   const [icons, setIcons] = useState<Record<string, string | null>>({})
   const [adding, setAdding] = useState(false)
   const now = useClock()
+  // #175 A different picture from your folder on each new tab.
+  const [folderPic, setFolderPic] = useState<string | null>(null)
+  const folder = settings?.appearance.background === 'folder' ? settings.appearance.wallpaperFolder : null
+  useEffect(() => {
+    if (folder) void api.invoke<string | null>('appearance:nextWallpaper').then(setFolderPic)
+  }, [folder])
+  // #176 Video backgrounds rest while saving battery.
+  const [saving, setSaving] = useState(false)
+  useEffect(() => void api.invoke<boolean>('battery:state').then(setSaving), [])
 
   useEffect(() => {
     if (isPrivate) document.title = isTor ? 'Alchemy Tor' : 'Masked Mode'
@@ -33,22 +42,39 @@ export default function NewTab(): React.JSX.Element {
   if (!settings) return <div className="ntp" />
   const a = settings.appearance
   // Masked Mode always has its own background (the masquerade mask).
-  const bg = isPrivate ? '/backgrounds/masked.jpg' : backgroundUrl(settings)
+  const bg = isPrivate ? '/backgrounds/masked.jpg' : a.background === 'folder' ? (folderPic ? `alchemy://wallpaper/${encodeURIComponent(folderPic)}` : null) : backgroundUrl(settings)
+  const video = !!bg && /\.(mp4|webm)$/i.test(bg)
+  const minimal = !!a.minimal && !isPrivate
+  const hour12 = a.clockHours === '12' ? true : a.clockHours === '24' ? false : undefined
   const remove = (id: string): void => void saveSettings({ speedDial: dial.filter((d) => d.id !== id) })
 
   return (
     <div className={`ntp${bg ? ' has-bg' : ''}${isPrivate ? ' masked' : ''}`}>
-      {bg && <div className="ntp-bg" style={{ backgroundImage: `url("${bg}")` }} />}
+      {bg && !video && <div className="ntp-bg" style={{ backgroundImage: `url("${bg}")`, filter: a.backgroundBlur ? `blur(${a.backgroundBlur}px)` : undefined, inset: a.backgroundBlur ? -a.backgroundBlur * 2 : undefined }} />}
+      {bg && video && (
+        <video
+          className="ntp-bg ntp-video"
+          src={bg}
+          autoPlay={!saving}
+          muted
+          loop
+          playsInline
+          style={{ filter: a.backgroundBlur ? `blur(${a.backgroundBlur}px)` : undefined }}
+        />
+      )}
       {bg && !isPrivate && <div className="ntp-dim" style={{ opacity: a.backgroundDim / 100 }} />}
 
-      {!isPrivate && <DefaultBrowserCard />}
+      {!isPrivate && !minimal && <DefaultBrowserCard />}
 
       <div className="ntp-center">
         {a.showClock && (
           <>
             <div className="date">{now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-            <Clock now={now} style={a.clockStyle ?? 'classic'} />
-            <div className="greeting">{greeting(now)}</div>
+            <Clock now={now} style={a.clockStyle ?? 'classic'} hour12={hour12} />
+            <div className="greeting">
+              {greeting(now)}
+              {a.greetingName?.trim() ? `, ${a.greetingName.trim()}` : ''}
+            </div>
           </>
         )}
 
@@ -86,7 +112,7 @@ export default function NewTab(): React.JSX.Element {
           </div>
         )}
 
-        {a.showSpeedDial && (
+        {a.showSpeedDial && !minimal && (
           <div className="dial">
             {dial.map((d) => (
               <a
@@ -121,7 +147,7 @@ export default function NewTab(): React.JSX.Element {
             </button>
           </div>
         )}
-        {!isPrivate && <WidgetBoard />}
+        {!isPrivate && !minimal && <WidgetBoard />}
       </div>
 
       {adding && (
@@ -136,7 +162,7 @@ export default function NewTab(): React.JSX.Element {
   )
 }
 
-/** The "Hide my IP in Masked Mode" setting, right where it matters. */
+/** Whether "Hide my IP in Masked Mode" is on, with a link to the setting. */
 function HideIpRow(): React.JSX.Element | null {
   const on = useSettings((s) => !!s.settings?.maskedUsesTor)
   return (
@@ -154,14 +180,9 @@ function HideIpRow(): React.JSX.Element | null {
           Open one
         </button>
       )}
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label="Hide my IP address in new Masked Mode windows"
-        className="switch"
-        onClick={() => void saveSettings({ maskedUsesTor: !on })}
-      />
+      <button type="button" className="hide-ip-open" onClick={() => void api.invoke('internal:open', 'settings', 'privacy')}>
+        {on ? 'Change' : 'Turn on'}
+      </button>
     </div>
   )
 }
@@ -383,7 +404,7 @@ function timeInWords(d: Date): string {
 }
 
 /** The new tab clock, in the style picked in Settings → New Tab & Search. */
-function Clock({ now, style }: { now: Date; style: string }): React.JSX.Element {
+function Clock({ now, style, hour12 }: { now: Date; style: string; hour12?: boolean }): React.JSX.Element {
   if (style === 'analog') {
     const s = now.getSeconds()
     const m = now.getMinutes() + s / 60
@@ -408,7 +429,7 @@ function Clock({ now, style }: { now: Date; style: string }): React.JSX.Element 
     )
   }
   if (style === 'words') return <div className="clock clock-words">{timeInWords(now)}</div>
-  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: style === 'seconds' ? '2-digit' : undefined })
+  const time = now.toLocaleTimeString([], { hour: hour12 ? 'numeric' : '2-digit', minute: '2-digit', second: style === 'seconds' ? '2-digit' : undefined, hour12 })
   return <div className={`clock${style === 'bold' ? ' clock-bold' : ''}`}>{time}</div>
 }
 

@@ -22,6 +22,10 @@ export function Toolbar(): React.JSX.Element {
           title="Back (Alt+Left)"
           disabled={!tab?.canGoBack}
           onClick={() => api.invoke('nav', 'back')}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            void api.invoke('nav:menu', 'back', e.clientX, e.clientY)
+          }}
         >
           <ArrowLeft size={17} />
         </button>
@@ -30,6 +34,10 @@ export function Toolbar(): React.JSX.Element {
           title="Forward (Alt+Right)"
           disabled={!tab?.canGoForward}
           onClick={() => api.invoke('nav', 'forward')}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            void api.invoke('nav:menu', 'forward', e.clientX, e.clientY)
+          }}
         >
           <ArrowRight size={17} />
         </button>

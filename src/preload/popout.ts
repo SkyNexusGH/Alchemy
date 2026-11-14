@@ -10,7 +10,7 @@ import { ipcRenderer } from 'electron'
  */
 
 const SPEEDS = [1, 1.25, 1.5, 2, 0.75]
-const FLOAT_ATTR = 'data-ovyra-float'
+const FLOAT_ATTR = 'data-alchemy-float'
 // Subtle "enhance": a touch more contrast and color, like TV picture modes.
 const ENHANCE_FILTER = 'contrast(1.08) saturate(1.18) brightness(1.02)'
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -135,7 +135,7 @@ export function setupPopout(toolbar: boolean): void {
     chain.bass.gain.value = fx.bass ? 9 : 0
     chain.gain.gain.value = fx.boost
   }
-  ipcRenderer.on('ovyra:audio', (_e, next: typeof fx) => {
+  ipcRenderer.on('alchemy:audio', (_e, next: typeof fx) => {
     fx = {
       boost: Math.min(Math.max(Number(next?.boost) || 1, 1), 4),
       bass: !!next?.bass,
@@ -162,9 +162,9 @@ export function setupPopout(toolbar: boolean): void {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       const r = v.getBoundingClientRect()
       const rect = { x: r.left, y: r.top, width: r.width, height: r.height }
-      return ipcRenderer.invoke('ovyra:video-shot', null, document.title, rect).then(Boolean, () => false)
+      return ipcRenderer.invoke('alchemy:video-shot', null, document.title, rect).then(Boolean, () => false)
     }
-    return ipcRenderer.invoke('ovyra:video-shot', data, document.title, null).then(Boolean, () => false)
+    return ipcRenderer.invoke('alchemy:video-shot', data, document.title, null).then(Boolean, () => false)
   }
 
   const makeButton = (label: string, title: string, icon?: SVGSVGElement): HTMLButtonElement => {
@@ -187,7 +187,7 @@ export function setupPopout(toolbar: boolean): void {
   }
 
   const build = (): void => {
-    host = document.createElement('ovyra-video-tools')
+    host = document.createElement('alchemy-video-tools')
     const root = host.attachShadow({ mode: 'closed' })
     const style = document.createElement('style')
     style.textContent = CSS
@@ -206,7 +206,7 @@ export function setupPopout(toolbar: boolean): void {
         // Alchemy's floating window: the main process moves the whole page into it.
         const on = !v.hasAttribute(FLOAT_ATTR)
         if (on) v.setAttribute(FLOAT_ATTR, '')
-        ipcRenderer.send('ovyra:float', on)
+        ipcRenderer.send('alchemy:float', on)
         hide()
       } else if (document.pictureInPictureElement === v) void document.exitPictureInPicture()
       else void v.requestPictureInPicture().catch(() => {})

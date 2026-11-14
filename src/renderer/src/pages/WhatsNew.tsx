@@ -3,7 +3,12 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import {
   AppWindow,
+  Bookmark,
   Code,
+  Columns2,
+  Download,
+  LayoutGrid,
+  Shield,
   Gauge,
   Key,
   Keyboard,
@@ -30,6 +35,57 @@ interface Release {
 
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
+  {
+    version: '0.1.17',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Columns2,
+        title: 'Tabs, groups and split view, reworked',
+        text: 'Pull a tab off the strip to give it its own window, name your tab groups, drag the line between split pages to resize them, and choose where new tabs open. Pinned tabs no longer close with Ctrl+W, and a red dot shows which tab is using your camera or microphone.'
+      },
+      {
+        icon: Shield,
+        title: 'Aegis stops dangerous sites',
+        text: 'Known malware and phishing pages now get a warning before they load. Each site can have its own blocking level, Masked Mode always uses Extreme, and the shield lets you hide anything Aegis missed, several things at a time.'
+      },
+      {
+        icon: Key,
+        title: 'Passwords, addresses and cards',
+        text: 'Alchemy suggests strong passwords on sign-up forms and only offers to save after a real sign-in. It can also fill your address and payment cards, and you can lock Alchemy with Windows Hello.'
+      },
+      {
+        icon: Bookmark,
+        title: 'Later list and Reader view',
+        text: 'Save pages to read later from the right-click menu, and press F9 for a clean, distraction-free Reader view. Bookmarks now have tags, Undo and import and export to a file, and History shows your most visited sites.'
+      },
+      {
+        icon: Search,
+        title: 'A smarter address bar',
+        text: 'Convert currencies, check the time in any city, search just your bookmarks with @bookmarks, and get “Did you mean” for mistyped sites. Find in page now marks every match down the edge of the page.'
+      },
+      {
+        icon: LayoutGrid,
+        title: 'A calmer new tab page',
+        text: 'Fewer widgets to start with, a forecast for the week, weather alerts, to-dos with due dates, your name in the greeting, a folder of your own wallpapers, and a Minimal mode.'
+      },
+      {
+        icon: Palette,
+        title: 'Site magic grows up',
+        text: 'Force dark gets a schedule, brightness and contrast, and no more white flashes. There are new Elixirs for Google, Facebook, YouTube and more, which now update by themselves. Custom scripts have a proper code editor, and changes switch off instantly without a reload.'
+      },
+      {
+        icon: Sparkle,
+        title: 'Lab and Settings, tidied',
+        text: 'Ask can answer about selected text and PDFs, and Voice search has push-to-talk (Ctrl+Space). Settings has a new General page, a Developer options switch, and a shorter welcome. The sidebar clock and some rarely used widgets are gone.'
+      },
+      {
+        icon: Download,
+        title: 'Safer downloads',
+        text: 'Files that can run programs are checked by Microsoft Defender when they finish, downloads cut off by closing Alchemy can carry on where they stopped, and closing Alchemy mid-download asks first.'
+      }
+    ]
+  },
   {
     version: '0.1.16',
     date: 'November 2026',

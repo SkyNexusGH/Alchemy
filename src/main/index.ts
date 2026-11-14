@@ -9,6 +9,9 @@ import { onClipboardBlocked, onRequestBlocked, registerPrivacyIpc } from './priv
 import { batterySaverActive, initBatterySaver } from './battery'
 import { initSiteMods } from './sitemods'
 import { registerPasswordIpc } from './passwords'
+import { registerAutofillIpc } from './autofill'
+import { isMaskedSession } from './privacy/network'
+import { initLock, unlockAtStart } from './lock'
 import { onMilestone } from './privacy/shields'
 import { registerSchemePrivileges } from './protocol'
 import { setupBrowsingSession } from './sessions'
@@ -69,7 +72,11 @@ if (!app.requestSingleInstanceLock()) {
     app.configureHostResolver({ secureDnsMode: 'automatic' })
     // WebRTC (video calls) may only use the public network route, so sites can't read
     // the computer's local IP addresses, like Brave's default.
-    app.on('web-contents-created', (_e, wc) => wc.setWebRTCIPHandlingPolicy('default_public_interface_only'))
+    // #443 With "Stop WebRTC leaking your IP" (always in Masked Mode and Tor), calls may only use
+    // the route normal browsing uses, so a VPN or proxy can't be gone around.
+    app.on('web-contents-created', (_e, wc) =>
+      wc.setWebRTCIPHandlingPolicy(getSettings().webrtcStrict || isMaskedSession(wc.session) ? 'disable_non_proxied_udp' : 'default_public_interface_only')
+    )
 
     setupBrowsingSession(session.defaultSession, { incognito: false })
     registerPrivacyIpc()
@@ -88,12 +95,18 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     setSessionProvider(() => [...BrowserWin.all].filter((w) => !w.incognito).map((w) => w.snapshot()))
+    // Locked with Windows Hello: nothing opens until you pass.
+    if (!(await unlockAtStart())) return app.quit()
+    initLock()
     const restored = getSettings().startup === 'restore' ? loadSession() : []
     if (restored.length) for (const w of restored) BrowserWin.open(w)
     else BrowserWin.open()
 
     // Dev builds expose internals to the debugger (`npm run dev -- --inspect`).
-    if (!app.isPackaged) Object.assign(globalThis, { __ovyra: { BrowserWin } })
+    if (!app.isPackaged) {
+      const [bookmarks, history, downloads, importer, engine, sitemods] = await Promise.all([import('./bookmarks'), import('./history'), import('./downloads'), import('./importer'), import('./privacy/engine'), import('./sitemods')])
+      Object.assign(globalThis, { __alchemy: { BrowserWin, bookmarks, history, downloads, importer, engine, sitemods } })
+    }
 
     const url = urlFromArgs(process.argv)
     if (url) BrowserWin.focused()?.newTab(url)
@@ -112,6 +125,7 @@ if (!app.requestSingleInstanceLock()) {
     initBatterySaver()
     initSiteMods()
     registerPasswordIpc()
+    registerAutofillIpc()
     // Tell the window you're looking at when paste protection steps in.
     onClipboardBlocked((id) => {
       const tab = tabsByContents.get(id)

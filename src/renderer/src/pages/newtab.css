@@ -710,12 +710,6 @@
   font-size: 34px;
   line-height: 1;
 }
-.w-quote {
-  margin: 0;
-  font-size: 14.5px;
-  line-height: 1.5;
-  font-style: italic;
-}
 .w-todos {
   display: grid;
   gap: 4px;
@@ -790,55 +784,34 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.w-music {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.w-music-art {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-.w-music-text {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-}
-.w-music-text b {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13px;
-}
-.w-play {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-.w-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.w-stats > div {
-  display: grid;
-}
-.w-stats .w-big {
-  font-size: 17px;
-}
 .w-countdown {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.w-countdown-edit {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.w-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.w-tabs button {
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.w-tabs button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .w-news {
   display: grid;
@@ -877,4 +850,101 @@
 }
 .w-news-card:hover b {
   color: var(--accent-fg);
+}
+
+.ntp-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+button.w-weather {
+  width: 100%;
+  border-radius: 10px;
+  text-align: left;
+}
+button.w-weather:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.w-alert {
+  margin-top: 8px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 650;
+}
+.w-hours {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(42px, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+  overflow-x: auto;
+  text-align: center;
+  font-size: 12px;
+}
+.w-hours > div,
+.w-days > div {
+  display: grid;
+  gap: 2px;
+}
+.w-days {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.w-days > div {
+  grid-template-columns: 1fr 26px 40px 70px;
+  align-items: center;
+}
+.w-days b {
+  text-align: right;
+}
+.w-todo .w-due {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+}
+.w-due.today {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+  color: var(--warn);
+}
+.w-due.late {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: var(--danger);
+}
+.w-date {
+  width: 120px;
+  flex: none;
+  color: var(--text-2);
+}
+.w-news-card.read {
+  opacity: 0.5;
+}
+.w-news-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.w-news-hide {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--text-3);
+  font-size: 11px;
+  opacity: 0;
+}
+.w-news-card:hover .w-news-hide {
+  opacity: 1;
+}
+.w-news-hide:hover {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
 }

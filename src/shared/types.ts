@@ -40,6 +40,8 @@ export interface TabState {
   shields: boolean
   workspaceId: string
   islandId: number | null
+  /** The page is using the camera, microphone or screen right now. */
+  recording: boolean
 }
 
 /** A tab's sound: volume boost and effects, applied to its videos. */
@@ -57,6 +59,14 @@ export interface Workspace {
   icon: string
   /** The workspace's own accent, or null to use the browser's. */
   accent: string | null
+  /** Opened when you switch to the workspace and it has no tabs ('' = the new tab page). */
+  homeUrl?: string
+  /** Its own search engine ('' or missing = the browser's). */
+  searchEngine?: string
+  /** The bookmarks folder its bookmarks bar shows (missing = the Bookmarks bar folder). */
+  barFolder?: string
+  /** The sidebar sites shown in it (missing = all of them). */
+  panels?: string[]
 }
 
 export interface IslandState {
@@ -65,6 +75,8 @@ export interface IslandState {
   collapsed: boolean
   /** Made by the user (Create tab group), so it stays even with a single tab. */
   manual?: boolean
+  /** A short name shown on the group's dot. */
+  name?: string
 }
 
 /** A site pinned to the side rail (messengers, music, ...). */
@@ -75,6 +87,8 @@ export interface PanelItem {
   color: string
   /** Load the desktop version of the site instead of the mobile one. */
   desktop?: boolean
+  /** Your own icon: an emoji or up to two letters, shown instead of the site's (#209). */
+  badge?: string
 }
 
 export interface PanelState extends PanelItem {
@@ -95,6 +109,48 @@ export interface SavedPassword {
   checked?: number
 }
 
+/** A page on the Later list (#1156). */
+export interface LaterItem {
+  url: string
+  title: string
+  favicon: string | null
+  added: number
+  read: boolean
+}
+
+/** A saved address for filling in forms. */
+export interface AutofillAddress {
+  id: string
+  name: string
+  organization?: string
+  street: string
+  city: string
+  region?: string
+  postcode: string
+  country: string
+  phone?: string
+  email?: string
+}
+
+/** A saved payment card (never with its security code). */
+export interface AutofillCard {
+  id: string
+  name: string
+  number: string
+  expMonth: string
+  expYear: string
+}
+
+/** What Settings shows of a card. */
+export interface AutofillCardInfo {
+  id: string
+  name: string
+  last4: string
+  expMonth: string
+  expYear: string
+  brand: string
+}
+
 /** A short message in the title bar, with an optional action (a palette command). */
 export interface ToastData {
   text: string
@@ -102,6 +158,8 @@ export interface ToastData {
   ms?: number
   kind?: 'normal' | 'gold'
   action?: { label: string; cmd: string; arg?: string }
+  /** A second, quieter choice beside the action. */
+  action2?: { label: string; cmd: string; arg?: string }
 }
 
 export interface ShieldsInfo {
@@ -121,6 +179,10 @@ export interface ShieldsInfo {
   totalAds: number
   totalTrackers: number
   since: number
+  /** #396 This site's own Aegis level, if it has one. */
+  siteLevel?: 'chill' | 'comfort' | 'extreme'
+  /** #447 Fingerprint protection is off for this site. */
+  fingerprintOff?: boolean
 }
 
 /** The Aegis blocker's history, for the charts in Settings. */
@@ -188,6 +250,10 @@ export interface WindowState {
   panels: PanelState[]
   /** Tab ids shown side by side, when split view is on (two or three). */
   split: number[] | null
+  /** How much of the window the first of two split pages gets (0.2 to 0.8). */
+  splitRatio: number
+  /** Split pages are stacked top and bottom instead of side by side. */
+  splitVertical: boolean
   /** The active tab has DevTools open (docked on the right). */
   devtools: boolean
 }
@@ -241,7 +307,8 @@ export interface Settings {
   /** The weather widget's place, typed by the user (no location lookup). */
   weatherPlace: { name: string; lat: number; lon: number } | null
   tempUnit: 'C' | 'F'
-  todos: { id: string; text: string; done: boolean }[]
+  /** To-dos on the new tab page; `due` is a date like 2026-11-20 (#160). */
+  todos: { id: string; text: string; done: boolean; due?: string }[]
   countdown: { label: string; date: string } | null
   /** RSS/Atom feeds for the news widget. */
   newsFeeds: string[]
@@ -271,6 +338,8 @@ export interface Settings {
   videoPopout: boolean
   /** Switching away from a tab with a playing video floats the video. */
   autoPopout: boolean
+  /** #586 Sites the automatic pop-out works on (empty = every site). */
+  popoutSites?: string[]
   customEngines: CustomEngine[]
   /** Offer to become the default browser at startup. */
   askDefaultBrowser: boolean
@@ -283,17 +352,56 @@ export interface Settings {
   /** How hard the Aegis blocker blocks: Chill (ads only), Comfort (ads and trackers),
    *  Extreme (everything, including cookie banners and annoyances). */
   aegisLevel: 'chill' | 'comfort' | 'extreme'
+  /** #396 Sites with their own Aegis level (registrable domain → level). */
+  aegisSiteLevels?: Record<string, 'chill' | 'comfort' | 'extreme'>
+  /** #419 Aegis also protects sidebar sites (messengers). */
+  aegisPanels?: boolean
+  /** #404 Videos only start playing after you click on the page. */
+  blockAutoplay?: boolean
+  /** #443 Video calls may only use the same route as normal browsing, so a VPN can't be gone around. */
+  webrtcStrict?: boolean
+  /** #445 Also send the older Do Not Track signal. */
+  sendDnt?: boolean
+  /** #447 Sites where fingerprint protection is off (registrable domains). */
+  fingerprintOff?: string[]
   /** The engines "Search everywhere" opens side by side (up to three). */
   multiEngines: string[]
   /** Alchemy Lab: experiments that are switched on. The AI ones (ask, instantAnswers, voice) start off,
    *  and while they're off nothing about them shows anywhere but the Lab. */
-  lab: { ask: boolean; instantAnswers: boolean; voice: boolean; tabSearch: boolean; searchEverywhere: boolean }
+  lab: {
+    ask: boolean
+    instantAnswers: boolean
+    voice: boolean
+    tabSearch: boolean
+    searchEverywhere: boolean
+    /** Ask uses the smarter model (about 480 MB): written answers, other languages, summaries. */
+    smartAsk?: boolean
+    /** Whisper size for voice search: smaller downloads faster, bigger hears better. */
+    voiceModel?: 'tiny' | 'base' | 'small'
+    /** The language you speak ('' = Alchemy's own language). */
+    voiceLanguage?: string
+  }
   /** Offer to save and fill passwords. */
   passwordManager: boolean
+  /** Offer saved addresses and cards on forms. */
+  autofill?: boolean
+  /** Sites (origins) where Alchemy never offers to save a password. */
+  pwNever?: string[]
+  /** Strong passwords Alchemy suggests on sign-up forms. */
+  pwGenerator?: { length: number; symbols: boolean; readable: boolean }
+  /** Ask for Windows Hello when Alchemy opens, and after the PC was locked or asleep. */
+  lockWithHello?: boolean
   /** Force dark mode: a dark version of every site that's bright. */
   forceDark: boolean
   /** Sites Force dark leaves alone. */
   forceDarkOff: string[]
+  /** #676 When Force dark is on: always, at night (7 pm to 7 am), or when Windows is dark. */
+  forceDarkWhen?: 'always' | 'night' | 'system'
+  /** #677 Brightness and contrast of darkened pages, in percent (100 = as is). */
+  forceDarkBrightness?: number
+  forceDarkContrast?: number
+  /** #678 Photos and videos a little dimmer on darkened pages. */
+  forceDarkDimImages?: boolean
   /** Elixirs that are switched on (see ELIXIRS). */
   elixirs: Record<string, boolean>
   /** Stop pages changing what you copy, or writing to the clipboard without a click. */
@@ -302,6 +410,16 @@ export interface Settings {
   fingerprintProfiles: boolean
   /** Save power: 'auto' turns on when the PC is running on battery. */
   batterySaver: 'auto' | 'on' | 'off'
+  /** Where Ctrl+T and the + button open a tab: at the end, or right after the one you're on. */
+  newTabPosition?: 'end' | 'next'
+  /** Closing the tab you're on goes to the tab you used before it, or the one beside it. */
+  afterClose?: 'recent' | 'beside'
+  /** Ctrl+Tab goes through tabs by when you last used them, or in strip order. */
+  ctrlTabOrder?: 'recent' | 'strip'
+  /** Developer options: Inspect, custom scripts, memory in tab cards and Alchemy's own DevTools. */
+  developer?: boolean
+  /** How many times the default-browser reminder was closed. */
+  defaultPromptDismissals?: number
   /** The version whose What's new page was last shown. */
   lastSeenVersion?: string
   performance: Performance
@@ -324,8 +442,8 @@ export interface Performance {
   networkLimitMbps: number
 }
 
-export const ISLAND_COLORS = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#fb7185', '#2dd4bf', '#fb923c']
-export const ISLAND_COLOR_NAMES = ['Purple', 'Pink', 'Green', 'Yellow', 'Blue', 'Red', 'Teal', 'Orange']
+export const ISLAND_COLORS = ['#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#60a5fa', '#fb7185', '#2dd4bf', '#fb923c', '#a3e635', '#38bdf8', '#e879f9', '#94a3b8']
+export const ISLAND_COLOR_NAMES = ['Purple', 'Pink', 'Green', 'Yellow', 'Blue', 'Red', 'Teal', 'Orange', 'Lime', 'Sky', 'Magenta', 'Grey']
 
 export const PANEL_PRESETS: PanelItem[] = [
   { id: 'whatsapp', title: 'WhatsApp', url: 'https://web.whatsapp.com/', color: '#25d366' },
@@ -337,8 +455,7 @@ export const PANEL_PRESETS: PanelItem[] = [
   { id: 'spotify', title: 'Spotify', url: 'https://open.spotify.com/', color: '#1db954' },
   { id: 'x', title: 'X', url: 'https://x.com/', color: '#71767b' },
   { id: 'ytmusic', title: 'YouTube Music', url: 'https://music.youtube.com/', color: '#ff0033' },
-  { id: 'gmail', title: 'Gmail', url: 'https://mail.google.com/', color: '#ea4335' },
-  { id: 'chatgpt', title: 'ChatGPT', url: 'https://chatgpt.com/', color: '#10a37f' }
+  { id: 'gmail', title: 'Gmail', url: 'https://mail.google.com/', color: '#ea4335' }
 ]
 
 export interface HistoryVisit {
@@ -357,6 +474,8 @@ export interface Bookmark {
   favicon?: string | null
   /** Folders only: an icon from WORKSPACE_ICONS instead of the plain folder. */
   icon?: string
+  /** Bookmarks only: your own labels, across folders (#253). */
+  tags?: string[]
   created: number
 }
 
@@ -374,6 +493,12 @@ export interface DownloadState {
   started: number
   /** Downloaded in a private window; forgotten when private browsing ends. */
   incognito?: boolean
+  /** Open the file by itself once it finishes (#343). */
+  openWhenDone?: boolean
+  /** Microsoft Defender's check of the finished file (#1180). */
+  scan?: 'scanning' | 'clean' | 'threat' | 'unavailable'
+  /** What's needed to carry on after Alchemy restarts (#337). */
+  resume?: { urlChain: string[]; mimeType: string; etag: string; lastModified: string; startTime: number }
 }
 
 export interface Suggestion {
@@ -397,7 +522,7 @@ export type OverlayPayload =
   | { kind: 'downloads' }
   | { kind: 'shields'; tabId: number }
   | { kind: 'workspace'; workspaceId: string | null }
-  | { kind: 'add-panel' }
+  | { kind: 'add-panel'; editId?: string }
   | { kind: 'palette' }
   | { kind: 'menu'; items: MenuModel[]; x: number; y: number }
   | { kind: 'app' }
@@ -462,13 +587,13 @@ export interface ThemePreset {
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
-  { id: 'default', name: 'Alchemy', image: 'default', accent: '#ec4856', mode: 'ovyra' },
+  { id: 'default', name: 'Alchemy', image: 'default', accent: '#ec4856', mode: 'alchemy' },
   { id: 'dark-synth', name: 'Dark Synth', image: 'dark-synth', accent: '#4488bd', mode: 'dark' },
   { id: 'light-synth', name: 'Light Synth', image: 'light-synth', accent: '#fee9c4', mode: 'light' },
   { id: 'myrical', name: 'Myrical', image: 'myrical', accent: '#af7ab6', mode: 'dark' },
   { id: 'nomad', name: 'Nomad', image: 'nomad', accent: '#fea757', mode: 'light' },
   { id: 'soul-hills', name: 'Soul Hills', image: 'soul-hills', accent: '#77793e', mode: 'light' },
-  { id: 'plain-ovyra', name: 'Plain Alchemy', image: null, accent: '#ec4856', mode: 'ovyra' },
+  { id: 'plain-alchemy', name: 'Plain Alchemy', image: null, accent: '#ec4856', mode: 'alchemy' },
   { id: 'plain-dark', name: 'Plain black', image: null, accent: '#ec4856', mode: 'dark' },
   { id: 'plain-light', name: 'Plain light', image: null, accent: '#ec4856', mode: 'light' },
   { id: 'monochrome', name: 'Monochrome', image: null, accent: '#a1a1aa', mode: 'dark' }
@@ -500,12 +625,12 @@ export const BASE_LIGHT = '#d6dae4'
 export const BASE_BLACK = '#000000'
 
 /** Light; Alchemy (the navy brand look); Dark (true black, easy on OLED); or follow Windows. */
-export type ColorMode = 'light' | 'ovyra' | 'dark' | 'system'
+export type ColorMode = 'light' | 'alchemy' | 'dark' | 'system'
 
 /** The base color behind the interface in a mode, given whether Windows is dark. */
 export function baseColor(mode: ColorMode, systemDark: boolean): string {
   if (mode === 'light' || (mode === 'system' && !systemDark)) return BASE_LIGHT
-  return mode === 'ovyra' ? BASE_DARK : BASE_BLACK
+  return mode === 'alchemy' ? BASE_DARK : BASE_BLACK
 }
 
 export interface Appearance {
@@ -541,6 +666,16 @@ export interface Appearance {
   siteTint: boolean
   /** Icons drawn normally, or as runes where there's a fitting one. */
   iconSet: 'standard' | 'runes'
+  /** The new tab clock: as Windows does it, or always 12 or 24 hours (#172). */
+  clockHours?: 'auto' | '12' | '24'
+  /** "Good morning, Sam" (#173). */
+  greetingName?: string
+  /** How much the background is blurred, in pixels (#177). */
+  backgroundBlur?: number
+  /** A folder of your own pictures; a different one on each new tab (#175). */
+  wallpaperFolder?: string | null
+  /** Minimal mode: just the clock and the search box (#180). */
+  minimal?: boolean
 }
 
 export type ClockStyle = 'classic' | 'seconds' | 'bold' | 'analog' | 'words'
@@ -556,6 +691,10 @@ export interface SiteRestyle {
   font?: string
   /** Text size, as a percentage. */
   fontSize?: number
+  /** #694 Your own colours for the page. */
+  colors?: { bg?: string; text?: string; link?: string }
+  /** #698 Your changes are kept but not applied for now. */
+  paused?: boolean
 }
 
 /** A custom script: runs on matching sites when their pages load. */
@@ -566,6 +705,13 @@ export interface UserScript {
   match: string
   code: string
   enabled: boolean
+  /** #710 Also runs in Masked Mode (off unless you choose). */
+  masked?: boolean
+  /** #709 Installed from this address, and checked there for newer versions. */
+  sourceUrl?: string
+  version?: string
+  /** #706 The last error it threw, and when. */
+  lastError?: { message: string; at: number; url: string }
 }
 
 /** Elixirs: one-tap fixes for popular sites. */
@@ -649,10 +795,117 @@ export const ELIXIRS: { id: string; site: string; sites: string[]; title: string
     title: 'No banners',
     hint: 'Hides donation and notice banners.',
     css: `#centralNotice, #siteNotice, .frb { display: none !important; }`
+  },
+  {
+    id: 'yt-no-related',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No suggestions beside videos',
+    hint: 'Hides the list of other videos next to the one you’re watching.',
+    css: `ytd-watch-flexy #secondary #related, ytd-watch-next-secondary-results-renderer { display: none !important; }`
+  },
+  {
+    id: 'yt-no-home-feed',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No home page feed',
+    hint: 'The home page shows just the search box, so you go for what you came for.',
+    css: `ytd-browse[page-subtype="home"] ytd-rich-grid-renderer { display: none !important; }`
+  },
+  {
+    id: 'yt-no-autoplay-overlay',
+    site: 'YouTube',
+    sites: ['youtube.com'],
+    title: 'No “Up next” countdown',
+    hint: 'Hides the countdown to the next video at the end of one.',
+    css: `.ytp-autonav-endscreen-countdown-overlay, .ytp-upnext { display: none !important; }`
+  },
+  {
+    id: 'google-no-ai',
+    site: 'Google',
+    sites: ['google.com', 'google.co.uk', 'google.pl', 'google.de', 'google.fr', 'google.ca'],
+    title: 'No AI Overview',
+    hint: 'Hides the AI summary above search results.',
+    css: `#Odp5De, [data-mcpr], .YzCcne, div[jsname="dEwkXc"] { display: none !important; }`
+  },
+  {
+    id: 'google-no-paa',
+    site: 'Google',
+    sites: ['google.com', 'google.co.uk', 'google.pl', 'google.de', 'google.fr', 'google.ca'],
+    title: 'No “People also ask”',
+    hint: 'Hides the box of related questions in results.',
+    css: `[jsname="Cpkphb"], div.related-question-pair, [data-initq] { display: none !important; }`
+  },
+  {
+    id: 'fb-no-reels',
+    site: 'Facebook',
+    sites: ['facebook.com'],
+    title: 'No Reels',
+    hint: 'Hides Reels and short videos from the feed.',
+    css: `[aria-label="Reels"], [aria-label*="Reels and short videos" i] { display: none !important; }`
+  },
+  {
+    id: 'fb-no-sponsored',
+    site: 'Facebook',
+    sites: ['facebook.com'],
+    title: 'No sponsored side ads',
+    hint: 'Hides the Sponsored column on the right.',
+    css: `[data-pagelet="RightRail"] > div > div:first-child:has(a[href*="/ads/"]) { display: none !important; }`
+  },
+  {
+    id: 'twitch-no-chat',
+    site: 'Twitch',
+    sites: ['twitch.tv'],
+    title: 'No chat',
+    hint: 'Hides the chat next to streams, so the video gets the room.',
+    css: `.channel-root__right-column, .right-column { display: none !important; }`
+  },
+  {
+    id: 'x-no-who-to-follow',
+    site: 'X',
+    sites: ['x.com', 'twitter.com'],
+    title: 'No “Who to follow”',
+    hint: 'Hides account suggestions.',
+    css: `aside[aria-label="Who to follow"], [data-testid="sidebarColumn"] section:has(a[href*="/i/connect_people"]) { display: none !important; }`
+  },
+  {
+    id: 'reddit-no-trending',
+    site: 'Reddit',
+    sites: ['reddit.com'],
+    title: 'No trending searches',
+    hint: 'Hides trending topics in the search box.',
+    css: `faceplate-tracker[noun="trending"], #reddit-trending-searches-partial-container { display: none !important; }`
+  },
+  {
+    id: 'amazon-no-video-ads',
+    site: 'Amazon',
+    sites: ['amazon.com', 'amazon.co.uk', 'amazon.de', 'amazon.fr', 'amazon.ca'],
+    title: 'No video ads in results',
+    hint: 'Hides the brand videos between search results.',
+    css: `[cel_widget_id*="VIDEO" i], .sbv-video-single-product { display: none !important; }`
+  },
+  {
+    id: 'wiki-wide',
+    site: 'Wikipedia',
+    sites: ['wikipedia.org'],
+    title: 'Full-width articles',
+    hint: 'Uses the whole window instead of a narrow column.',
+    css: `.mw-page-container { max-width: none !important; } .vector-feature-limited-width-clientpref-1 .mw-body { max-width: none !important; }`
   }
 ]
 
-export type WidgetId = 'weather' | 'quote' | 'todo' | 'news' | 'focus' | 'stats' | 'music' | 'countdown' | 'recent'
+export interface Elixir {
+  id: string
+  site: string
+  sites: string[]
+  title: string
+  hint: string
+  css: string
+  /** #687 It hasn't found anything to hide for a while: the site may have changed. */
+  broken?: boolean
+}
+
+export type WidgetId = 'weather' | 'todo' | 'news' | 'focus' | 'recent'
 
 export interface EngineInfo {
   id: string

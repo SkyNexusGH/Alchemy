@@ -1,4 +1,4 @@
-import { attachSiteMods } from './sitemods'
+import { attachSiteMods, forceDarkOn } from './sitemods'
 import { pageLanguage } from './translate'
 import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
@@ -56,6 +56,8 @@ export class Tab {
   favicon: string | null
   pinned: boolean
   muted = false
+  /** Frames of this page using the camera, microphone or screen. */
+  readonly capturing = new Set<number>()
   /** Volume boost for the tab's videos (1 = normal, up to 4). */
   boost = 1
   /** Sound effects for the tab's videos. */
@@ -135,11 +137,14 @@ export class Tab {
             spellcheck: true,
             safeDialogs: true,
             // Heavy Mode: background tabs run at full speed.
-            backgroundThrottling: !getSettings().performance.heavy
+            backgroundThrottling: !getSettings().performance.heavy,
+            // #404 Videos wait for a click on the page before they play.
+            autoplayPolicy: getSettings().blockAutoplay ? 'document-user-activation-required' : 'no-user-gesture-required'
           }
         })
     view.setBorderRadius(0)
-    view.setBackgroundColor(this.url.startsWith('alchemy:') ? '#0d0b14' : '#ffffff')
+    // #679 With Force dark on, pages start dark instead of flashing white while they load.
+    view.setBackgroundColor(this.url.startsWith('alchemy:') ? '#0d0b14' : forceDarkOn(this.url) ? '#141414' : '#ffffff')
     this.view = view
     this.attach(view.webContents)
     view.webContents.setAudioMuted(this.muted)
@@ -232,7 +237,7 @@ export class Tab {
     const audio: TabAudio = { boost: this.boost, bass: this.bass, mono: this.mono, spatial: this.spatial }
     for (const frame of wc.mainFrame.framesInSubtree) {
       try {
-        frame.send('ovyra:audio', audio)
+        frame.send('alchemy:audio', audio)
       } catch {
         /* frame went away */
       }
@@ -298,7 +303,8 @@ export class Tab {
       trackers: this.trackers,
       shields: shieldsEnabled(this.pageUrl()),
       workspaceId: this.workspaceId,
-      islandId: this.islandId
+      islandId: this.islandId,
+      recording: this.capturing.size > 0
     }
   }
 
@@ -388,6 +394,7 @@ export class Tab {
         })
     })
     wc.on('did-navigate', (_e, url) => {
+      this.capturing.clear()
       const wasError = url.startsWith(ERROR_PAGE)
       if (!wasError) this.failedUrl = null
       if (url !== this.url) this.favicon = history.faviconFor(url)

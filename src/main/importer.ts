@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { copyFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { HistoryVisit, SpeedDialItem } from '@shared/types'
@@ -60,8 +60,99 @@ function readBookmarks(profile: string): Record<string, ChromeNode> | null {
   }
 }
 
+// ---- Firefox (#243, #304) ---------------------------------------------------------------------
+
+/** Firefox's profile: the one whose places.sqlite was used most recently. */
+function firefoxProfile(): string | null {
+  const dir = join(appData, 'Mozilla', 'Firefox', 'Profiles')
+  if (!existsSync(dir)) return null
+  const found = readdirSync(dir)
+    .map((p) => join(dir, p))
+    .filter((p) => existsSync(join(p, 'places.sqlite')))
+    .sort((a, b) => statSync(join(b, 'places.sqlite')).mtimeMs - statSync(join(a, 'places.sqlite')).mtimeMs)
+  return found[0] ?? null
+}
+
+/** Opens a copy of Firefox's database (it stays locked while Firefox runs). */
+function withFirefoxDb<T>(profile: string, fn: (query: (sql: string) => Record<string, unknown>[]) => T): T {
+  const copy = join(app.getPath('temp'), `alchemy-firefox-${Date.now()}.sqlite`)
+  copyFileSync(join(profile, 'places.sqlite'), copy)
+  // Recent changes may still be in the write-ahead log beside it.
+  if (existsSync(join(profile, 'places.sqlite-wal'))) copyFileSync(join(profile, 'places.sqlite-wal'), `${copy}-wal`)
+  try {
+    const db = new DatabaseSync(copy)
+    try {
+      return fn((sql) => {
+        const stmt = db.prepare(sql)
+        stmt.setReadBigInts(true)
+        return stmt.all()
+      })
+    } finally {
+      db.close()
+    }
+  } finally {
+    rmSync(copy, { force: true })
+    rmSync(`${copy}-wal`, { force: true })
+    rmSync(`${copy}-shm`, { force: true })
+  }
+}
+
+function importFirefoxBookmarks(profile: string): number {
+  return withFirefoxDb(profile, (query) => {
+    const rows = query(
+      `SELECT b.id AS id, b.type AS type, b.parent AS parent, b.title AS title, b.guid AS guid, p.url AS url
+       FROM moz_bookmarks b LEFT JOIN moz_places p ON p.id = b.fk ORDER BY b.parent, b.position`
+    ).map((r) => ({ id: Number(r.id), type: Number(r.type), parent: Number(r.parent), title: String(r.title ?? ''), guid: String(r.guid ?? ''), url: r.url as string | null }))
+    const kids = (parent: number): typeof rows => rows.filter((r) => r.parent === parent)
+    let count = 0
+    const add = (parent: number, into: string): void => {
+      for (const r of kids(parent)) {
+        if (r.type === 2) {
+          if (!kids(r.id).length) continue
+          const folder = bookmarks.addBookmark({ parentId: into, type: 'folder', title: r.title || 'Folder' })
+          add(r.id, folder.id)
+        } else if (r.type === 1 && r.url && /^https?:/.test(r.url) && !bookmarks.isBookmarked(r.url)) {
+          bookmarks.addBookmark({ parentId: into, title: r.title || r.url, url: r.url })
+          count++
+        }
+      }
+    }
+    const root = (guid: string): number | undefined => rows.find((r) => r.guid === guid)?.id
+    const toolbar = root('toolbar_____')
+    if (toolbar !== undefined && kids(toolbar).length) add(toolbar, bookmarks.addBookmark({ parentId: bookmarks.BAR_ID, type: 'folder', title: 'From Firefox' }).id)
+    const rest = ['menu________', 'unfiled_____', 'mobile______'].map(root).filter((x): x is number => x !== undefined && kids(x).length > 0)
+    if (rest.length) {
+      const other = bookmarks.addBookmark({ parentId: bookmarks.OTHER_ID, type: 'folder', title: 'From Firefox' }).id
+      for (const r of rest) add(r, other)
+    }
+    return count
+  })
+}
+
+function importFirefoxHistory(profile: string): number {
+  return withFirefoxDb(profile, (query) => {
+    // Firefox stores times as microseconds since 1970.
+    const ms = (t: unknown): number => Number(t ?? 0) / 1000
+    const urls = query(
+      `SELECT url, title, visit_count AS visits, typed, last_visit_date AS last FROM moz_places
+       WHERE hidden = 0 AND last_visit_date IS NOT NULL ORDER BY last_visit_date DESC LIMIT 8000`
+    )
+    const visits = query(
+      `SELECT p.url AS url, p.title AS title, v.visit_date AS time FROM moz_historyvisits v
+       JOIN moz_places p ON p.id = v.place_id ORDER BY v.visit_date DESC LIMIT 15000`
+    )
+    const clean = (u: unknown): u is string => typeof u === 'string' && /^https?:/.test(u)
+    return history.importHistory(
+      urls.filter((u) => clean(u.url)).map((u) => ({ url: u.url as string, title: String(u.title ?? ''), visits: Number(u.visits), typed: Number(u.typed), last: ms(u.last) })),
+      visits.filter((v) => clean(v.url)).map((v): HistoryVisit => ({ url: v.url as string, title: String(v.title ?? ''), favicon: null, time: ms(v.time) }))
+    )
+  })
+}
+
 export function importSources(): ImportSource[] {
   const out: ImportSource[] = []
+  const firefox = firefoxProfile()
+  if (firefox) out.push({ id: 'firefox', name: 'Firefox', hasBookmarks: true, hasHistory: true, hasSpeedDial: false })
   for (const s of SOURCES) {
     const profile = profileDir(s.dir)
     if (!profile) continue
@@ -78,6 +169,15 @@ export function importSources(): ImportSource[] {
 }
 
 export function runImport(id: string, what: { bookmarks: boolean; history: boolean; speedDial: boolean }): ImportResult {
+  if (id === 'firefox') {
+    const profile = firefoxProfile()
+    if (!profile) throw new Error('Firefox not found')
+    return {
+      bookmarks: what.bookmarks ? importFirefoxBookmarks(profile) : 0,
+      history: what.history ? importFirefoxHistory(profile) : 0,
+      speedDial: 0
+    }
+  }
   const source = SOURCES.find((s) => s.id === id)
   const profile = source && profileDir(source.dir)
   if (!source || !profile) throw new Error('Browser not found')
@@ -149,7 +249,7 @@ const fromChromeTime = (t: number | bigint): number => Number(t) / 1000 - 11_644
 
 function importHistory(profile: string): number {
   // The browser keeps its database open; read a copy so we never touch the original.
-  const copy = join(app.getPath('temp'), `ovyra-import-${Date.now()}.sqlite`)
+  const copy = join(app.getPath('temp'), `alchemy-import-${Date.now()}.sqlite`)
   copyFileSync(join(profile, 'History'), copy)
   try {
     const db = new DatabaseSync(copy, { readOnly: true })

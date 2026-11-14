@@ -1,4 +1,4 @@
-import { BrowserWindow, nativeTheme, WebContentsView, screen, session, type Rectangle, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, nativeTheme, WebContentsView, screen, session, type Rectangle, type WebContents } from 'electron'
 import { join } from 'node:path'
 import {
   baseColor,
@@ -15,9 +15,13 @@ import {
   type Rect,
   type ShellCommand,
   type ToastData,
+  type Workspace,
   type WindowState
 } from '@shared/types'
+import { hostOf } from '@shared/url'
 import { toggleBookmark } from './bookmarks'
+import { toggleReader } from './reader'
+import { listDownloads } from './downloads'
 import { markTyped } from './history'
 import { pageContextMenu } from './menus'
 import { isAwakeSite } from './awake'
@@ -70,11 +74,13 @@ export class BrowserWin implements TabHost {
   workspaceId: string
   /** The last tab used in each workspace, to return to when switching back. */
   private readonly lastActiveIn = new Map<string, number>()
-  readonly islands = new Map<number, { color: string; collapsed: boolean; manual?: boolean }>()
+  readonly islands = new Map<number, { color: string; collapsed: boolean; manual?: boolean; name?: string }>()
   panelId: string | null = null
 
   /** Tabs shown side by side, when split view is on (two or three). */
   split: number[] | null = null
+  splitRatio = 0.5
+  splitVertical = false
   /** Tabs whose pages are attached to the window right now. */
   private shown: Tab[] = []
   private contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 }
@@ -130,7 +136,7 @@ export class BrowserWin implements TabHost {
       ? PRIVATE_WORKSPACE
       : workspaces.find((w) => w.id === init?.workspaceId)?.id ?? workspaces[0].id
     for (const island of init?.islands ?? []) {
-      this.islands.set(island.id, { color: island.color, collapsed: island.collapsed, manual: island.manual })
+      this.islands.set(island.id, { color: island.color, collapsed: island.collapsed, manual: island.manual, name: island.name })
       nextIslandId = Math.max(nextIslandId, island.id + 1)
     }
 
@@ -194,6 +200,28 @@ export class BrowserWin implements TabHost {
       if (cmd === 'browser-backward') this.active?.wc?.navigationHistory.goBack()
       if (cmd === 'browser-forward') this.active?.wc?.navigationHistory.goForward()
     })
+    // #15 Closing the last window while files download asks first.
+    let confirmedClose = false
+    this.win.on('close', (e) => {
+      const downloading = listDownloads().filter((d) => d.status === 'progressing').length
+      if (confirmedClose || !downloading || BrowserWin.all.size > 1) return
+      e.preventDefault()
+      void dialog
+        .showMessageBox(this.win, {
+          type: 'warning',
+          message: downloading === 1 ? 'A download is still going' : `${downloading} downloads are still going`,
+          detail: 'Closing Alchemy now stops them.',
+          buttons: ['Keep downloading', 'Close anyway'],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        })
+        .then(({ response }) => {
+          if (response !== 1) return
+          confirmedClose = true
+          this.win.close()
+        })
+    })
     this.win.on('close', () => {
       // The last normal window's tabs are what gets restored next launch. Private
       // windows are never saved, so closing one can't touch the saved session.
@@ -251,8 +279,19 @@ export class BrowserWin implements TabHost {
     const remembered = this.tab(this.lastActiveIn.get(id) ?? -1)
     const target = remembered?.workspaceId === id ? remembered : this.visible().at(-1)
     if (target) this.activate(target)
-    else this.newTab()
+    else this.newTab(this.workspaceHome() ?? NEW_TAB_URL)
     this.contextChanged()
+  }
+
+  /** The current workspace's own options. */
+  private workspace(): Workspace | undefined {
+    return getSettings().workspaces.find((w) => w.id === this.workspaceId)
+  }
+
+  /** The page an empty workspace opens with (#70). */
+  private workspaceHome(): string | null {
+    const home = this.workspace()?.homeUrl
+    return home ? resolveInput(home) : null
   }
 
   moveToWorkspace(tab: Tab, id: string): void {
@@ -301,7 +340,8 @@ export class BrowserWin implements TabHost {
   // Tabs opened from the same page are grouped, like Opera's tab islands.
 
   private joinIsland(child: Tab, opener: Tab): void {
-    if (!getSettings().tabIslands || opener.pinned || opener.workspaceId !== child.workspaceId) return
+    if (opener.pinned || opener.workspaceId !== child.workspaceId) return
+    if (!getSettings().tabIslands && opener.islandId === null) return
     let id = opener.islandId
     if (id === null) {
       id = nextIslandId++
@@ -342,6 +382,30 @@ export class BrowserWin implements TabHost {
     const before = this.tabs.slice(0, anchor).filter((t) => !list.includes(t))
     rest.splice(Math.max(before.length, rest.filter((t) => t.pinned).length), 0, ...list)
     this.tabs.splice(0, this.tabs.length, ...rest)
+    this.normalizeIslands()
+    this.changed()
+  }
+
+  renameIsland(id: number, name: string): void {
+    const island = this.islands.get(id)
+    if (!island) return
+    island.name = name.trim().slice(0, 24) || undefined
+    island.manual = true
+    this.changed()
+  }
+
+  sleepIsland(id: number): void {
+    for (const t of this.tabs) if (t.islandId === id) this.sleepTab(t)
+  }
+
+  /** Adds a tab to a group, moving it to the end of the group (#55). */
+  joinGroup(tab: Tab, id: number): void {
+    const members = this.tabs.filter((t) => t.islandId === id)
+    if (!members.length || members.includes(tab)) return
+    this.tabs.splice(this.tabs.indexOf(tab), 1)
+    tab.pinned = false
+    tab.islandId = id
+    this.tabs.splice(this.tabs.indexOf(members[members.length - 1]) + 1, 0, tab)
     this.normalizeIslands()
     this.changed()
   }
@@ -429,6 +493,22 @@ export class BrowserWin implements TabHost {
     return tab
   }
 
+  /** A new tab you asked for (Ctrl+T, the + button): at the end, or next to the one you're on. */
+  userNewTab(): Tab {
+    const active = this.active
+    if (getSettings().newTabPosition === 'next' && active) {
+      const tab = this.newTab(NEW_TAB_URL, { index: this.visible().indexOf(active) + 1 })
+      // Opened inside a group, it joins the group.
+      if (active.islandId !== null) {
+        tab.islandId = active.islandId
+        this.normalizeIslands()
+        this.changed()
+      }
+      return tab
+    }
+    return this.newTab()
+  }
+
   openFromTab(opener: Tab, opts: { foreground: boolean; webContents: WebContents; url: string }): void {
     const tab = new Tab(this, { url: opts.url, webContents: opts.webContents, workspaceId: opener.workspaceId })
     tab.wake()
@@ -461,7 +541,7 @@ export class BrowserWin implements TabHost {
     this.tabs.push(tab)
   }
 
-  private firstUnpinned(): number {
+  firstUnpinned(): number {
     const i = this.tabs.findIndex((t) => !t.pinned)
     return i === -1 ? this.tabs.length : i
   }
@@ -524,8 +604,11 @@ export class BrowserWin implements TabHost {
     } else if (this.win.isFocused()) tab.wc?.focus()
     this.changed()
     // Leaving a tab that plays a video: keep watching in a floating window.
-    if (prev && prev !== tab && !this.shown.includes(prev) && prev.audible && !isFloating(prev) && getSettings().autoPopout) {
-      void markPlayingVideo(prev).then((found) => {
+    // #586 Only on the sites you picked, if you picked any.
+    const popSites = getSettings().popoutSites ?? []
+    const allowedHere = !popSites.length || (prev ? popSites.includes(hostOf(prev.pageUrl())) : false)
+    if (prev && prev !== tab && !this.shown.includes(prev) && prev.audible && !isFloating(prev) && getSettings().autoPopout && allowedHere) {
+      void markPlayingVideo(prev, { auto: true }).then((found) => {
         if (found && this.activeId !== prev.id && this.tabs.includes(prev)) this.floatTab(prev)
       })
     }
@@ -565,7 +648,7 @@ export class BrowserWin implements TabHost {
     this.removeTab(tab)
   }
 
-  private removeTab(tab: Tab): void {
+  removeTab(tab: Tab): void {
     const index = this.tabs.indexOf(tab)
     if (index === -1) return
     const visIndex = this.visible().indexOf(tab)
@@ -585,11 +668,13 @@ export class BrowserWin implements TabHost {
       return
     }
     if (this.activeId === tab.id) {
-      // Prefer going back to the tab that opened this one, like Chrome.
-      const opener = tab.openerId !== null ? this.tab(tab.openerId) : undefined
+      // Go back to the tab you used before this one (or, if you chose that, the one beside it).
       const vis = this.visible()
+      const recent = getSettings().afterClose !== 'beside' ? [...vis].sort((a, b) => b.lastActive - a.lastActive)[0] : undefined
+      const opener = tab.openerId !== null ? this.tab(tab.openerId) : undefined
       this.activeId = null
-      if (opener && opener.workspaceId === this.workspaceId) this.activate(opener)
+      if (recent) this.activate(recent)
+      else if (opener && opener.workspaceId === this.workspaceId) this.activate(opener)
       else if (vis.length) this.activate(vis[Math.min(visIndex, vis.length - 1)])
       // The workspace's last tab closed, but others still have tabs: keep this one open.
       else this.newTab()
@@ -676,6 +761,46 @@ export class BrowserWin implements TabHost {
     this.changed()
   }
 
+  muteOthers(keep: Tab): void {
+    for (const w of BrowserWin.all) for (const t of w.tabs) if (t !== keep && (t.audible || t.muted)) t.setMuted(true)
+    this.changed()
+  }
+
+  /** Mutes (or unmutes) every tab of a site, in every window. */
+  muteSite(tab: Tab, muted: boolean): void {
+    const host = hostOf(tab.pageUrl())
+    for (const w of BrowserWin.all) {
+      for (const t of w.tabs) if (hostOf(t.pageUrl()) === host) t.setMuted(muted)
+      w.changed()
+    }
+  }
+
+  /** Moves a tab into another window, or a new one at `at`. Its history goes with it; the page reloads. */
+  moveTabToWindow(tab: Tab, target: BrowserWin | null, at?: { x: number; y: number }): void {
+    if (target === this || (target && (target.incognito !== this.incognito || target.tor !== this.tor))) return
+    const snap = { ...tab.snapshot(), islandId: null }
+    if (target) {
+      const copy = new Tab(target, { ...snap, workspaceId: target.workspaceId })
+      target.tabs.splice(target.firstUnpinned() + target.tabs.filter((t) => !t.pinned).length, 0, copy)
+      target.activate(copy)
+      target.win.focus()
+    } else {
+      const w = BrowserWin.open({ tabs: [{ ...snap, workspaceId: undefined as unknown as string }], active: 0, incognito: this.incognito, tor: this.tor })
+      if (at) w.win.setPosition(Math.round(at.x - 120), Math.round(at.y - 20))
+    }
+    this.removeTab(tab)
+  }
+
+  /** The window under a point on screen (for dropping a dragged tab), other than this one. */
+  static windowAt(x: number, y: number, except: BrowserWin): BrowserWin | null {
+    for (const w of BrowserWin.all) {
+      if (w === except || w.win.isMinimized() || !w.win.isVisible()) continue
+      const b = w.win.getBounds()
+      if (x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height) return w
+    }
+    return null
+  }
+
   sleepTab(tab: Tab): void {
     if (tab === this.active || tab.sleeping) return
     this.closeDevTools(tab)
@@ -705,7 +830,8 @@ export class BrowserWin implements TabHost {
   // ---- navigation -----------------------------------------------------------------
 
   navigate(input: string, opts: { newTab?: boolean; background?: boolean; engine?: string } = {}): void {
-    const url = resolveInput(input, opts.engine)
+    // #71 Each workspace can search with its own engine.
+    const url = resolveInput(input, opts.engine ?? (this.incognito ? undefined : this.workspace()?.searchEngine))
     if (!url) return
     if (!opts.engine && looksLikeUrl(input)) markTyped(url)
     if (opts.newTab || !this.active) {
@@ -769,16 +895,19 @@ export class BrowserWin implements TabHost {
     if (!wc) return
     if (!text) {
       wc.stopFindInPage('clearSelection')
+      void wc.executeJavaScript(findMarks(''), true).catch(() => {})
       this.find.matches = 0
       this.find.active = 0
       this.changed()
       return
     }
     wc.findInPage(text, { forward, findNext })
+    if (!findNext) void wc.executeJavaScript(findMarks(text), true).catch(() => {})
   }
 
   closeFind(): void {
     this.active?.wc?.stopFindInPage('keepSelection')
+    void this.active?.wc?.executeJavaScript(findMarks(''), true).catch(() => {})
     this.find = { open: false, query: this.find.query, active: 0, matches: 0 }
     this.changed()
   }
@@ -830,15 +959,25 @@ export class BrowserWin implements TabHost {
       view.setBounds(roundRect(this.contentRect))
       return
     }
-    // Split view: pages side by side, each inset so the shell can outline the focused one.
+    // Split view: pages side by side (or stacked), each inset so the shell can outline the
+    // focused one. Two pages share the space by splitRatio; three get a third each.
     const r = this.contentRect
     const gap = SPLIT_GAP
-    const each = (r.width - gap * (pair.length - 1)) / pair.length
+    const across = this.splitVertical ? r.height : r.width
+    const room = across - gap * (pair.length - 1)
+    const sizes = pair.length === 2 ? [room * this.splitRatio, room * (1 - this.splitRatio)] : pair.map(() => room / pair.length)
+    let start = 0
     pair.forEach((t, i) => {
       t.view?.setBorderRadius(7)
+      const size = sizes[i]
       t.view?.setBounds(
-        roundRect({ x: r.x + i * (each + gap) + 2, y: r.y + 2, width: each - 4, height: r.height - 4 })
+        roundRect(
+          this.splitVertical
+            ? { x: r.x + 2, y: r.y + start + 2, width: r.width - 4, height: size - 4 }
+            : { x: r.x + start + 2, y: r.y + 2, width: size - 4, height: r.height - 4 }
+        )
       )
+      start += size + gap
     })
   }
 
@@ -928,6 +1067,39 @@ export class BrowserWin implements TabHost {
     if (partner.workspaceId !== tab.workspaceId) this.moveToWorkspace(partner, tab.workspaceId)
     this.split = [tab.id, partner.id]
     this.activate(tab)
+  }
+
+  setSplitRatio(ratio: number): void {
+    this.splitRatio = Math.min(0.8, Math.max(0.2, ratio))
+    this.layout()
+    this.changed()
+  }
+
+  swapSplit(): void {
+    if (!this.split) return
+    this.split = [...this.split].reverse()
+    this.splitRatio = 1 - this.splitRatio
+    this.layout()
+    this.changed()
+  }
+
+  toggleSplitDirection(): void {
+    this.splitVertical = !this.splitVertical
+    this.layout()
+    this.changed()
+  }
+
+  /** Opens a link in the other page of a split, or starts a split with it (#82). */
+  openInOtherPane(from: Tab, url: string): void {
+    const other = this.split?.includes(from.id) ? this.split.find((id) => id !== from.id) : undefined
+    const target = other !== undefined ? this.tab(other) : undefined
+    if (target) {
+      target.wake()
+      target.load(url)
+      return
+    }
+    const tab = this.newTab(url, { foreground: false, opener: from })
+    this.splitWith(from, tab)
   }
 
   unsplit(): void {
@@ -1070,7 +1242,7 @@ export class BrowserWin implements TabHost {
     this.changed()
   }
 
-  private changed(): void {
+  changed(): void {
     scheduleSessionSave()
     if (this.pushQueued) return
     this.pushQueued = true
@@ -1094,6 +1266,8 @@ export class BrowserWin implements TabHost {
       panelId: this.panelId,
       panels: panelStates(),
       split: this.split,
+      splitRatio: this.splitRatio,
+      splitVertical: this.splitVertical,
       devtools: !!this.active?.devtools
     }
   }
@@ -1121,14 +1295,29 @@ export class BrowserWin implements TabHost {
   // picture of each; letting go of Ctrl switches to the one picked.
   private switcher: { ids: number[]; index: number } | null = null
 
+  private switcherTimer: ReturnType<typeof setTimeout> | null = null
+  private switcherShown = false
+
   private stepSwitcher(step: number): void {
+    // In strip order, Ctrl+Tab simply moves to the next tab, like most browsers.
+    if (getSettings().ctrlTabOrder === 'strip') return this.cycle(step)
     if (!this.switcher) {
       const ids = [...this.visible()].sort((a, b) => b.lastActive - a.lastActive).map((t) => t.id)
       if (ids.length < 2) return
       this.switcher = { ids, index: 0 }
+      this.switcherShown = false
     }
     const s = this.switcher
     s.index = (s.index + step + s.ids.length) % s.ids.length
+    // A quick flick (Ctrl let go within 200 ms) switches without showing the pictures.
+    if (!this.switcherShown) {
+      this.switcherTimer ??= setTimeout(() => {
+        this.switcherTimer = null
+        this.switcherShown = true
+        if (this.switcher) this.stepSwitcher(0)
+      }, 200)
+      return
+    }
     const payload: OverlayPayload = {
       kind: 'switcher',
       index: s.index,
@@ -1143,6 +1332,8 @@ export class BrowserWin implements TabHost {
 
   /** Switches to the tab picked in the switcher (or the one clicked), and closes it. */
   finishSwitcher(pick?: number): void {
+    if (this.switcherTimer) clearTimeout(this.switcherTimer)
+    this.switcherTimer = null
     const s = this.switcher
     this.switcher = null
     if (this.overlayKind === 'switcher') this.hideOverlay()
@@ -1151,7 +1342,23 @@ export class BrowserWin implements TabHost {
     if (tab && tab !== this.active) this.activate(tab)
   }
 
+  /** Push to talk is being held (Ctrl+Space). */
+  private talking = false
+
   handleKey(input: Electron.Input): boolean {
+    // Push to talk for voice search (in the Lab): hold Ctrl+Space, speak, let go.
+    if (this.talking && input.type === 'keyUp' && (input.key === ' ' || input.key === 'Control')) {
+      this.talking = false
+      this.send('voice:ptt', false)
+      return true
+    }
+    if (input.key === ' ' && input.type === 'keyDown' && (input.control || input.meta) && !input.alt && !input.shift && getSettings().lab?.voice && !this.incognito) {
+      if (!this.talking && !input.isAutoRepeat) {
+        this.talking = true
+        this.send('voice:ptt', true)
+      }
+      return true
+    }
     if (this.switcher && input.type === 'keyUp' && (input.key === 'Control' || input.key === 'Meta')) {
       this.finishSwitcher()
       return true
@@ -1179,11 +1386,14 @@ export class BrowserWin implements TabHost {
       }
       switch (key) {
         case 't':
-          return run(() => (shift ? this.reopenClosed() : this.newTab()))
+          return run(() => (shift ? this.reopenClosed() : this.userNewTab()))
         case 'n':
           return run(() => BrowserWin.open({ incognito: shift }))
         case 'w':
         case 'f4':
+          // Pinned tabs don't close by reflex: right-click → Close still works.
+          if (tab?.pinned && key === 'w')
+            return run(() => this.send('toast', { text: 'Pinned tabs stay open with Ctrl+W. Right-click the tab to close it.' } satisfies ToastData))
           return run(() => tab && this.closeTab(tab))
         case 'tab':
           return run(() => this.stepSwitcher(shift ? -1 : 1))
@@ -1233,7 +1443,7 @@ export class BrowserWin implements TabHost {
       return false
     }
 
-    if (ctrl && alt && shift && key === 'i') return run(() => this.win.webContents.openDevTools({ mode: 'detach' }))
+    if (ctrl && alt && shift && key === 'i' && (!app.isPackaged || getSettings().developer)) return run(() => this.win.webContents.openDevTools({ mode: 'detach' }))
 
     if (alt && !ctrl) {
       switch (key) {
@@ -1258,6 +1468,8 @@ export class BrowserWin implements TabHost {
         return run(() => this.toggleFullscreen())
       case 'f12':
         return run(() => tab && this.toggleDevTools(tab))
+      case 'f9':
+        return run(() => wc && void toggleReader(wc))
       case 'f3':
         return run(() => (this.find.open ? this.findQuery(this.find.query, !shift, true) : this.openFind()))
     }
@@ -1265,6 +1477,44 @@ export class BrowserWin implements TabHost {
   }
 }
 
+
+/**
+ * #144 Small marks down the right edge of the page showing where the find bar's matches are.
+ * Drawn by the page itself (in a closed shadow root), removed when the find bar closes.
+ */
+function findMarks(query: string): string {
+  return `(() => {
+    const old = document.getElementById('__alchemy_find_marks')
+    if (old) old.remove()
+    const q = ${JSON.stringify(query.toLowerCase())}
+    if (!q || !document.body) return
+    const ys = []
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    const range = document.createRange()
+    const H = Math.max(document.documentElement.scrollHeight, 1)
+    while (walk.nextNode() && ys.length < 400) {
+      const node = walk.currentNode
+      const text = node.data.toLowerCase()
+      for (let i = text.indexOf(q); i !== -1 && ys.length < 400; i = text.indexOf(q, i + q.length)) {
+        range.setStart(node, i)
+        range.setEnd(node, i + q.length)
+        const r = range.getBoundingClientRect()
+        if (r.width || r.height) ys.push((r.top + scrollY) / H)
+      }
+    }
+    if (!ys.length) return
+    const host = document.createElement('div')
+    host.id = '__alchemy_find_marks'
+    host.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:6px;z-index:2147483647;pointer-events:none'
+    const root = host.attachShadow({ mode: 'closed' })
+    for (const y of ys) {
+      const m = document.createElement('i')
+      m.style.cssText = 'position:absolute;right:0;width:6px;height:3px;border-radius:2px;background:#f5b70b;top:' + (y * 100).toFixed(2) + '%'
+      root.appendChild(m)
+    }
+    document.documentElement.appendChild(host)
+  })()`
+}
 
 function windowBounds(saved?: Rectangle): Partial<Rectangle> {
   const area = screen.getPrimaryDisplay().workArea
@@ -1297,7 +1547,7 @@ export function titleBarColors(incognito = false): Electron.TitleBarOverlayOptio
 }
 
 /** Light/dark mode: Windows' own theme follows it, and with it every page and window. */
-let colorMode: ColorMode = 'ovyra'
+let colorMode: ColorMode = 'alchemy'
 const windowBase = (): string => baseColor(colorMode, nativeTheme.shouldUseDarkColors)
 
 /** The color mode: Windows' own theme follows it, and with it every page and window. */

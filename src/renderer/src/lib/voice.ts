@@ -4,7 +4,7 @@
  */
 export type VoiceState =
   | { kind: 'idle' }
-  | { kind: 'listening' }
+  | { kind: 'listening'; level: number }
   | { kind: 'downloading'; percent: number }
   | { kind: 'transcribing' }
   | { kind: 'error'; message: string }
@@ -43,10 +43,19 @@ export function stopListening(): void {
   stopNow?.()
 }
 
+export interface ListenOptions {
+  /** Whisper size: tiny (40 MB), base (80 MB) or small (250 MB). */
+  model?: 'tiny' | 'base' | 'small'
+  /** The language spoken; '' uses Alchemy's own. */
+  language?: string
+  /** Push to talk: keep listening until stopListening(), however quiet it gets. */
+  manual?: boolean
+}
+
 /** Listens, then transcribes. Resolves with the words spoken ('' if nothing was heard). */
-export async function listen(onState: (s: VoiceState) => void): Promise<string> {
+export async function listen(onState: (s: VoiceState) => void, opts: ListenOptions = {}): Promise<string> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } })
-  onState({ kind: 'listening' })
+  onState({ kind: 'listening', level: 0 })
   const recorder = new MediaRecorder(stream)
   const chunks: Blob[] = []
   recorder.ondataavailable = (e) => chunks.push(e.data)
@@ -59,6 +68,7 @@ export async function listen(onState: (s: VoiceState) => void): Promise<string> 
   let spoke = false
   let quietSince = performance.now()
   const started = performance.now()
+  let frame = 0
 
   const stopped = new Promise<void>((resolve) => {
     recorder.onstop = () => resolve()
@@ -68,13 +78,16 @@ export async function listen(onState: (s: VoiceState) => void): Promise<string> 
       analyser.getByteTimeDomainData(data)
       let sum = 0
       for (const v of data) sum += ((v - 128) / 128) ** 2
-      const loud = Math.sqrt(sum / data.length) > 0.035
+      const rms = Math.sqrt(sum / data.length)
+      const loud = rms > 0.035
       const now = performance.now()
+      // The level meter: how loud the mic hears you, 0 to 1.
+      if (++frame % 3 === 0) onState({ kind: 'listening', level: Math.min(1, rms * 6) })
       if (loud) {
         spoke = true
         quietSince = now
       }
-      if ((spoke && now - quietSince > 1400) || now - started > 15000 || (!spoke && now - started > 6000)) recorder.stop()
+      if (opts.manual ? now - started > 30000 : (spoke && now - quietSince > 1400) || now - started > 15000 || (!spoke && now - started > 6000)) recorder.stop()
       else requestAnimationFrame(check)
     }
     requestAnimationFrame(check)
@@ -84,7 +97,7 @@ export async function listen(onState: (s: VoiceState) => void): Promise<string> 
   stopNow = null
   stream.getTracks().forEach((t) => t.stop())
   void ctx.close()
-  if (!spoke && chunks.length === 0) return ''
+  if ((!spoke && !opts.manual) || chunks.length === 0) return ''
 
   const audio = await toSamples(new Blob(chunks, { type: recorder.mimeType }))
   const w = getWorker()
@@ -110,6 +123,6 @@ export async function listen(onState: (s: VoiceState) => void): Promise<string> 
       else reject(new Error(m.message))
     }
     w.addEventListener('message', onMessage)
-    w.postMessage({ id, audio, language: (navigator.language || 'en').split('-')[0] }, [audio.buffer])
+    w.postMessage({ id, audio, model: opts.model ?? 'small', language: opts.language || (navigator.language || 'en').split('-')[0] }, [audio.buffer])
   })
 }

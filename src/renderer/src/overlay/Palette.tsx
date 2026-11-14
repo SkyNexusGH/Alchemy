@@ -9,10 +9,8 @@ import {
   Download,
   Expand,
   Globe,
-  Key,
   Keyboard,
   Languages,
-  Lock,
   PanelTop,
   Pin,
   Plus,
@@ -72,7 +70,13 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'New Tor identity', cmd: 'tor-identity', keywords: 'tor onion new identity circuit ip refresh', icon: <Onion size={16} /> },
   { title: 'Reopen closed tab', cmd: 'reopen-tab', shortcut: 'Ctrl+Shift+T', keywords: 'undo restore', icon: <RotateCcw size={16} /> },
   { title: 'Close tab', cmd: 'close-tab', shortcut: 'Ctrl+W', icon: <X size={16} /> },
+  { title: 'Reader view', cmd: 'reader', shortcut: 'F9', keywords: 'read article clean text distraction', icon: <Columns2 size={16} /> },
+  { title: 'Save page to Later list', cmd: 'later-add', keywords: 'read later reading list save', icon: <Columns2 size={16} /> },
+  { title: 'Show Later list', cmd: 'later', keywords: 'read later reading list', icon: <Columns2 size={16} /> },
   { title: 'Split view', cmd: 'split-view', keywords: 'side by side tile two tabs', icon: <Columns2 size={16} /> },
+  { title: 'Swap split sides', cmd: 'split-swap', keywords: 'split view switch left right', icon: <Columns2 size={16} /> },
+  { title: 'Split top and bottom, or side by side', cmd: 'split-direction', keywords: 'split view vertical horizontal stack rotate', icon: <Columns2 size={16} /> },
+  { title: 'Mute other tabs', cmd: 'mute-others', keywords: 'silence sound audio quiet', icon: <VolumeX size={16} /> },
   { title: 'Pin / unpin tab', cmd: 'pin-tab', icon: <Pin size={16} /> },
   { title: 'Duplicate tab', cmd: 'duplicate-tab', icon: <Copy size={16} /> },
   { title: 'Bookmark this page', cmd: 'bookmark', shortcut: 'Ctrl+D', icon: <BookmarkPlus size={16} /> },
@@ -99,12 +103,6 @@ const COMMANDS: Omit<Item, 'group' | 'key'>[] = [
   { title: 'Put other tabs to sleep', cmd: 'sleep-others', keywords: 'memory ram free', icon: <Moon size={16} /> },
   { title: 'Keep this site awake on/off', cmd: 'keep-awake', keywords: 'sleep never', icon: <Clock size={16} /> },
   { title: 'View page source', cmd: 'view-source', shortcut: 'Ctrl+U', keywords: 'html code', icon: <Code size={16} /> },
-  { title: 'Passwords', cmd: 'settings', arg: 'passwords', keywords: 'logins saved breach pwned', icon: <Key size={16} /> },
-  { title: 'Site permissions', cmd: 'settings', arg: 'privacy', keywords: 'camera microphone location notifications', icon: <Lock size={16} /> },
-  { title: 'Clear browsing data', cmd: 'settings', arg: 'privacy', keywords: 'history cookies cache delete', icon: <Lock size={16} /> },
-  { title: 'Elixirs', cmd: 'settings', arg: 'magic', keywords: 'site fixes youtube reddit', icon: <Sparkle size={16} /> },
-  { title: 'Custom scripts', cmd: 'settings', arg: 'magic', keywords: 'javascript userscript tampermonkey', icon: <Code size={16} /> },
-  { title: 'Alchemy Lab', cmd: 'settings', arg: 'lab', keywords: 'experiments ai models', icon: <Sparkle size={16} /> },
   { title: 'Keyboard shortcuts', cmd: 'settings', arg: 'shortcuts', keywords: 'keys hotkeys mouse tips help', icon: <Keyboard size={16} /> },
   { title: 'Play the potion game', cmd: 'game', keywords: 'offline fun wizard', icon: <Sparkle size={16} /> }
 ]
@@ -220,6 +218,15 @@ export function Palette({ onFit }: { onFit: (h: number) => void }): React.JSX.El
           score: 55
         })
       }
+      pool.push({
+        key: 'settings-search',
+        group: 'Go',
+        title: `Search Settings for “${query.trim()}”`,
+        icon: <Settings size={16} />,
+        cmd: 'settings',
+        arg: `q=${query.trim()}`,
+        score: 8
+      })
       if (settings?.lab?.searchEverywhere !== false) pool.push({
         key: 'multi',
         group: 'Go',

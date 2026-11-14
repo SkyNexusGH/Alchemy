@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { SiteRestyle } from '@shared/types'
-import { ELIXIRS } from '@shared/types'
+import type { Elixir, SiteRestyle } from '@shared/types'
 import { api } from '../lib/api'
 import { Palette, X } from '../lib/icons'
 import { saveSettings, useSettings } from '../lib/settings'
@@ -8,7 +7,7 @@ import { saveSettings, useSettings } from '../lib/settings'
 interface SiteInfo {
   site: string
   restyle: SiteRestyle
-  elixirs: string[]
+  elixirs: Elixir[]
 }
 
 const FONTS = ['', 'Inter', 'Segoe UI', 'Georgia', 'Verdana', 'Comic Sans MS', 'Consolas']
@@ -90,12 +89,15 @@ export function RestylePanel(): React.JSX.Element {
       {info.elixirs.length > 0 && (
         <>
           <div className="rs-label">Elixirs</div>
-          {info.elixirs.map((id) => {
-            const e = ELIXIRS.find((x) => x.id === id)!
+          {info.elixirs.map((e) => {
+            const id = e.id
             const on = !!settings?.elixirs?.[id]
             return (
-              <div className="rs-row" key={id}>
-                {e.title}
+              <div className="rs-row" key={id} title={e.broken ? 'It hasn’t found anything to hide lately; the site may have changed.' : e.hint}>
+                <span>
+                  {e.title}
+                  {e.broken && on && <span className="rs-broken">may need fixing</span>}
+                </span>
                 <button
                   type="button"
                   role="switch"
@@ -108,6 +110,36 @@ export function RestylePanel(): React.JSX.Element {
           })}
         </>
       )}
+
+      <div className="rs-row">
+        Use my changes here
+        <button type="button" role="switch" aria-checked={!r.paused} className="switch" title="Pause your changes without losing them" onClick={() => save({ paused: !r.paused })} />
+      </div>
+
+      <div className="rs-label">Colours</div>
+      <div className="rs-colors">
+        {(
+          [
+            ['bg', 'Background'],
+            ['text', 'Text'],
+            ['link', 'Links']
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="rs-color">
+            <input
+              type="color"
+              value={r.colors?.[key] ?? (key === 'bg' ? '#ffffff' : key === 'text' ? '#222222' : '#1a5fd0')}
+              onChange={(e) => save({ colors: { ...r.colors, [key]: e.target.value } })}
+            />
+            <span>{label}</span>
+            {r.colors?.[key] && (
+              <button className="icon-btn" title="The site’s own" onClick={() => save({ colors: { ...r.colors, [key]: undefined } })}>
+                <X size={11} />
+              </button>
+            )}
+          </label>
+        ))}
+      </div>
 
       <div className="rs-label">Hide parts of the page</div>
       <button className="btn small" style={{ justifySelf: 'start' }} onClick={() => void api.invoke('mods:pick')}>

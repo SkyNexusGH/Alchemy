@@ -21,9 +21,34 @@ export function SideRail(props: { onMouseEnter?: () => void; onMouseLeave?: () =
   // Sidebar sites don't go through Tor, so Alchemy Tor windows leave them out.
   const isTor = useShell((s) => s.win.tor)
   const workspaces = useSettings((s) => s.settings?.workspaces ?? [])
-  const panels = useShell((s) => s.win.panels)
+  const allPanels = useShell((s) => s.win.panels)
+  // Each workspace can show just its own sidebar sites.
+  const workspaceId = useShell((s) => s.win.workspaceId)
+  const shownHere = workspaces.find((w) => w.id === workspaceId)?.panels
+  const panels = shownHere && !isPrivate ? allPanels.filter((p) => shownHere.includes(p.id)) : allPanels
   const wsRefs = useRef(new Map<string, HTMLButtonElement>())
 
+  // The sidebar's one + button: what to add was picked in its menu.
+  const addRef = useRef<HTMLButtonElement>(null)
+  useEffect(
+    () =>
+      api.on('rail:add', (what: 'workspace' | 'panel') => {
+        const el = addRef.current
+        if (!el) return
+        if (what === 'workspace') openBeside(el, { kind: 'workspace', workspaceId: null })
+        else openBeside(el, { kind: 'add-panel' }, 360)
+      }),
+    []
+  )
+  // "Name, icon and color…" from a sidebar site's menu.
+  useEffect(
+    () =>
+      api.on('panel:edit', (id: string) => {
+        const el = document.querySelector<HTMLElement>(`[data-panel="${CSS.escape(id)}"]`)
+        if (el) openBeside(el, { kind: 'add-panel', editId: id }, 320)
+      }),
+    []
+  )
   // "Edit workspace…" from the right-click menu opens the editor beside that workspace.
   useEffect(
     () =>
@@ -41,13 +66,6 @@ export function SideRail(props: { onMouseEnter?: () => void; onMouseLeave?: () =
           {workspaces.map((w) => (
             <WorkspaceButton key={w.id} ws={w} refMap={wsRefs.current} />
           ))}
-          <button
-            className="rail-add"
-            title="New workspace"
-            onClick={(e) => openBeside(e.currentTarget, { kind: 'workspace', workspaceId: null })}
-          >
-            <Plus size={14} />
-          </button>
           <div className="rail-divider" />
         </>
       )}
@@ -59,9 +77,13 @@ export function SideRail(props: { onMouseEnter?: () => void; onMouseLeave?: () =
             <PanelButton key={p.id} panel={p} />
           ))}
           <button
+            ref={addRef}
             className="rail-add"
-            title="Add a messenger or site to the sidebar"
-            onClick={(e) => openBeside(e.currentTarget, { kind: 'add-panel' }, 360)}
+            title="Add a workspace, or a messenger or site to the sidebar"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              void api.invoke('rail:addMenu', r.right, r.top)
+            }}
           >
             <Plus size={14} />
           </button>
@@ -69,24 +91,7 @@ export function SideRail(props: { onMouseEnter?: () => void; onMouseLeave?: () =
       )}
 
       <div className="rail-spacer" />
-      <RailClock />
     </nav>
-  )
-}
-
-/** The time at the bottom of the sidebar, handy in full screen. */
-function RailClock(): React.JSX.Element {
-  const [now, setNow] = useState(new Date())
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 10_000)
-    return () => clearInterval(id)
-  }, [])
-  const [h, m] = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).split(':')
-  return (
-    <div className="rail-clock" title={now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}>
-      <b>{h}</b>
-      <span>{m?.slice(0, 2)}</span>
-    </div>
   )
 }
 
@@ -128,7 +133,7 @@ function WorkspaceButton({ ws, refMap }: { ws: Workspace; refMap: Map<string, HT
 export function useWorkspaceColors(ws: Workspace): React.CSSProperties {
   const fallback = useSettings((s) => s.settings?.appearance.accent ?? '#ec4856')
   const dark = useSettings((s) => s.dark)
-  const mode = useSettings((s) => s.settings?.appearance.mode ?? 'ovyra')
+  const mode = useSettings((s) => s.settings?.appearance.mode ?? 'alchemy')
   const accent = ws.accent ?? fallback
   return {
     '--wa': accent,
@@ -206,6 +211,7 @@ function PanelButton({ panel }: { panel: PanelState }): React.JSX.Element {
   return (
     <button
       {...reorder}
+      data-panel={panel.id}
       className={`panel-btn${open ? ' active' : ''}${panel.loaded ? ' loaded' : ''} ${dropClass}`}
       title={panel.title}
       onPointerEnter={(e) => !open && peek.enter(panel, e.currentTarget)}
@@ -225,7 +231,13 @@ function PanelButton({ panel }: { panel: PanelState }): React.JSX.Element {
   )
 }
 
-export function PanelIcon({ panel, size }: { panel: Pick<PanelState, 'favicon' | 'color' | 'title'>; size: number }): React.JSX.Element {
+export function PanelIcon({ panel, size }: { panel: Pick<PanelState, 'favicon' | 'color' | 'title' | 'badge'>; size: number }): React.JSX.Element {
+  if (panel.badge)
+    return (
+      <span className="letter-icon" style={{ width: size, height: size, fontSize: size * (panel.badge.length > 1 ? 0.42 : 0.58), background: panel.color }}>
+        {panel.badge}
+      </span>
+    )
   if (panel.favicon) return <img src={panel.favicon} width={size} height={size} alt="" draggable={false} className="favicon" />
   return (
     <span className="letter-icon" style={{ width: size, height: size, fontSize: size * 0.55, background: panel.color }}>

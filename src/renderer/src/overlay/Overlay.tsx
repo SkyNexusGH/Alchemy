@@ -55,7 +55,7 @@ export default function Overlay(): React.JSX.Element {
       {payload?.kind === 'downloads' && <DownloadsPanel />}
       {payload?.kind === 'shields' && <ShieldsPanel key={payload.tabId} tabId={payload.tabId} />}
       {payload?.kind === 'workspace' && <WorkspaceEditor key={payload.workspaceId ?? 'new'} id={payload.workspaceId} />}
-      {payload?.kind === 'add-panel' && <AddPanel />}
+      {payload?.kind === 'add-panel' && (payload.editId ? <EditPanel id={payload.editId} /> : <AddPanel />)}
       {payload?.kind === 'palette' && <PaletteHost />}
       {payload?.kind === 'app' && <AppMenu />}
       {payload?.kind === 'tabcard' && <TabCard key={payload.tabId} tabId={payload.tabId} />}
@@ -288,6 +288,50 @@ function WorkspaceEditor({ id }: { id: string | null }): React.JSX.Element {
   )
 }
 
+/** #209 A sidebar site's own name, icon (an emoji or letters) and color. */
+function EditPanel({ id }: { id: string }): React.JSX.Element {
+  const panels = useShellPanels()
+  const p = panels.find((x) => x.id === id)
+  const [title, setTitle] = useState(p?.title ?? '')
+  const [badge, setBadge] = useState(p?.badge ?? '')
+  const [color, setColor] = useState(p?.color ?? '#8b5cf6')
+  const panel = useRef<HTMLDivElement>(null)
+  useDismiss()
+  useFitHeight(panel)
+  if (!p) return <div className="panel add-panel" ref={panel} />
+  return (
+    <form
+      className="panel add-panel"
+      ref={panel as unknown as React.Ref<HTMLFormElement>}
+      onSubmit={(e) => {
+        e.preventDefault()
+        void api.invoke('panels:edit', id, { title, badge, color })
+        api.invoke('overlay:hide')
+      }}
+    >
+      <div className="wse-title">Edit {p.title}</div>
+      <div className="wse-label">Name</div>
+      <input className="field" value={title} autoFocus onChange={(e) => setTitle(e.target.value)} />
+      <div className="wse-label">Icon</div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span className="letter-icon" style={{ width: 34, height: 34, fontSize: badge.length > 1 ? 14 : 19, background: color, flexShrink: 0 }}>
+          {badge || p.title.charAt(0).toUpperCase()}
+        </span>
+        <input className="field" style={{ flex: 1, minWidth: 0 }} placeholder="An emoji or letters; empty uses the site’s icon" maxLength={4} value={badge} onChange={(e) => setBadge(e.target.value)} />
+        <input type="color" className="ap-color" title="Icon color" value={color} onChange={(e) => setColor(e.target.value)} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+        <button type="button" className="btn small" onClick={() => api.invoke('overlay:hide')}>
+          Cancel
+        </button>
+        <button type="submit" className="btn small primary">
+          Save
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function AddPanel(): React.JSX.Element {
   const panels = useShellPanels()
   const [url, setUrl] = useState('')
@@ -379,6 +423,7 @@ function useFitHeight(panel: React.RefObject<HTMLElement | null>): void {
 
 function ShieldsPanel({ tabId }: { tabId: number }): React.JSX.Element {
   const [info, setInfo] = useState<ShieldsInfo | null>(null)
+  const [showList, setShowList] = useState(false)
   const panel = useRef<HTMLDivElement>(null)
   useDismiss()
   useFitHeight(panel)
@@ -440,7 +485,60 @@ function ShieldsPanel({ tabId }: { tabId: number }): React.JSX.Element {
         )}
       </div>
 
-      {on && info.hosts.length > 0 && (
+      {on && (
+        <div className="sh-level">
+          <span>Level here</span>
+          <div className="sh-seg">
+            {(
+              [
+                ['', 'Default'],
+                ['chill', 'Chill'],
+                ['comfort', 'Comfort'],
+                ['extreme', 'Extreme']
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className={(info.siteLevel ?? '') === value ? 'on' : ''}
+                title={value ? `${label} on ${info.site} only (the page reloads)` : 'Use the level from Settings'}
+                onClick={async () => {
+                  await api.invoke('shields:siteLevel', info.site, value)
+                  setInfo({ ...info, siteLevel: value || undefined })
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {on && (
+        <label className="sh-fp" title="Turn off only if this site doesn't work right; the page reloads">
+          <span>Fingerprint protection here</span>
+          <button
+            role="switch"
+            aria-checked={!info.fingerprintOff}
+            className="switch small"
+            onClick={async () => {
+              await api.invoke('shields:fingerprint', info.site, !!info.fingerprintOff)
+              setInfo({ ...info, fingerprintOff: !info.fingerprintOff })
+            }}
+          />
+        </label>
+      )}
+      {on && (
+        <div className="sh-actions">
+          <button className="btn small" title="Hide an ad or banner Aegis missed. Shift+click to pick several." onClick={() => void api.invoke('mods:pick')}>
+            Block an element
+          </button>
+          {info.hosts.length > 0 && (
+            <button className="btn small ghost" onClick={() => setShowList(!showList)}>
+              {showList ? 'Hide the list' : `What was blocked (${info.hosts.length})`}
+            </button>
+          )}
+        </div>
+      )}
+      {on && showList && info.hosts.length > 0 && (
         <div className="sh-list">
           {info.hosts.map(([host, n]) => (
             <div key={host} className="sh-row">

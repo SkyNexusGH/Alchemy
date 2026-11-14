@@ -29,14 +29,14 @@ onSettingsChanged((s) => {
 })
 
 /** Everything a browsing session needs, for the normal profile and private windows alike. */
-export function setupBrowsingSession(ses: Session, opts: { incognito: boolean; autoAllow?: string[] }): void {
+export function setupBrowsingSession(ses: Session, opts: { incognito: boolean; autoAllow?: string[]; panels?: boolean }): void {
   sessions.add(ses)
   if (getSettings().performance.networkLimitMbps > 0) applyNetworkLimit(ses)
   ses.setUserAgent(app.userAgentFallback)
   serveRendererBundle(ses)
   setupPermissions(ses, { remember: !opts.incognito, autoAllow: opts.autoAllow })
   trackDownloads(ses, opts)
-  protectSession(ses)
+  protectSession(ses, { masked: opts.incognito, panels: !!opts.panels })
 }
 
 let privateSession: Session | null = null
@@ -47,7 +47,7 @@ let privateSession: Session | null = null
  */
 export function getPrivateSession(): Session {
   if (!privateSession) {
-    privateSession = session.fromPartition('ovyra-private', { cache: true })
+    privateSession = session.fromPartition('alchemy-private', { cache: true })
     setupBrowsingSession(privateSession, { incognito: true })
   }
   return privateSession

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import { setupJsonViewer } from './json'
 import { setupPasswords } from './passwords'
+import { watchCapture } from './capture'
 import { setupPopout } from './popout'
 import { protect, type PrivacyConfig } from './privacy'
 
@@ -11,7 +12,7 @@ interface FrameConfig extends PrivacyConfig {
 
 // Runs in every frame of every web page, before the page's own scripts.
 if (location.protocol === 'https:' || location.protocol === 'http:') {
-  const config = ipcRenderer.sendSync('ovyra:frame', location.href) as FrameConfig | null
+  const config = ipcRenderer.sendSync('alchemy:frame', location.href) as FrameConfig | null
 
   // Ad-blocking scriptlets (uBlock's YouTube rules and friends) have to be in place before
   // the page reads its own data, so they run right now, in the page's world, past its CSP.
@@ -25,7 +26,16 @@ if (location.protocol === 'https:' || location.protocol === 'http:') {
   }
 
   // Paste protection reports what it stopped from the page's world through this event.
-  window.addEventListener('__alchemy_clipboard_blocked', () => ipcRenderer.send('ovyra:clipboard-blocked'))
+  window.addEventListener('__alchemy_clipboard_blocked', () => ipcRenderer.send('alchemy:clipboard-blocked'))
+
+  // Camera, microphone and screen use, for the red dot on the tab.
+  window.addEventListener('__alchemy_capture_on', () => ipcRenderer.send('alchemy:capture', true))
+  window.addEventListener('__alchemy_capture_off', () => ipcRenderer.send('alchemy:capture', false))
+  try {
+    contextBridge.executeInMainWorld({ func: watchCapture })
+  } catch {
+    /* no main world */
+  }
 
   if (config && (config.farble || config.gpc || config.clipboard)) {
     try {

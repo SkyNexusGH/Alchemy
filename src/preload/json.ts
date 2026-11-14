@@ -118,7 +118,7 @@ export function setupJsonViewer(): void {
       return
     }
 
-    const host = document.createElement('ovyra-json')
+    const host = document.createElement('alchemy-json')
     const root = host.attachShadow({ mode: 'closed' })
     const sheet = new CSSStyleSheet()
     sheet.replaceSync(CSS)

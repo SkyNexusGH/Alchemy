@@ -1,10 +1,10 @@
-import { app, dialog, ipcMain, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import { app, clipboard, dialog, ipcMain, safeStorage, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { execFile } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomInt, randomUUID } from 'node:crypto'
 import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SavedPassword, ToastData } from '@shared/types'
-import { getSettings } from './settings'
+import { getSettings, updateSettings } from './settings'
 import { BrowserWin } from './window'
 
 /**
@@ -21,27 +21,52 @@ interface Entry extends SavedPassword {
 const file = (): string => join(app.getPath('userData'), 'passwords.enc')
 let entries: Entry[] | null = null
 
-function load(): Entry[] {
-  if (entries) return entries
-  entries = []
-  try {
-    if (existsSync(file()) && safeStorage.isEncryptionAvailable()) {
-      entries = JSON.parse(safeStorage.decryptString(readFileSync(file()))) as Entry[]
+/** Windows can't encrypt right now, so passwords are kept only until Alchemy closes. */
+let unencrypted = false
+let loading: Promise<void> | null = null
+
+/** Reads the password file once, at startup. */
+export function loadPasswords(): Promise<void> {
+  return (loading ??= (async () => {
+    const list: Entry[] = []
+    try {
+      if (!(await safeStorage.isAsyncEncryptionAvailable())) {
+        unencrypted = true
+      } else if (existsSync(file())) {
+        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(readFileSync(file()))
+        list.push(...(JSON.parse(result) as Entry[]))
+        if (shouldReEncrypt) setTimeout(save)
+      }
+    } catch (err) {
+      console.error('[passwords] could not read the password file', err)
+      // Saving would replace it, so keep a copy that could still be recovered.
+      copyFileSync(file(), `${file()}.unreadable-${Date.now()}`)
     }
-  } catch (err) {
-    console.error('[passwords] could not read the password file', err)
-    // Saving would replace it, so keep a copy that could still be recovered.
-    copyFileSync(file(), `${file()}.unreadable-${Date.now()}`)
-  }
-  return entries
+    // Anything saved while the file was still being read is kept too.
+    entries = [...list, ...(entries ?? []).filter((e) => !list.some((x) => x.id === e.id))]
+  })())
 }
 
-function save(): void {
-  if (!safeStorage.isEncryptionAvailable()) return
-  const data = safeStorage.encryptString(JSON.stringify(load()))
-  writeFileSync(`${file()}.tmp`, data)
-  renameSync(`${file()}.tmp`, file())
+function load(): Entry[] {
+  return (entries ??= [])
 }
+
+let writing = Promise.resolve()
+
+function save(): void {
+  writing = writing
+    .then(() => loadPasswords())
+    .then(async () => {
+      if (unencrypted) return
+      const data = await safeStorage.encryptStringAsync(JSON.stringify(load()))
+      writeFileSync(`${file()}.tmp`, data)
+      renameSync(`${file()}.tmp`, file())
+    })
+    .catch((err) => console.error('[passwords] could not save', err))
+}
+
+/** Whether saved passwords survive a restart (false when Windows encryption isn't available). */
+export const passwordsEncrypted = (): boolean => !unencrypted
 
 const originOf = (url: string): string => {
   try {
@@ -70,7 +95,7 @@ const UNLOCK_MS = 15 * 60_000
 let unlockedUntil = 0
 let asking: Promise<boolean> | null = null
 
-function askHello(message: string): Promise<'Verified' | 'Unavailable' | 'Failed'> {
+export function askHello(message: string): Promise<'Verified' | 'Unavailable' | 'Failed'> {
   return new Promise((resolve) => {
     const encoded = Buffer.from(HELLO(message), 'utf16le').toString('base64')
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120_000 }, (err, stdout) => {
@@ -143,6 +168,9 @@ export function savePending(id: string): void {
   if (!p) return
   pending.delete(id)
   upsert(p.origin, p.username, p.password)
+  if (unencrypted) {
+    BrowserWin.focused()?.send('toast', { text: 'Windows can’t encrypt passwords on this PC right now, so this one is kept only until you close Alchemy.', ms: 9000 } satisfies ToastData)
+  }
 }
 
 function upsert(origin: string, username: string, password: string): Entry {
@@ -169,13 +197,14 @@ function upsert(origin: string, username: string, password: string): Entry {
 const isTopFrame = (event: IpcMainEvent | IpcMainInvokeEvent): boolean => !!event.senderFrame && event.senderFrame === event.sender.mainFrame
 
 export function registerPasswordIpc(): void {
+  void loadPasswords()
   // A login form was submitted: offer to save it (never in Masked Mode or Tor).
-  ipcMain.on('ovyra:pw-captured', (event, data: { username: string; password: string }) => {
+  ipcMain.on('alchemy:pw-captured', (event, data: { username: string; password: string }) => {
     if (!isTopFrame(event) || !getSettings().passwordManager) return
     const bw = BrowserWin.fromWebContents(event.sender)
     if (!bw || bw.incognito || !data?.password) return
     const origin = originOf(event.senderFrame!.url)
-    if (!/^https?:/.test(origin)) return
+    if (!/^https?:/.test(origin) || (getSettings().pwNever ?? []).includes(origin)) return
     const list = load()
     const same = list.find((x) => x.origin === origin && x.username === data.username)
     if (same?.password === data.password) return
@@ -185,12 +214,19 @@ export function registerPasswordIpc(): void {
     bw.send('toast', {
       text: `${same ? 'Update' : 'Save'} password for ${new URL(origin).host}?`,
       action: { label: same ? 'Update' : 'Save', cmd: 'pw-save', arg: id },
+      action2: same ? undefined : { label: 'Never for this site', cmd: 'pw-never', arg: origin },
       ms: 15_000
     } satisfies ToastData)
   })
 
+  // A sign-up form wants a new password: suggest a strong one.
+  ipcMain.handle('alchemy:pw-generate', (event) => {
+    if (!isTopFrame(event) || !getSettings().passwordManager || BrowserWin.fromWebContents(event.sender)?.incognito) return null
+    return generatePassword()
+  })
+
   // Which logins exist for the site you're on (names only, no passwords).
-  ipcMain.handle('ovyra:pw-query', (event) => {
+  ipcMain.handle('alchemy:pw-query', (event) => {
     if (!isTopFrame(event) || !getSettings().passwordManager || BrowserWin.fromWebContents(event.sender)?.tor) return []
     const origin = originOf(event.senderFrame!.url)
     return load()
@@ -199,7 +235,7 @@ export function registerPasswordIpc(): void {
   })
 
   // You picked a login in the picker: hand over that password, for its own site only.
-  ipcMain.handle('ovyra:pw-fill', async (event, id: string) => {
+  ipcMain.handle('alchemy:pw-fill', async (event, id: string) => {
     if (!isTopFrame(event) || !getSettings().passwordManager || BrowserWin.fromWebContents(event.sender)?.tor) return null
     const e = load().find((x) => x.id === id)
     if (!e || e.origin !== originOf(event.senderFrame!.url)) return null
@@ -208,7 +244,75 @@ export function registerPasswordIpc(): void {
   })
 }
 
+// ---- strong passwords ------------------------------------------------------------------------
+
+/** A random password from Settings' options: length, symbols, and no look-alike letters. */
+export function generatePassword(opts = getSettings().pwGenerator ?? { length: 20, symbols: true, readable: true }): string {
+  const lookAlike = /[Il1O0o]/g
+  let lower = 'abcdefghijklmnopqrstuvwxyz'
+  let upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  let digits = '0123456789'
+  const symbols = '!@#$%^&*-_=+?'
+  if (opts.readable) {
+    lower = lower.replace(lookAlike, '')
+    upper = upper.replace(lookAlike, '')
+    digits = digits.replace(lookAlike, '')
+  }
+  const sets = [lower, upper, digits, ...(opts.symbols ? [symbols] : [])]
+  const all = sets.join('')
+  const length = Math.min(64, Math.max(8, Math.round(opts.length) || 20))
+  // One from each kind, so sites that demand a digit or a symbol are happy; the rest at random.
+  const chars = sets.map((s) => s[randomInt(s.length)])
+  while (chars.length < length) chars.push(all[randomInt(all.length)])
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
+
+/** Never offer to save passwords on this site (from the save prompt). */
+export function neverSaveFor(origin: string): void {
+  const list = getSettings().pwNever ?? []
+  if (/^https?:/.test(origin) && !list.includes(origin)) updateSettings({ pwNever: [...list, origin] })
+}
+
 // ---- for Settings (Alchemy's own pages only: see handle() in ipc.ts) ----------------------------
+
+/** #486 Changes a saved login, after Windows Hello. */
+export async function updatePassword(id: string, username: string, password: string): Promise<boolean> {
+  const e = load().find((x) => x.id === id)
+  if (!e || !password || !(await unlock('Change your saved password'))) return false
+  e.username = username
+  if (e.password !== password) {
+    e.password = password
+    e.breaches = undefined
+    e.checked = undefined
+  }
+  e.updated = Date.now()
+  save()
+  void checkEntry(e).then(save)
+  return true
+}
+
+/** #493 Deletes every saved password, after Windows Hello. */
+export async function removeAllPasswords(): Promise<boolean> {
+  if (!load().length || !(await unlock('Delete all your saved passwords'))) return false
+  entries = []
+  save()
+  return true
+}
+
+/** #502 Copies a password, and wipes it from the clipboard 30 seconds later (if it's still there). */
+export async function copyPassword(id: string): Promise<boolean> {
+  const e = load().find((x) => x.id === id)
+  if (!e || !(await unlock('Copy your saved password'))) return false
+  await clipboard.writeText(e.password)
+  setTimeout(async () => {
+    if ((await clipboard.readText()) === e.password) clipboard.clear()
+  }, 30_000)
+  return true
+}
 
 export const listPasswords = (): SavedPassword[] => load().map(publicEntry)
 
@@ -228,18 +332,30 @@ export function addPassword(url: string, username: string, password: string): vo
   if (origin && password) upsert(origin, username, password)
 }
 
-/** Imports a CSV exported from Chrome, Edge, Brave or Opera (name, url, username, password). */
+/**
+ * Imports a CSV exported from Chrome, Edge, Brave, Opera or Firefox (url, username, password),
+ * Bitwarden (login_uri, login_username, login_password) or 1Password (Url or Website, Username, Password).
+ */
 export async function importPasswordsCsv(): Promise<number> {
-  const { canceled, filePaths } = await dialog.showOpenDialog({ filters: [{ name: 'Passwords CSV', extensions: ['csv'] }], properties: ['openFile'] })
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Import passwords (CSV from Chrome, Edge, Firefox, Bitwarden or 1Password)',
+    filters: [{ name: 'Passwords CSV', extensions: ['csv'] }],
+    properties: ['openFile']
+  })
   if (canceled || !filePaths[0]) return 0
   const rows = parseCsv(readFileSync(filePaths[0], 'utf8'))
   const head = (rows.shift() ?? []).map((h) => h.trim().toLowerCase())
-  const [u, n, p] = ['url', 'username', 'password'].map((k) => head.indexOf(k))
+  const col = (...names: string[]): number => head.findIndex((h) => names.includes(h))
+  const u = col('url', 'login_uri', 'website', 'web site', 'origin', 'hostname')
+  const n = col('username', 'login_username', 'user', 'login', 'email')
+  const p = col('password', 'login_password')
   if (u < 0 || p < 0) return 0
   let count = 0
   const list = load()
   for (const row of rows) {
-    const origin = originOf(row[u] ?? '')
+    // Some exports leave out the https:// part.
+    const raw = (row[u] ?? '').trim()
+    const origin = originOf(/^[a-z]+:/i.test(raw) ? raw : `https://${raw}`)
     if (!/^https?:/.test(origin) || !row[p]) continue
     const username = n >= 0 ? (row[n] ?? '') : ''
     const e = list.find((x) => x.origin === origin && x.username === username)

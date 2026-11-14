@@ -1,19 +1,32 @@
 import { app } from 'electron'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 // Imported first by index.ts, before anything reads the profile folder.
 if (!app.isPackaged) {
   // Development uses its own profile, so it never touches (or fights over) the
   // profile of an installed Alchemy running at the same time.
-  app.setPath('userData', join(app.getPath('appData'), 'Ovyra Dev'))
+  app.setPath('userData', moveProfile('Ovyra Dev', 'Alchemy Dev'))
   // Keep painting while covered by other windows, so dev builds can be inspected.
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 } else {
-  // Alchemy used to be called Ovyra: keep using that profile (settings, tabs, logins)
-  // rather than starting over in a new folder.
-  const old = join(app.getPath('appData'), 'Ovyra')
-  if (existsSync(old) && !existsSync(join(app.getPath('appData'), 'Alchemy'))) app.setPath('userData', old)
+  app.setPath('userData', moveProfile('Ovyra', 'Alchemy'))
+}
+
+/**
+ * Alchemy used to be called Ovyra. Its profile (settings, tabs, logins) moves to a folder with
+ * the new name; if that can't happen (another copy is still running), the old one is used as is.
+ */
+function moveProfile(oldName: string, newName: string): string {
+  const from = join(app.getPath('appData'), oldName)
+  const to = join(app.getPath('appData'), newName)
+  if (!existsSync(from) || existsSync(to)) return to
+  try {
+    renameSync(from, to)
+    return to
+  } catch {
+    return from
+  }
 }
 
 // Heavy Mode's engine switches and the graphics card switch have to be set before Chromium

@@ -28,7 +28,7 @@ function applyTheme(): void {
   const base = context.private ? '#07080a' : baseColor(mode, dark)
   const root = document.documentElement
   // Dark comes in two shades: Alchemy's navy, or true black.
-  root.dataset.shade = dark ? (mode === 'ovyra' ? 'ovyra' : 'black') : 'light'
+  root.dataset.shade = dark ? (mode === 'alchemy' ? 'alchemy' : 'black') : 'light'
   root.style.setProperty('--accent', accent)
   root.style.setProperty('--accent-ink', inkOn(accent))
   root.style.setProperty('--accent-fg', readableOn(accent, base))
@@ -75,6 +75,8 @@ export function useWorkspace(): Workspace | undefined {
 export function backgroundUrl(settings: Settings, thumb = false): string | null {
   const a = settings.appearance
   if (a.background === 'custom') return a.customBackground ? `alchemy://assets/${a.customBackground}` : null
+  // A folder: the new tab page picks the picture itself.
+  if (a.background === 'folder') return null
   const preset = THEME_PRESETS.find((p) => p.id === a.background)
   return preset?.image ? `/backgrounds/${preset.image}${thumb ? '-thumb' : ''}.jpg` : null
 }
