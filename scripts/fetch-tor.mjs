@@ -21,8 +21,8 @@ async function text(url) {
   return res.text()
 }
 
-/** The highest stable Tor Browser release (alphas end in a letter, like 15.0a3). */
-async function latestVersion() {
+/** Stable Tor Browser releases, newest first (alphas end in a letter, like 15.0a3). */
+async function versionsNewestFirst() {
   const html = await text(DIST)
   const versions = [...html.matchAll(/href="(\d+(?:\.\d+)+)\/"/g)].map((m) => m[1])
   if (!versions.length) throw new Error('No Tor releases listed at ' + DIST)
@@ -32,20 +32,40 @@ async function latestVersion() {
     for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0)
     return 0
   }
-  return versions.sort(cmp).at(-1)
+  return versions.sort(cmp).reverse()
 }
 
-const version = process.argv[2] ?? (await latestVersion())
-const file = `tor-expert-bundle-windows-x86_64-${version}.tar.gz`
+const fileFor = (version) => `tor-expert-bundle-windows-x86_64-${version}.tar.gz`
+
+/** The published checksum of a release's Windows bundle, or null if that release has none. */
+async function checksumFor(version) {
+  const base = `${DIST}${version}/`
+  const sums = await text(`${base}sha256sums-signed-build.txt`).catch(() => text(`${base}sha256sums-unsigned-build.txt`).catch(() => ''))
+  return (
+    sums
+      .split('\n')
+      .map((l) => l.trim().split(/\s+/))
+      .find(([, name]) => name === fileFor(version))?.[0] ?? null
+  )
+}
+
+// Some releases (like a phone-only fix) ship no Windows bundle: use the newest one that does.
+let version = process.argv[2]
+let expected = version ? await checksumFor(version) : null
+if (!version) {
+  for (const v of (await versionsNewestFirst()).slice(0, 6)) {
+    expected = await checksumFor(v)
+    if (expected) {
+      version = v
+      break
+    }
+    console.log(`Tor ${v} has no Windows bundle, trying an older release`)
+  }
+}
+if (!version || !expected) throw new Error('No recent Tor release has a Windows Expert Bundle with published checksums')
+const file = fileFor(version)
 const base = `${DIST}${version}/`
 console.log(`Tor Expert Bundle ${version}`)
-
-const sums = await text(`${base}sha256sums-signed-build.txt`).catch(() => text(`${base}sha256sums-unsigned-build.txt`))
-const expected = sums
-  .split('\n')
-  .map((l) => l.trim().split(/\s+/))
-  .find(([, name]) => name === file)?.[0]
-if (!expected) throw new Error(`${file} is not in the published checksums`)
 
 const res = await fetch(base + file)
 if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)

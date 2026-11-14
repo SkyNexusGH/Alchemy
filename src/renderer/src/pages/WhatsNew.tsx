@@ -36,7 +36,7 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
-    version: '0.1.17',
+    version: '0.1.18',
     date: 'November 2026',
     items: [
       {
