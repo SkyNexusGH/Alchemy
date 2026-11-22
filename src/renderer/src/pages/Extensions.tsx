@@ -133,18 +133,99 @@ function Installed({ list, onBrowse }: { list: ExtensionInfo[] | null; onBrowse:
   )
 }
 
+/** The main colour of an extension's icon, for its tile (the store allows reading its icons). */
+const hueCache = new Map<string, Promise<string | null>>()
+function iconHue(src: string): Promise<string | null> {
+  const known = hueCache.get(src)
+  if (known) return known
+  const p = new Promise<string | null>((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = c.height = 24
+        const g = c.getContext('2d', { willReadFrequently: true })!
+        g.drawImage(img, 0, 0, 24, 24)
+        const d = g.getImageData(0, 0, 24, 24).data
+        let r = 0
+        let gr = 0
+        let b = 0
+        let w = 0
+        for (let i = 0; i < d.length; i += 4) {
+          const max = Math.max(d[i], d[i + 1], d[i + 2])
+          const min = Math.min(d[i], d[i + 1], d[i + 2])
+          // Colourful, visible pixels count most; greys and see-through ones barely.
+          const weight = (d[i + 3] / 255) * ((max - min) / 255 + 0.05) * (max > 30 ? 1 : 0.1)
+          r += d[i] * weight
+          gr += d[i + 1] * weight
+          b += d[i + 2] * weight
+          w += weight
+        }
+        resolve(w > 1 ? `rgb(${Math.round(r / w)} ${Math.round(gr / w)} ${Math.round(b / w)})` : null)
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+  hueCache.set(src, p)
+  return p
+}
+
+/** The icon's colour; undefined while it's being worked out, null if it can't be. */
+function useHue(src: string | null): string | null | undefined {
+  const [hue, setHue] = useState<string | null | undefined>(src ? undefined : null)
+  useEffect(() => {
+    if (src) void iconHue(src).then(setHue)
+  }, [src])
+  return hue
+}
+
+const plural = (n: number, one: string, many: string): string => `${n.toLocaleString()} ${n === 1 ? one : many}`
+
+function StoreIcon({ e, size }: { e: Pick<StoreExtension, 'icon' | 'name'>; size: number }): React.JSX.Element {
+  return e.icon ? <img src={e.icon} width={size} height={size} alt="" className="ext-icon" /> : <span className="ext-icon letter">{e.name.charAt(0)}</span>
+}
+
+function Tile({ e, added, onOpen }: { e: StoreExtension; added: boolean; onOpen: () => void }): React.JSX.Element {
+  // Neutral until the icon's colour is known; Alchemy's accent for extensions without an icon.
+  const found = useHue(e.icon)
+  const hue = found === undefined ? 'var(--text-3)' : (found ?? undefined)
+  return (
+    <button className="ext-tile" onClick={onOpen} style={hue ? ({ '--hue': hue } as React.CSSProperties) : undefined}>
+      <span className="ext-art">
+        <StoreIcon e={e} size={72} />
+        {added && <span className="ext-added">Added</span>}
+      </span>
+      <span className="ext-tile-name">{e.name}</span>
+      <span className="ext-tile-meta">
+        {e.author} · {plural(e.installs, 'install', 'installs')}
+      </span>
+    </button>
+  )
+}
+
 function AlchemyStore({ installed }: { installed: ExtensionInfo[] }): React.JSX.Element {
   const [data, setData] = useState<{ list: StoreExtension[]; url: string; error?: string } | null>(null)
   const [q, setQ] = useState('')
-  const [category, setCategory] = useState('')
+  const [category, setCategory] = useState<string | null>(null) // null: Discover; '': all
   const [open, setOpen] = useState<StoreExtension | null>(null)
   const [busy, setBusy] = useState('')
   const [note, setNote] = useState('')
   const load = (force = false): void => void api.invoke<NonNullable<typeof data>>('store:catalog', force).then(setData)
   useEffect(() => load(), [])
   const have = new Set(installed.map((e) => e.storeId).filter(Boolean))
-  const categories = useMemo(() => [...new Set((data?.list ?? []).map((e) => e.category))].sort(), [data])
-  const shown = (data?.list ?? []).filter((e) => (!category || e.category === category) && (!q || `${e.name} ${e.summary} ${e.author}`.toLowerCase().includes(q.toLowerCase())))
+  const list = useMemo(() => [...(data?.list ?? [])].sort((a, b) => b.installs - a.installs), [data])
+  const counts = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const e of list) m.set(e.category, (m.get(e.category) ?? 0) + 1)
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [list])
+  const query = q.trim().toLowerCase()
+  const hits = list.filter((e) => (!category || e.category === category) && (!query || `${e.name} ${e.summary} ${e.author}`.toLowerCase().includes(query)))
+  const listing = !!query || category !== null
 
   const install = async (e: StoreExtension): Promise<void> => {
     setBusy(e.id)
@@ -155,33 +236,54 @@ function AlchemyStore({ installed }: { installed: ExtensionInfo[] }): React.JSX.
     else if (r === 'already') setNote(`You already have the newest ${e.name}.`)
     else if (r !== 'cancelled') setNote(r)
   }
+  const grid = (items: StoreExtension[]): React.JSX.Element => (
+    <div className="ext-tiles">
+      {items.map((e) => (
+        <Tile key={e.id} e={e} added={have.has(e.id)} onOpen={() => setOpen(e)} />
+      ))}
+    </div>
+  )
+  const shelf = (title: string, items: StoreExtension[], more?: () => void): React.JSX.Element | null =>
+    items.length ? (
+      <section key={title}>
+        <div className="ext-shelf-head">
+          <h2>{title}</h2>
+          {more && <button onClick={more}>View all</button>}
+        </div>
+        {grid(items)}
+      </section>
+    ) : null
 
   return (
     <>
-      <div className="ext-hero">
+      <div className="ext-banner">
         <div>
-          <b>Alchemy Extensions</b>
-          <span>Made by the Alchemy community and checked by hand before they’re listed. Alchemy only installs what was approved.</span>
+          <div className="ext-eyebrow">Reviewed by hand</div>
+          <h2>Make Alchemy yours.</h2>
+          <p>Extensions made by the Alchemy community. Every one is checked before it’s listed, and Alchemy only installs what was approved.</p>
         </div>
-        <a className="btn" href={data ? `${data.url}/publish` : '#'}>
-          Publish yours
-        </a>
+        <div className="ext-banner-cta">
+          {list.some((e) => e.icon) && (
+            <div className="ext-stack">
+              {list
+                .filter((e) => e.icon)
+                .slice(0, 4)
+                .map((e) => (
+                  <StoreIcon key={e.id} e={e} size={48} />
+                ))}
+            </div>
+          )}
+          <a className="btn" href={data ? `${data.url}/publish` : '#'}>
+            Publish yours
+          </a>
+        </div>
       </div>
       <div className="ext-search">
-        <Search size={15} />
-        <input className="field" placeholder="Search extensions" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Search size={16} />
+        <input className="field" placeholder="Search extensions" aria-label="Search extensions" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      {categories.length > 1 && (
-        <div className="chips" style={{ marginBottom: 14 }}>
-          {['', ...categories].map((c) => (
-            <button key={c} className={`chip${c === category ? ' on' : ''}`} onClick={() => setCategory(c)}>
-              {c || 'All'}
-            </button>
-          ))}
-        </div>
-      )}
       {note && <div className="ext-msg">{note}</div>}
-      {!data && <div className="shimmer" style={{ height: 160, borderRadius: 14 }} />}
+      {!data && <div className="shimmer" style={{ height: 220, borderRadius: 16 }} />}
       {data?.error && (
         <div className="ext-empty">
           <Store size={32} />
@@ -192,64 +294,102 @@ function AlchemyStore({ installed }: { installed: ExtensionInfo[] }): React.JSX.
           </button>
         </div>
       )}
-      {data && !data.error && shown.length === 0 && <div className="ext-empty">{q || category ? 'Nothing matches.' : 'No extensions are listed yet.'}</div>}
-      <div className="ext-grid">
-        {shown.map((e) => (
-          <div key={e.id} className="ext-card" onClick={() => setOpen(e)}>
-            {e.icon ? <img src={e.icon} width={44} height={44} alt="" className="ext-icon" /> : <span className="ext-icon letter">{e.name.charAt(0)}</span>}
-            <div className="ext-text">
-              <div className="ext-name">{e.name}</div>
-              <div className="ext-by">
-                by {e.author} · {e.installs.toLocaleString()} installs
-              </div>
-            </div>
-            <p>{e.summary}</p>
-            <button
-              className={`btn small${have.has(e.id) ? '' : ' primary'}`}
-              disabled={have.has(e.id) || busy === e.id}
-              onClick={(ev) => {
-                ev.stopPropagation()
-                void install(e)
-              }}
-            >
-              {have.has(e.id) ? 'Added' : busy === e.id ? 'Adding…' : 'Add'}
+      {data && !data.error && (
+        <div className="ext-browse">
+          <aside className="ext-side">
+            <div className="ext-eyebrow">Browse</div>
+            <button className={category === null && !query ? 'on' : ''} onClick={() => (setCategory(null), setQ(''))}>
+              Discover
             </button>
-          </div>
-        ))}
-      </div>
-      {open && (
-        <div className="modal-backdrop" onMouseDown={(ev) => ev.target === ev.currentTarget && setOpen(null)}>
-          <div className="modal ext-detail" role="dialog" aria-modal>
-            <div className="ext-detail-head">
-              {open.icon ? <img src={open.icon} width={56} height={56} alt="" className="ext-icon" /> : <span className="ext-icon letter big">{open.name.charAt(0)}</span>}
-              <div>
-                <h2>{open.name}</h2>
-                <div className="ext-by">
-                  by {open.author} · {open.category} · version {open.version} · {size(open.size)}
+            <button className={category === '' ? 'on' : ''} onClick={() => setCategory('')}>
+              All extensions <span>{list.length}</span>
+            </button>
+            {counts.length > 0 && <div className="ext-eyebrow" style={{ marginTop: 14 }}>Categories</div>}
+            {counts.map(([c, n]) => (
+              <button key={c} className={category === c ? 'on' : ''} onClick={() => setCategory(c)}>
+                {c} <span>{n}</span>
+              </button>
+            ))}
+          </aside>
+          <div className="ext-shelves">
+            {!list.length ? (
+              <div className="ext-empty">No extensions are listed yet.</div>
+            ) : listing ? (
+              <section>
+                <div className="ext-shelf-head">
+                  <h2>{query ? `Results for “${q.trim()}”` : category || 'All extensions'}</h2>
+                  <span className="ext-count">{plural(hits.length, 'extension', 'extensions')}</span>
                 </div>
-              </div>
-            </div>
-            <p>{open.summary}</p>
-            {open.description && <div className="ext-long">{open.description}</div>}
-            <div className="ext-perms">
-              <b>What it can do</b>
-              {open.permissions.length ? open.permissions.map((p) => <code key={p}>{p}</code>) : <span className="ext-by">It asks for no special permissions.</span>}
-            </div>
-            <div className="buttons">
-              <a className="btn" href={`${data?.url}/e/${open.id}`}>
-                Store page
-              </a>
-              <button className="btn" onClick={() => setOpen(null)}>
-                Close
-              </button>
-              <button className="btn primary" disabled={have.has(open.id) || busy === open.id} onClick={() => void install(open)}>
-                {have.has(open.id) ? 'Added' : busy === open.id ? 'Adding…' : 'Add to Alchemy'}
-              </button>
-            </div>
+                {hits.length ? grid(hits) : <div className="ext-empty">Nothing matches. Try other words.</div>}
+              </section>
+            ) : (
+              <>
+                {shelf('Popular', list.slice(0, 8), () => setCategory(''))}
+                {list.length > 4 &&
+                  shelf(
+                    'New and updated',
+                    [...list].sort((a, b) => b.updated - a.updated).slice(0, 4)
+                  )}
+                {counts.filter(([, n]) => n >= 2).map(([c]) => shelf(c, list.filter((e) => e.category === c).slice(0, 4), () => setCategory(c)))}
+              </>
+            )}
           </div>
         </div>
       )}
+      {open && <Detail e={open} url={data?.url ?? ''} added={have.has(open.id)} busy={busy === open.id} onAdd={() => void install(open)} onClose={() => setOpen(null)} />}
     </>
+  )
+}
+
+function Detail(props: { e: StoreExtension; url: string; added: boolean; busy: boolean; onAdd: () => void; onClose: () => void }): React.JSX.Element {
+  const { e } = props
+  const hue = useHue(e.icon)
+  useEffect(() => {
+    const esc = (ev: KeyboardEvent): void => {
+      if (ev.key === 'Escape') props.onClose()
+    }
+    addEventListener('keydown', esc)
+    return () => removeEventListener('keydown', esc)
+  }, [props])
+  return (
+    <div className="modal-backdrop" onMouseDown={(ev) => ev.target === ev.currentTarget && props.onClose()}>
+      <div className="modal ext-detail" role="dialog" aria-modal aria-label={e.name} style={hue ? ({ '--hue': hue } as React.CSSProperties) : undefined}>
+        <div className="ext-detail-head">
+          <StoreIcon e={e} size={64} />
+          <div>
+            <h2>{e.name}</h2>
+            <div className="ext-by">
+              by {e.author} · <span className="ext-tag">{e.category}</span> · {plural(e.installs, 'install', 'installs')}
+            </div>
+          </div>
+        </div>
+        <p className="ext-summary">{e.summary}</p>
+        {e.description && <div className="ext-long">{e.description}</div>}
+        <dl className="ext-facts">
+          <dt>Version</dt>
+          <dd>{e.version}</dd>
+          <dt>Size</dt>
+          <dd>{size(e.size)}</dd>
+          <dt>Updated</dt>
+          <dd>{new Date(e.updated).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</dd>
+        </dl>
+        <div className="ext-perms">
+          <b>What it can do</b>
+          {e.permissions.length ? e.permissions.map((p) => <code key={p}>{p}</code>) : <span className="ext-by">It asks for no special permissions.</span>}
+        </div>
+        <div className="buttons">
+          <a className="btn" href={`${props.url}/e/${e.id}`}>
+            Store page
+          </a>
+          <button className="btn" onClick={props.onClose}>
+            Close
+          </button>
+          <button className="btn primary" disabled={props.added || props.busy} onClick={props.onAdd}>
+            {props.added ? 'Added' : props.busy ? 'Adding…' : '+ Add to Alchemy'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
