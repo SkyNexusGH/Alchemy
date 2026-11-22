@@ -16,8 +16,10 @@ import {
   Moon,
   Palette,
   Pipette,
+  Puzzle,
   Search,
   Sparkle,
+  Store,
   VenetianMask,
   Volume2,
   type Icon
@@ -35,6 +37,27 @@ interface Release {
 
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
+  {
+    version: '0.1.19',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Store,
+        title: 'Alchemy Extensions',
+        text: 'A new store of extensions made by the Alchemy community, each one checked by hand before it’s listed. Browse it from the Extensions page or at alchemy.extensions.fivenova.org, add one in a click, and it keeps itself up to date.'
+      },
+      {
+        icon: Puzzle,
+        title: 'A new Extensions page',
+        text: 'See what you have installed and where it came from, browse Alchemy Extensions by category, or head to the Chrome Web Store.'
+      },
+      {
+        icon: Sparkle,
+        title: 'Smoother everyday browsing',
+        text: 'Closing a tab no longer makes the next one jump, the Alchemy menu’s tools row is back, New tab icons stay put when clicked, and address bar suggestions no longer flicker as you type.'
+      }
+    ]
+  },
   {
     version: '0.1.18',
     date: 'November 2026',
