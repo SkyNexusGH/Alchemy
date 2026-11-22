@@ -153,6 +153,7 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
     [voiceOn, settings]
   )
   const overlayOpen = useRef(false)
+  const lastHeight = useRef(0)
   itemsRef.current = items
 
   // Follow the active tab's URL unless the user is mid-edit.
@@ -209,9 +210,16 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
       overlayOpen.current = true
       api.invoke('overlay:show', rect, payload)
     } else {
-      api.invoke('overlay:update', payload)
-      api.invoke('overlay:resize', rect.height)
+      // Growing: make room first. Shrinking: change the rows first. Either way nothing is cut off.
+      if (rect.height >= lastHeight.current) {
+        api.invoke('overlay:resize', rect.height)
+        api.invoke('overlay:update', payload)
+      } else {
+        api.invoke('overlay:update', payload)
+        api.invoke('overlay:resize', rect.height)
+      }
     }
+    lastHeight.current = rect.height
   }, [items, selected, focused])
 
   function close(): void {
@@ -282,7 +290,10 @@ export function Omnibox({ tab }: { tab: TabState | null }): React.JSX.Element {
   function query(value: string, allowInline: boolean): void {
     const id = ++seq.current
     inline.current = null
-    remote.current = []
+    // Keep the engine's suggestions that still fit what's typed until new ones arrive, so the
+    // list doesn't shrink and grow again (flicker) on every key.
+    const typedNow = value.trim().toLowerCase()
+    remote.current = remote.current.filter((r) => r.toLowerCase().startsWith(typedNow) && r.toLowerCase() !== typedNow)
     if (!value.trim()) {
       local.current = []
       setItems([])

@@ -180,6 +180,10 @@
   left: 0;
   z-index: 10;
   min-width: 200px;
+  /* Long engine lists scroll instead of running off the bottom of the window. */
+  max-height: var(--room, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
   border-radius: calc(var(--r) + 2px);
   background: var(--panel-2);
@@ -328,7 +332,8 @@
     box-shadow 260ms var(--ease),
     background 200ms var(--ease);
 }
-.tile-icon > :not(.tile-glow) {
+/* The click ripple stays out of the way (absolute), so it can't push the logo aside. */
+.tile-icon > :not(.tile-glow):not(.ripple) {
   position: relative;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
 }

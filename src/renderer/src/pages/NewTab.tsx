@@ -287,7 +287,13 @@ function SearchBox({ engine }: { engine: SearchEngineId }): React.JSX.Element {
             <ChevronDown size={13} />
           </button>
           {picking && (
-            <div className="sb-engines">
+            <div
+              className="sb-engines"
+              ref={(el) => {
+                // As tall as the room left below the search box.
+                if (el) el.style.setProperty('--room', `${Math.max(160, window.innerHeight - el.getBoundingClientRect().top - 16)}px`)
+              }}
+            >
               {allEngines(settings).map(({ id, name }) => (
                 <button
                   key={id}

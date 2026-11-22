@@ -859,7 +859,6 @@ kbd {
   color: var(--text-2);
   font-weight: 540;
 }
-}
 .am-foot {
   display: flex;
   gap: 4px;

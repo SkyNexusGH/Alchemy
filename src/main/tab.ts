@@ -1,4 +1,5 @@
 import { attachSiteMods, forceDarkOn } from './sitemods'
+import { installFromStore, storeInstallId } from './extstore'
 import { pageLanguage } from './translate'
 import { isFloating } from './float'
 import { WebContentsView, type BrowserWindowConstructorOptions, type NavigationEntry, type WebContents } from 'electron'
@@ -44,6 +45,8 @@ export interface TabHost {
   foundInPage(tab: Tab, result: Electron.Result): void
   htmlFullscreen(tab: Tab, on: boolean): void
   tabFocused(tab: Tab): void
+  /** Sends a message to the window's own interface (toasts and the like). */
+  send(channel: string, ...args: unknown[]): void
 }
 
 export class Tab {
@@ -367,6 +370,21 @@ export class Tab {
     wc.on('focus', () => this.host.tabFocused(this))
     // A tab keeps its boost and sound effects on new pages and in new frames.
     wc.on('did-frame-finish-load', () => this.audioChanged && this.sendAudio())
+
+    // Alchemy Extensions: "Add to Alchemy" on the store opens /install/<id>, which Alchemy
+    // handles itself (it asks, then installs), instead of showing that page.
+    const storeInstall = (e: { preventDefault(): void }, url: string): void => {
+      const id = storeInstallId(url)
+      if (!id || this.host.incognito) return
+      e.preventDefault()
+      void installFromStore(id, this.host.win)
+        .then((r) => {
+          if (r === 'installed') this.host.send('toast', { text: 'Extension added. Find it in the toolbar’s extensions menu.' })
+          if (r === 'already') this.host.send('toast', { text: 'You already have the newest version.' })
+        })
+        .catch((err: Error) => this.host.send('toast', { text: err.message, ms: 8000 }))
+    }
+    wc.on('will-navigate', (e) => storeInstall(e, e.url))
 
     wc.on('did-start-navigation', (details) => {
       // A new page starts with a fresh blocked count.

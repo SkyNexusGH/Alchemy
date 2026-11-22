@@ -65,6 +65,7 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
     return () => clearTimeout(t)
   }, [])
   const tabs = useShell((s) => s.win.tabs)
+  for (const id of closingTabs) if (!tabs.some((t) => t.id === id)) closingTabs.delete(id)
   const activeId = useShell((s) => s.win.activeId)
   // Switching workspace slides the new set of tabs in from the side it's on.
   const workspaceId = useShell((s) => s.win.workspaceId)
@@ -112,6 +113,20 @@ export function TabStrip({ vertical = false }: { vertical?: boolean }): React.JS
 
   // FLIP: when tabs open, close or reorder, slide the others to their new place.
   const lastLeft = useRef(new Map<number, number>())
+  // A tab started folding away: redraw so it keeps its closing look.
+  const [, setClosingTick] = useState(0)
+  useEffect(() => {
+    const on = (): void => setClosingTick((n) => n + 1)
+    window.addEventListener('tabs:closing', on)
+    return () => window.removeEventListener('tabs:closing', on)
+  }, [])
+  useEffect(() => {
+    const remeasure = (): void => {
+      for (const [id, el] of els.current) lastLeft.current.set(id, offset(el))
+    }
+    window.addEventListener('tabs:remeasure', remeasure)
+    return () => window.removeEventListener('tabs:remeasure', remeasure)
+  }, [vertical])
   useLayoutEffect(() => {
     const next = new Map<number, number>()
     for (const [id, el] of els.current) {
@@ -373,6 +388,9 @@ interface TabProps {
   onPointerUp: (e?: React.PointerEvent<HTMLDivElement>) => void
 }
 
+/** Tabs folding away, waiting to be closed. */
+const closingTabs = new Set<number>()
+
 /** Folds the tab away, then closes it. */
 function closeTab(from: HTMLElement, id: number): void {
   const el = from.closest<HTMLElement>('.tab')
@@ -381,7 +399,16 @@ function closeTab(from: HTMLElement, id: number): void {
     return
   }
   el.classList.add('closing')
-  setTimeout(() => void api.invoke('tab:close', id), 150)
+  // React redraws tabs when anything changes; it must keep this one folded until it's gone,
+  // or it pops back to full width for a moment and the others jump.
+  closingTabs.add(id)
+  window.dispatchEvent(new Event('tabs:closing'))
+  setTimeout(() => {
+    // The other tabs have already slid over while this one shrank: measure them where they are
+    // now, so they don't jump back and slide again when it's gone.
+    window.dispatchEvent(new Event('tabs:remeasure'))
+    void api.invoke('tab:close', id)
+  }, 150)
 }
 
 const Tab = memo(function Tab({ tab, active, dragging, selected, selection, island, ref, ...handlers }: TabProps): React.JSX.Element {
@@ -390,6 +417,7 @@ const Tab = memo(function Tab({ tab, active, dragging, selected, selection, isla
     active && 'active',
     tab.pinned && 'pinned',
     tab.sleeping && 'sleeping',
+    closingTabs.has(tab.id) && 'closing',
     dragging && 'dragging',
     selected && 'selected',
     island && 'in-island',

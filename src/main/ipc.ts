@@ -9,6 +9,7 @@ import { isDefaultBrowser, openDefaultAppsSettings } from './defaultbrowser'
 import { listExtensions, removeExtension } from './extensions'
 import { importSources, runImport } from './importer'
 import { chooseMenuItem, showMenu } from './popup'
+import { checkStoreUpdates, installFromStore, removeStoreExtension, STORE_URL, storeCatalog, storeIdOf, storeInstalled } from './extstore'
 import { addLater, laterItems, removeLater, setLaterRead } from './later'
 import { toggleReader } from './reader'
 import { allowDangerousSite } from './privacy/network'
@@ -690,8 +691,29 @@ export function registerIpc(): void {
   handle('update:install', () => installUpdate())
 
   // ---- extensions & import ----
-  handle('extensions:list', () => listExtensions())
-  handle('extensions:remove', (_c, id: string) => removeExtension(id))
+  handle('extensions:list', () => listExtensions().map((e) => ({ ...e, storeId: storeIdOf(e.id) })))
+  handle('extensions:remove', async (_c, id: string) => {
+    const storeId = storeIdOf(id)
+    if (storeId) await removeStoreExtension(storeId)
+    else await removeExtension(id)
+  })
+  // ---- Alchemy Extensions (the store) ----
+  handle('store:catalog', async (_c, force?: boolean) => {
+    try {
+      return { list: await storeCatalog(!!force), url: STORE_URL }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err), list: [], url: STORE_URL }
+    }
+  })
+  handle('store:installed', () => storeInstalled())
+  handle('store:install', async ({ bw }, id: string) => {
+    try {
+      return await installFromStore(String(id), bw?.win)
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+  })
+  handle('store:update', () => checkStoreUpdates())
   handle('import:sources', () => importSources())
   handle('import:run', (_c, id: string, what: { bookmarks: boolean; history: boolean; speedDial: boolean }) => runImport(id, what))
 

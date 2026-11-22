@@ -109,6 +109,26 @@ export interface SavedPassword {
   checked?: number
 }
 
+/** An extension in the Alchemy Extensions store (from its signed list). */
+export interface StoreExtension {
+  id: string
+  name: string
+  summary: string
+  description: string
+  category: string
+  homepage: string | null
+  author: string
+  installs: number
+  version: string
+  versionId: string
+  sha256: string
+  size: number
+  permissions: string[]
+  icon: string | null
+  download: string
+  updated: number
+}
+
 /** A page on the Later list (#1156). */
 export interface LaterItem {
   url: string

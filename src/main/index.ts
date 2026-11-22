@@ -10,6 +10,7 @@ import { batterySaverActive, initBatterySaver } from './battery'
 import { initSiteMods } from './sitemods'
 import { registerPasswordIpc } from './passwords'
 import { registerAutofillIpc } from './autofill'
+import { initStoreExtensions } from './extstore'
 import { isMaskedSession } from './privacy/network'
 import { initLock, unlockAtStart } from './lock'
 import { onMilestone } from './privacy/shields'
@@ -83,6 +84,8 @@ if (!app.requestSingleInstanceLock()) {
     void initFilters()
     // Extensions load before the first window so their content scripts see every tab.
     await initExtensions().catch((err) => console.error('[extensions] failed to start', err))
+    // Extensions from Alchemy Extensions (the store), checked for updates every few hours.
+    await initStoreExtensions().catch((err) => console.error('[store] failed to start', err))
     onRequestBlocked((id, url, tracker) => tabsByContents.get(id)?.recordBlocked(url, tracker))
     // Gold toast and confetti in the window you're using when Aegis passes 1,000, 10,000, …
     onMilestone((n) => BrowserWin.focused()?.send('aegis:milestone', n))
