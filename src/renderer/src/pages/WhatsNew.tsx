@@ -38,6 +38,17 @@ interface Release {
 // Newest first. Each release adds its own entry here.
 const RELEASES: Release[] = [
   {
+    version: '0.1.20',
+    date: 'November 2026',
+    items: [
+      {
+        icon: Store,
+        title: 'Meet the makers',
+        text: 'Click a creator’s name on an Alchemy Extensions listing to open their MyHue profile.'
+      }
+    ]
+  },
+  {
     version: '0.1.19',
     date: 'November 2026',
     items: [
