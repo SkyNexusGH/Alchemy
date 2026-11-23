@@ -524,3 +524,7 @@
   margin: 0;
   font-weight: 600;
 }
+
+/* Author names open their MyHue page */
+.ext-author { color: var(--text); font-weight: 600; text-decoration: none; }
+.ext-author:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }

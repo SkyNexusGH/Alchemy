@@ -359,7 +359,7 @@ function Detail(props: { e: StoreExtension; url: string; added: boolean; busy: b
           <div>
             <h2>{e.name}</h2>
             <div className="ext-by">
-              by {e.author} · <span className="ext-tag">{e.category}</span> · {plural(e.installs, 'install', 'installs')}
+              by {e.authorUrl?.startsWith('https://') ? <a className="ext-author" href={e.authorUrl} title={`${e.author} on MyHue`}>{e.author}</a> : e.author} · <span className="ext-tag">{e.category}</span> · {plural(e.installs, 'install', 'installs')}
             </div>
           </div>
         </div>

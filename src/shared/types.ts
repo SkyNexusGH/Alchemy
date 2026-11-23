@@ -118,6 +118,8 @@ export interface StoreExtension {
   category: string
   homepage: string | null
   author: string
+  /** The author's MyHue page. */
+  authorUrl?: string | null
   installs: number
   version: string
   versionId: string
